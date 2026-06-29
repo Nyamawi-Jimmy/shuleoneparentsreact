@@ -1,0 +1,301 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity, Image,
+  TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+} from 'react-native';
+import { Ionicons, Feather } from '@expo/vector-icons';
+import { router, useLocalSearchParams } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '../../theme/ThemeContext';
+import { ColorPalette } from '../../theme/palettes';
+import { useChatConversation } from '../../hooks/useChatConversation';
+import { ChatMessage } from '../../api/chat.types';
+
+export const ConversationScreen: React.FC = () => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  const params = useLocalSearchParams<{ contactId?: string; name?: string; avatar?: string }>();
+  const contactId = params.contactId ? Number(params.contactId) : null;
+  const contactName = (params.name as string) || 'Contact';
+  const contactAvatar = (params.avatar as string) || '';
+
+  const { messages, loading, sendMessage, sendAttachment, retry } = useChatConversation(contactId);
+
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const flatRef = useRef<FlatList<ChatMessage>>(null);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 50);
+    }
+  }, [messages.length]);
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || sending) return;
+    setInput('');
+    setSending(true);
+    try { await sendMessage(text); }
+    catch (e: any) { Alert.alert('Could not send', e?.message ?? 'Try again.'); }
+    finally { setSending(false); }
+  };
+
+  const handleAttach = async () => {
+    try {
+      let DocumentPicker: any;
+      try { DocumentPicker = require('expo-document-picker'); }
+      catch { Alert.alert('Install document picker', 'Run: npx expo install expo-document-picker'); return; }
+      const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, type: ['image/*', 'application/pdf'] });
+      if (result.canceled) return;
+      const file = result.assets?.[0];
+      if (!file) return;
+      setSending(true);
+      await sendAttachment(file.uri, file.name, file.mimeType);
+    } catch (e: any) { Alert.alert('Upload failed', e?.message ?? 'Try again.'); }
+    finally { setSending(false); }
+  };
+
+  const initials = contactName.split(/\s+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('');
+
+  return (
+    <View style={styles.safe}>
+      <LinearGradient
+        colors={['#FB7185', '#E11D48']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={styles.header}
+      >
+        <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
+          <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+        </TouchableOpacity>
+        <View style={styles.headerAvatar}>
+          {contactAvatar ? (
+            <Image source={{ uri: contactAvatar }} style={{ width: 38, height: 38, borderRadius: 19 }} />
+          ) : (
+            <Text style={styles.headerInitials}>{initials || '?'}</Text>
+          )}
+        </View>
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <Text style={styles.headerName} numberOfLines={1}>{contactName}</Text>
+          <Text style={styles.headerStatus}>School staff</Text>
+        </View>
+      </LinearGradient>
+
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingText}>Loading messages…</Text>
+          </View>
+        ) : (
+          <FlatList
+            ref={flatRef}
+            data={messages}
+            keyExtractor={(m, i) => String(m.id ?? `${m.createdAt}-${i}`)}
+            contentContainerStyle={styles.messagesContent}
+            ListEmptyComponent={() => (
+              <View style={styles.center}>
+                <View style={styles.emptyCircle}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={28} color={colors.textTertiary} />
+                </View>
+                <Text style={styles.emptyTitle}>Start the conversation</Text>
+                <Text style={styles.emptyText}>Send a message below to {contactName}.</Text>
+              </View>
+            )}
+            renderItem={({ item, index }) => {
+              const prev = messages[index - 1];
+              const showDate = !prev || !sameDay(prev.createdAt, item.createdAt);
+              return (
+                <View>
+                  {showDate && (
+                    <View style={styles.dateSeparator}>
+                      <Text style={styles.dateText}>{formatDateLabel(item.createdAt)}</Text>
+                    </View>
+                  )}
+                  <MessageBubble
+                    colors={colors} styles={styles}
+                    message={item}
+                    onRetry={() => item.localId != null && retry(item.localId)}
+                  />
+                </View>
+              );
+            }}
+          />
+        )}
+
+        <View style={styles.composer}>
+          <TouchableOpacity activeOpacity={0.7} onPress={handleAttach} style={styles.attachBtn}>
+            <Feather name="paperclip" size={18} color={colors.textSecondary} />
+          </TouchableOpacity>
+          <View style={styles.inputWrap}>
+            <TextInput
+              style={styles.input}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Type a message…"
+              placeholderTextColor={colors.textTertiary}
+              multiline
+              maxLength={1000}
+            />
+          </View>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={handleSend}
+            disabled={!input.trim() || sending}
+            style={[styles.sendBtn, (!input.trim() || sending) && { opacity: 0.5 }]}
+          >
+            <Ionicons name="send" size={16} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </View>
+  );
+};
+
+const MessageBubble: React.FC<{ message: ChatMessage; onRetry: () => void; colors: ColorPalette; styles: any }> = ({ message, onRetry, colors, styles }) => {
+  const isMine = message.fromMe ?? false;
+  const isFailed = message.status === 'failed';
+
+  return (
+    <View style={[styles.bubbleRow, isMine && styles.bubbleRowMine]}>
+      <View style={[
+        styles.bubble,
+        isMine ? styles.bubbleMine : styles.bubbleOther,
+        isFailed && styles.bubbleFailed,
+      ]}>
+        {message.attachmentUrl && (
+          <Image source={{ uri: message.attachmentUrl }} style={styles.attachmentImg} />
+        )}
+        {!!message.text && (
+          <Text style={[styles.bubbleText, isMine ? styles.bubbleTextMine : styles.bubbleTextOther]}>
+            {message.text}
+          </Text>
+        )}
+        <View style={styles.bubbleMetaRow}>
+          <Text style={[styles.bubbleTime, isMine ? styles.bubbleTimeMine : styles.bubbleTimeOther]}>
+            {formatTime(message.createdAt)}
+          </Text>
+          {isMine && message.status === 'sent' && (
+            <Ionicons name="checkmark-done" size={11} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
+          )}
+          {isMine && message.status === 'sending' && (
+            <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
+          )}
+        </View>
+      </View>
+      {isFailed && (
+        <TouchableOpacity hitSlop={8} onPress={onRetry} style={styles.retryBtn}>
+          <Ionicons name="refresh" size={12} color={colors.danger} />
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+};
+
+function formatTime(iso: string | null): string {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  } catch { return ''; }
+}
+function sameDay(a: string | null, b: string | null): boolean {
+  if (!a || !b) return false;
+  try { return new Date(a).toDateString() === new Date(b).toDateString(); }
+  catch { return false; }
+}
+function formatDateLabel(iso: string | null): string {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    const today = new Date();
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+    if (d.toDateString() === today.toDateString()) return 'Today';
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+  } catch { return ''; }
+}
+
+function makeStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: c.backgroundAlt },
+    header: {
+      paddingTop: Platform.OS === 'ios' ? 50 : 36,
+      paddingBottom: 14, paddingHorizontal: 16,
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+    },
+    headerAvatar: {
+      width: 38, height: 38, borderRadius: 19,
+      backgroundColor: 'rgba(255,255,255,0.25)',
+      alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    },
+    headerInitials: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
+    headerName: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', letterSpacing: -0.2 },
+    headerStatus: { color: 'rgba(255,255,255,0.85)', fontSize: 11.5, fontWeight: '500' },
+
+    messagesContent: { padding: 14, flexGrow: 1 },
+    dateSeparator: { alignItems: 'center', marginVertical: 12 },
+    dateText: {
+      backgroundColor: c.card,
+      paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999,
+      fontSize: 11, color: c.textSecondary, fontWeight: '700',
+      borderWidth: 1, borderColor: c.border,
+    },
+
+    bubbleRow: { marginVertical: 3, flexDirection: 'column', alignItems: 'flex-start' },
+    bubbleRowMine: { alignItems: 'flex-end' },
+    bubble: { maxWidth: '78%', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 },
+    bubbleMine: { backgroundColor: c.primary, borderBottomRightRadius: 4 },
+    bubbleOther: { backgroundColor: c.card, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: c.border },
+    bubbleFailed: { borderColor: c.danger, borderWidth: 1 },
+    bubbleText: { fontSize: 14, lineHeight: 19, fontWeight: '500' },
+    bubbleTextMine: { color: '#FFFFFF' },
+    bubbleTextOther: { color: c.text },
+    bubbleMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4 },
+    bubbleTime: { fontSize: 10, fontWeight: '600' },
+    bubbleTimeMine: { color: 'rgba(255,255,255,0.75)' },
+    bubbleTimeOther: { color: c.textTertiary },
+    attachmentImg: { width: 180, height: 180, borderRadius: 10, marginBottom: 6 },
+    retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4, paddingHorizontal: 4 },
+    retryText: { color: c.danger, fontSize: 11, fontWeight: '700' },
+
+    composer: {
+      flexDirection: 'row', alignItems: 'flex-end',
+      paddingHorizontal: 12, paddingVertical: 10, gap: 8,
+      backgroundColor: c.background,
+      borderTopWidth: 1, borderTopColor: c.border,
+    },
+    attachBtn: {
+      width: 38, height: 38, borderRadius: 19,
+      backgroundColor: c.scheme === 'dark' ? c.card : '#F3F4F6',
+      alignItems: 'center', justifyContent: 'center',
+    },
+    inputWrap: {
+      flex: 1,
+      backgroundColor: c.scheme === 'dark' ? c.card : '#F3F4F6',
+      borderRadius: 20,
+      paddingHorizontal: 14, paddingVertical: 8, maxHeight: 110,
+    },
+    input: { fontSize: 14, color: c.text, fontWeight: '500', padding: 0, minHeight: 22 },
+    sendBtn: {
+      width: 38, height: 38, borderRadius: 19,
+      backgroundColor: c.primary,
+      alignItems: 'center', justifyContent: 'center',
+      shadowColor: c.primary, shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3, shadowRadius: 8, elevation: 3,
+    },
+
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
+    loadingText: { fontSize: 12.5, color: c.textSecondary, marginTop: 12, fontWeight: '500' },
+    emptyCircle: {
+      width: 56, height: 56, borderRadius: 28,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+    },
+    emptyTitle: { fontSize: 16, fontWeight: '800', color: c.text },
+    emptyText: { fontSize: 12.5, color: c.textSecondary, marginTop: 6, textAlign: 'center', paddingHorizontal: 40, lineHeight: 17 },
+  });
+}
