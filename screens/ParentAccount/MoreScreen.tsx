@@ -52,6 +52,13 @@ export const MoreScreen: React.FC = () => {
       onPress: () => router.push('/diary' as any),
     },
     {
+      icon: <Feather name="calendar" size={18} color={colors.info} />,
+      bg: colors.infoSoft,
+      label: 'School Calendar',
+      desc: 'Term dates, holidays and school events',
+      onPress: () => router.push('/calendar' as any),
+    },
+    {
       icon: <MaterialCommunityIcons name="bus" size={18} color={colors.warning} />,
       bg: colors.warningSoft,
       label: 'Transport & Bus Tracking',

@@ -106,6 +106,7 @@ function ThemedAppShell() {
         <Stack.Screen name="diary" />
         <Stack.Screen name="transport" />
         <Stack.Screen name="reminders" />
+        <Stack.Screen name="calendar" />
 
         {/* Parent feature screens */}
         <Stack.Screen name="communication-all" />   {/* ← add this line */}
