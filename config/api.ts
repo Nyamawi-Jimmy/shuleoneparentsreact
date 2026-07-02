@@ -11,11 +11,16 @@
  *
  * Your Metro QR shows it too: "exp://10.x.x.x:8081" — that's the IP.
  *
- * In production, replace this with your deployed backend URL.
+ * Configure per-environment via the `EXPO_PUBLIC_API_BASE_URL` env var
+ * (e.g. in a `.env` file at the repo root). Expo inlines any `EXPO_PUBLIC_*`
+ * var into the bundle at build time — no rebuild of native code needed.
+ * Falls back to the dev ngrok tunnel when unset.
+ *
+ * In production, set `EXPO_PUBLIC_API_BASE_URL` to your deployed backend URL.
  */
-export const API_BASE_URL = 'https://a3e7-102-205-238-249.ngrok-free.app';
-// 10.28.152.182 came from your Metro log: "exp://10.28.152.182:8081"
-// Change this if your laptop's IP changes.
+export const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ??
+  'https://a3e7-102-205-238-249.ngrok-free.app';
 
 export class ApiError extends Error {
   status: number;

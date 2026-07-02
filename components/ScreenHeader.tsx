@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, StyleProp, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, typography } from '../../shuleoneparents/constants/theme';
+import { colors, spacing, typography } from '../constants/theme';
 
 interface ScreenHeaderProps {
   title: string;

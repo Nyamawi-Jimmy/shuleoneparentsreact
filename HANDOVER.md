@@ -3,7 +3,7 @@
 > Living digest for cross-session continuity. **Update this at the end of every working pass.**
 > Full reference plan: `~/.claude/plans/latest-shuleoneparentsreact-app-latest-memoized-thunder.md`.
 
-_Last updated: 2026-07-02 — Phase 1 (branch reorg + handover) complete._
+_Last updated: 2026-07-02 — Phase 2 (modernization foundation) complete._
 
 ---
 
@@ -41,20 +41,30 @@ DB=sec  DB_USERNAME=root  DB_PASSWORD=walgotech
   `username=${DB_USERNAME}`, `password=${DB_PASSWORD}`.
 - Health check: `GET /actuator/health`.
 
+**Toolchain:** Node **24 LTS** installed at `C:\Program Files\nodejs` (via winget).
+NOTE: pre-existing tool shells were snapshotted before install — if `node` isn't
+found, prepend `C:\Program Files\nodejs` to PATH for that shell. New terminals get it.
+
 **Mobile** (from `shuleoneparentsreact`):
 ```
 npm install
 npx expo start        # then a=Android, w=web
 ```
-- API base URL currently hardcoded in `config/api.ts` (ngrok). **Phase 2 moves this
-  to `app.config` + `expo-constants` extra.** For a phone, point it at the laptop
-  LAN IP (`ipconfig | findstr IPv4`), not localhost.
+- Stack: **Expo SDK 56**, RN 0.85.3, React 19.2.3, expo-router 56.2, TS 5.9.
+- API base URL is read from `EXPO_PUBLIC_API_BASE_URL` (see `.env.example`); copy to
+  `.env` / `.env.local`. From a physical phone use the laptop LAN IP
+  (`ipconfig | findstr IPv4`), not localhost. Fallback is the dev ngrok URL.
+- Smoke test: `npx expo export --platform web` (bundles all routes) + `npx expo-doctor`.
 
 ## 5. Status
 
 - [x] **Phase 1** — Branch reorg (`master`→`main`), `.idea/` gitignored, HANDOVER created.
-- [ ] **Phase 2** — Modernization: Expo 54→56 (RN 0.85/React 19.2), `expo-secure-store`
-      tokens, env-based API config, TanStack Query, `expo-notifications`, maps, `react-native-webview`.
+- [x] **Phase 2** — Modernization done: Expo 54→**56** (RN 0.85.3/React 19.2.3);
+      `@react-navigation/*` removed (now via `expo-router/react-navigation` + `expo-router/js-tabs`);
+      tokens → `expo-secure-store`; env-based API config (`EXPO_PUBLIC_API_BASE_URL`);
+      TanStack Query provider in `app/_layout.tsx`; `expo-notifications` + `react-native-webview`
+      installed. `expo-doctor` 21/21, web export clean. **Maps lib deferred to Phase 3**
+      (needs a dev build; breaks Expo Go).
 - [ ] **Phase 3** — Parent parity (P1): calendar/events, live classes+join, announcements,
       parent assignments, exams, documents/PDF, push, forgot-password, transport live map,
       AI coach/insights/weekly report.
@@ -67,7 +77,9 @@ npx expo start        # then a=Android, w=web
 
 - **API client:** `config/api.ts` (`apiFetch`, `ApiError`). Typed mirrors in `api/*.types.ts`.
 - **Data hooks pattern:** `hooks/use*.ts` (custom `useState`+`useFocusEffect`) — migrating to TanStack Query.
-- **Auth/child context:** `context/AuthContext.tsx` (tokens in AsyncStorage → moving to SecureStore),
+- **Data fetching (new):** TanStack Query is available app-wide (`QueryClientProvider` in
+  `app/_layout.tsx`). New hooks should use `useQuery`/`useMutation`; migrate legacy `use*` hooks opportunistically.
+- **Auth/child context:** `context/AuthContext.tsx` (tokens now in `expo-secure-store`, keys use dots),
   `context/SelectedChildContext.tsx`, `context/ParentProfileContext.tsx`.
 - **Billing/tier gating:** `api/billing.ts`, `config/tier.ts`, `components/FeePaymentSheet.tsx`.
 - **Authed download:** `utils/downloadAuthFile.ts`.
@@ -85,5 +97,9 @@ npx expo start        # then a=Android, w=web
 
 - `config/api.ts` LAN-IP/ngrok pitfall (localhost = phone, not laptop).
 - Backend real-time (calls) is delegated to ShuleOne-main WebSocket; chat is REST polling.
-- Tokens currently in AsyncStorage (insecure) — Phase 2 moves to SecureStore.
-- Expo SDK upgrade (54→56) may surface library-compat issues; run `npx expo-doctor` after.
+- **Pre-existing WIP type errors** (`npx tsc --noEmit`) inherited from the "wip" commit:
+  api client files double-`JSON.stringify` the body (they pass a stringified body to
+  `apiFetch`, which stringifies again — fix by passing raw objects), plus gamification
+  type drift (`GamificationBar`) and `icon-symbol` typing. These don't block Metro
+  bundling; fix each as its screen is touched in P1/P2.
+- Node lives at `C:\Program Files\nodejs`; some automated shells may need it re-added to PATH.

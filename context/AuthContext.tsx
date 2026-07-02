@@ -6,7 +6,7 @@ import React, {
   ReactNode,
   useCallback,
 } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import {
   AuthResponse,
   loginParent,
@@ -17,11 +17,12 @@ import {
 } from '../api/auth';
 
 // =================================================================
-// Storage keys
+// Storage keys — SecureStore keys may only contain alphanumerics,
+// ".", "-" and "_" (no colons).
 // =================================================================
-const KEY_ACCESS = 'shuleone:auth:access';
-const KEY_REFRESH = 'shuleone:auth:refresh';
-const KEY_USER = 'shuleone:auth:user';
+const KEY_ACCESS = 'shuleone.auth.access';
+const KEY_REFRESH = 'shuleone.auth.refresh';
+const KEY_USER = 'shuleone.auth.user';
 
 // =================================================================
 // Types
@@ -72,10 +73,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       roles: res.roles,
       dateOfBirth: res.dateOfBirth,
     };
-    await AsyncStorage.multiSet([
-      [KEY_ACCESS, res.accessToken],
-      [KEY_REFRESH, res.refreshToken],
-      [KEY_USER, JSON.stringify(u)],
+    await Promise.all([
+      SecureStore.setItemAsync(KEY_ACCESS, res.accessToken),
+      SecureStore.setItemAsync(KEY_REFRESH, res.refreshToken),
+      SecureStore.setItemAsync(KEY_USER, JSON.stringify(u)),
     ]);
     setAccessToken(res.accessToken);
     setUser(u);
@@ -86,9 +87,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     (async () => {
       try {
-        const [[, access], [, userJson]] = await AsyncStorage.multiGet([
-          KEY_ACCESS,
-          KEY_USER,
+        const [access, userJson] = await Promise.all([
+          SecureStore.getItemAsync(KEY_ACCESS),
+          SecureStore.getItemAsync(KEY_USER),
         ]);
         if (access && userJson) {
           setAccessToken(access);
@@ -130,7 +131,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // ── Sign out ─────────────────────────────────────────────
   const signOut = useCallback(async () => {
-    await AsyncStorage.multiRemove([KEY_ACCESS, KEY_REFRESH, KEY_USER]);
+    await Promise.all([
+      SecureStore.deleteItemAsync(KEY_ACCESS),
+      SecureStore.deleteItemAsync(KEY_REFRESH),
+      SecureStore.deleteItemAsync(KEY_USER),
+    ]);
     setAccessToken(null);
     setUser(null);
   }, []);
@@ -138,7 +143,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // ── Refresh ──────────────────────────────────────────────
   const refresh = useCallback(async () => {
     try {
-      const refreshToken = await AsyncStorage.getItem(KEY_REFRESH);
+      const refreshToken = await SecureStore.getItemAsync(KEY_REFRESH);
       if (!refreshToken) return false;
       const res = await refreshTokens(refreshToken);
       await persist(res);

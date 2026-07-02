@@ -1,6 +1,7 @@
-import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from 'expo-router/react-navigation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import 'react-native-reanimated';
 
 import { AuthProvider } from '../context/AuthContext';
@@ -12,17 +13,27 @@ export const unstable_settings = {
   anchor: 'onboarding',
 };
 
+// Single app-wide React Query client. staleTime keeps screen re-focuses from
+// refetching instantly; retry once smooths over flaky mobile networks.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false },
+  },
+});
+
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <ParentProfileProvider>
-          <SelectedChildProvider>
-            <ThemedAppShell />
-          </SelectedChildProvider>
-        </ParentProfileProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <ParentProfileProvider>
+            <SelectedChildProvider>
+              <ThemedAppShell />
+            </SelectedChildProvider>
+          </ParentProfileProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
 
