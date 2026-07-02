@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { useSelectedChild } from '../context/SelectedChildContext';
-import { getChildEvents } from '../api/calendar';
+import { getChildEvents } from '../api/communication';
 import { ApiError } from '../config/api';
 
 /**
- * School calendar events for the selected child. Backed by TanStack Query so
- * results are cached per-child and shared across screens.
+ * School calendar events for the selected child. Reuses the communication API
+ * endpoint but exposes a focused, cached, calendar-only view via TanStack Query.
  */
 export function useChildEvents(range?: { from?: string; to?: string }) {
   const { accessToken } = useAuth();

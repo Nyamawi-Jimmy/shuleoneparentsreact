@@ -135,7 +135,16 @@ export default function ParentLoginScreen() {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.forgotBtn} hitSlop={6}>
+            <TouchableOpacity
+              style={styles.forgotBtn}
+              hitSlop={6}
+              onPress={() =>
+                router.push({
+                  pathname: '/forgot-password',
+                  params: { identifier: identifier.trim() },
+                } as any)
+              }
+            >
               <Text style={styles.forgotText}>Forgot password?</Text>
             </TouchableOpacity>
 

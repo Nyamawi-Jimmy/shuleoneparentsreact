@@ -8,6 +8,7 @@ import { AuthProvider } from '../context/AuthContext';
 import { SelectedChildProvider } from '../context/SelectedChildContext';
 import { ParentProfileProvider } from '../context/ParentProfileContext';
 import { ThemeProvider, useTheme } from '../theme/ThemeContext';
+import { usePushRegistration } from '../hooks/usePushRegistration';
 
 export const unstable_settings = {
   anchor: 'onboarding',
@@ -43,6 +44,7 @@ export default function RootLayout() {
 // =================================================================
 function ThemedAppShell() {
   const { scheme, colors } = useTheme();
+  usePushRegistration();
 
   // Customise the Navigation theme so default backdrops use our colors
   const navTheme = scheme === 'dark'
@@ -77,6 +79,7 @@ function ThemedAppShell() {
         <Stack.Screen name="chooser" />
         <Stack.Screen name="parent-login" />
         <Stack.Screen name="student-login" />
+        <Stack.Screen name="forgot-password" />
         <Stack.Screen name="choose-child" />
 
         {/* Tab groups */}
@@ -107,6 +110,7 @@ function ThemedAppShell() {
         <Stack.Screen name="transport" />
         <Stack.Screen name="reminders" />
         <Stack.Screen name="calendar" />
+        <Stack.Screen name="live-classes" />
 
         {/* Parent feature screens */}
         <Stack.Screen name="communication-all" />   {/* ← add this line */}

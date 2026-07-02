@@ -16,6 +16,20 @@ export interface LiveClass {
   status: LiveClassStatus | null;
 }
 
+/** Join payload for one live class — carries the Jitsi jwt + ready-to-open joinUrl. */
+export interface LiveClassJoin {
+  id: number | null;
+  title: string | null;
+  status: LiveClassStatus | null;
+  startsOn: string | null;
+  endsOn: string | null;
+  roomName: string | null;
+  domain: string | null;
+  jwt: string | null;
+  joinUrl: string | null;
+  moderator: boolean;
+}
+
 export interface TermEvent {
   id: number | null;
   title: string | null;

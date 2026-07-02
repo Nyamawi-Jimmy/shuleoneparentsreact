@@ -90,13 +90,14 @@ function parsePrefs(raw: string | NotificationPrefs | null | undefined): Notific
 // FCM token registration (POST /api/parent/fcm-token)
 // =================================================================
 export function registerFcmToken(accessToken: string, token: string) {
+  // NOTE: apiFetch already JSON.stringifies `body`; pass the raw object (a
+  // pre-existing bug elsewhere double-stringifies — see HANDOVER cleanup item).
   return apiFetch<void>(
     '/api/parent/fcm-token',
     {
       method: 'POST',
       accessToken,
-      body: JSON.stringify({ token }),
-      headers: { 'Content-Type': 'application/json' },
+      body: { token },
     },
   );
 }

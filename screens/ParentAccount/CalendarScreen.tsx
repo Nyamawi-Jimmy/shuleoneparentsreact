@@ -10,7 +10,7 @@ import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { useSelectedChild } from '../../context/SelectedChildContext';
 import { useChildEvents } from '../../hooks/useCalendar';
-import { TermEvent } from '../../api/calendar.types';
+import { TermEvent } from '../../api/communication.types';
 
 export const CalendarScreen: React.FC = () => {
   const { colors } = useTheme();

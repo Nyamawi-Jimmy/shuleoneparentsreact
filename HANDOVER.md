@@ -3,7 +3,7 @@
 > Living digest for cross-session continuity. **Update this at the end of every working pass.**
 > Full reference plan: `~/.claude/plans/latest-shuleoneparentsreact-app-latest-memoized-thunder.md`.
 
-_Last updated: 2026-07-02 — Phase 2 (modernization foundation) complete._
+_Last updated: 2026-07-02 — Phase 3 (parent parity) in progress._
 
 ---
 
@@ -65,13 +65,39 @@ npx expo start        # then a=Android, w=web
       TanStack Query provider in `app/_layout.tsx`; `expo-notifications` + `react-native-webview`
       installed. `expo-doctor` 21/21, web export clean. **Maps lib deferred to Phase 3**
       (needs a dev build; breaks Expo Go).
-- [ ] **Phase 3** — Parent parity (P1): calendar/events, live classes+join, announcements,
-      parent assignments, exams, documents/PDF, push, forgot-password, transport live map,
-      AI coach/insights/weekly report.
+- [~] **Phase 3** — Parent parity (P1), IN PROGRESS. Shipped this session:
+      **School Calendar** screen, **Live Classes** screen + Jitsi join (opens joinUrl via
+      expo-web-browser), **push registration** (`usePushRegistration` → existing
+      `registerFcmToken`), **forgot/reset password** flow. See "Corrected gap analysis" below.
 - [ ] **Phase 4** — Student learning wired (P2): curriculum, lesson player, quest engine,
       quiz, AI tutor, gamification/leaderboard, progress/mastery/diagnostic, exams, live
       classes, portfolio (replace mock data).
 - [ ] **Phase 5** — Coding labs (P3, via WebView) + Independent Learner role (P4).
+
+## 5b. Corrected gap analysis (parent side is more complete than first assumed)
+
+Tracing the code (not just the web-app summary) revealed the parent side already
+has more than the original plan assumed. **Already built** (do NOT rebuild):
+- `api/communication.ts` + `useCommunication` load **announcements, live-class list,
+  and term events**; `CommunicationScreen` renders announcements. (Live-class list
+  and events had data but no dedicated UI — now added as standalone screens.)
+- `api/notifications.ts` already has `registerFcmToken`, notif inbox, prefs, reminders.
+
+**Genuinely still missing on the parent side (real backlog):**
+1. **Parent Assignments** — `GET /api/parent/children/{id}/assignments` (no `api/assignments.ts`).
+2. **Parent Exams** — `ParentExamController` (`/{examId}`, `/{examId}/review`, `POST /{examId}/submit`).
+3. **AI Coach / Insights / Weekly report** — `/api/guardian/children/{id}/coach` (+`/stream`,`/history`),
+   `.../insights`, `/api/learner/{id}/weekly-report`. Gate behind subscription.
+4. **Transport live map** — `GET .../transport/live`; `TransportScreen` is list-only (needs a maps lib + dev build).
+5. **Documents/PDF hub** — statements/receipts/report PDFs via `utils/downloadAuthFile.ts`.
+6. **Google Sign-In** — `loginWithGoogle` exists in `api/auth.ts` but the button is a stub.
+
+**Systemic bug to fix (mechanical, ~12 call sites):** several `api/*.ts` POST helpers
+pass `body: JSON.stringify(obj)` while `apiFetch` also stringifies → double-encoded
+requests + the `TS2322 'string' is not assignable to 'object'` errors. Fix: pass the
+raw object as `body` (see the corrected `registerFcmToken`, and `api/auth.ts` which is
+already correct). Affects billing, call, chat, communication(markRead), fees,
+notifications(prefs/reminder), parent, transport.
 
 ## 6. Architecture notes (for reuse)
 

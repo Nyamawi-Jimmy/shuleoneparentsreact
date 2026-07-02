@@ -1,5 +1,5 @@
 import { apiFetch } from '../config/api';
-import { LiveClass, TermEvent, Announcement } from './communication.types';
+import { LiveClass, LiveClassJoin, TermEvent, Announcement } from './communication.types';
 
 /** GET /api/parent/announcements */
 export function getAnnouncements(accessToken: string) {
@@ -25,6 +25,17 @@ export function getAnnouncementReadIds(accessToken: string) {
 export function getChildLiveClasses(accessToken: string, studentId: number) {
   return apiFetch<LiveClass[]>(
     `/api/parent/children/${studentId}/live-classes`,
+    { accessToken },
+  );
+}
+
+/**
+ * GET /api/parent/children/{studentId}/live-classes/{id}/join
+ * Returns a Jitsi JWT + ready-to-open external joinUrl for one class.
+ */
+export function joinChildLiveClass(accessToken: string, studentId: number, liveClassId: number) {
+  return apiFetch<LiveClassJoin>(
+    `/api/parent/children/${studentId}/live-classes/${liveClassId}/join`,
     { accessToken },
   );
 }

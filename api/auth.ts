@@ -64,3 +64,29 @@ export function refreshTokens(refreshToken: string) {
 export function fetchMe(accessToken: string) {
   return apiFetch<MeResponse>('/api/auth/me', { accessToken });
 }
+
+// =================================================================
+// Password reset (public; self-service for parents/students/learners)
+// =================================================================
+
+/** Matches PasswordResetController's generic response. */
+export interface ForgotPasswordResponse {
+  ok: boolean;
+  message?: string;
+}
+
+/** POST /api/auth/password/forgot — always succeeds generically (no account enumeration). */
+export function requestPasswordReset(identifier: string) {
+  return apiFetch<ForgotPasswordResponse>('/api/auth/password/forgot', {
+    method: 'POST',
+    body: { identifier },
+  });
+}
+
+/** POST /api/auth/password/reset — confirm the 6-digit code and set a new password. */
+export function resetPassword(identifier: string, code: string, newPassword: string) {
+  return apiFetch<{ ok: boolean }>('/api/auth/password/reset', {
+    method: 'POST',
+    body: { identifier, code, newPassword },
+  });
+}

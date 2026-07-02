@@ -59,6 +59,13 @@ export const MoreScreen: React.FC = () => {
       onPress: () => router.push('/calendar' as any),
     },
     {
+      icon: <MaterialCommunityIcons name="video-outline" size={18} color={colors.danger} />,
+      bg: colors.dangerSoft,
+      label: 'Live Classes',
+      desc: 'Join your child’s scheduled online lessons',
+      onPress: () => router.push('/live-classes' as any),
+    },
+    {
       icon: <MaterialCommunityIcons name="bus" size={18} color={colors.warning} />,
       bg: colors.warningSoft,
       label: 'Transport & Bus Tracking',
