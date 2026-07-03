@@ -1,29 +1,45 @@
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
-import * as Notifications from 'expo-notifications';
+import type * as NotificationsModule from 'expo-notifications';
 import { router } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { registerFcmToken } from '../api/notifications';
 
 /**
- * Expo Go (SDK 53+) removed remote push. Any notifications API access — even the
- * top-level setNotificationHandler — throws there, which would crash the whole
- * app at module load. Detect Expo Go and no-op; push works in a dev build.
+ * Expo Go (SDK 53+) removed remote push. In Expo Go even *importing*
+ * expo-notifications throws at module-evaluation time, which would crash the
+ * whole app at load. So we never statically import it — we lazy-require it only
+ * outside Expo Go, wrapped in try/catch, and no-op everywhere it's unavailable.
+ * Full push delivery needs a dev build with google-services.json (see HANDOVER).
  */
 const isExpoGo =
-  Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+  Constants.executionEnvironment === ExecutionEnvironment.StoreClient ||
+  (Constants as any).appOwnership === 'expo';
 
-// Foreground display behaviour (SDK 56 handler shape). Guarded for Expo Go.
-if (!isExpoGo) {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
-  });
+const Notifications: typeof NotificationsModule | null = (() => {
+  if (isExpoGo) return null;
+  try {
+    return require('expo-notifications') as typeof NotificationsModule;
+  } catch {
+    return null;
+  }
+})();
+
+// Foreground display behaviour (SDK 56 handler shape). Only when available.
+if (Notifications) {
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+  } catch {
+    // Notifications native module unavailable in this runtime — non-fatal.
+  }
 }
 
 /**
@@ -32,15 +48,14 @@ if (!isExpoGo) {
  *
  * Uses getDevicePushTokenAsync() (the FCM registration token on Android), which
  * matches the backend's FCM pipeline. No-ops safely in Expo Go / simulators /
- * when Firebase isn't configured — full delivery needs a dev build with
- * google-services.json (see HANDOVER).
+ * when Firebase isn't configured.
  */
 export function usePushRegistration() {
   const { accessToken, user } = useAuth();
   const registered = useRef(false);
 
   useEffect(() => {
-    if (isExpoGo) return;
+    if (!Notifications) return;
     if (!accessToken || user?.userType !== 'PARENT' || registered.current) return;
     let cancelled = false;
 
@@ -75,7 +90,7 @@ export function usePushRegistration() {
   }, [accessToken, user?.userType]);
 
   useEffect(() => {
-    if (isExpoGo) return;
+    if (!Notifications) return;
     const sub = Notifications.addNotificationResponseReceivedListener(() => {
       router.push('/notifications' as any);
     });
