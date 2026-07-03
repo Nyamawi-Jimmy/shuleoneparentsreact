@@ -1,19 +1,30 @@
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useAuth } from '../context/AuthContext';
 import { registerFcmToken } from '../api/notifications';
 
-// Foreground display behaviour (SDK 56 handler shape).
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+/**
+ * Expo Go (SDK 53+) removed remote push. Any notifications API access — even the
+ * top-level setNotificationHandler — throws there, which would crash the whole
+ * app at module load. Detect Expo Go and no-op; push works in a dev build.
+ */
+const isExpoGo =
+  Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
+// Foreground display behaviour (SDK 56 handler shape). Guarded for Expo Go.
+if (!isExpoGo) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+}
 
 /**
  * Registers this device's native push token with the backend for the logged-in
@@ -29,6 +40,7 @@ export function usePushRegistration() {
   const registered = useRef(false);
 
   useEffect(() => {
+    if (isExpoGo) return;
     if (!accessToken || user?.userType !== 'PARENT' || registered.current) return;
     let cancelled = false;
 
@@ -63,6 +75,7 @@ export function usePushRegistration() {
   }, [accessToken, user?.userType]);
 
   useEffect(() => {
+    if (isExpoGo) return;
     const sub = Notifications.addNotificationResponseReceivedListener(() => {
       router.push('/notifications' as any);
     });

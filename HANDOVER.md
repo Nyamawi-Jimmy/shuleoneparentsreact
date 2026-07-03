@@ -31,15 +31,22 @@ branch have been retired. `origin/HEAD → main`.
 
 ## 4. Run / env instructions
 
-**Backend** (from `lms-spring`): set env vars then run.
+**Backend** (from `lms-spring`): set env vars then run (IntelliJ run config already has them).
 ```
-DB=sec  DB_USERNAME=root  DB_PASSWORD=walgotech
-./mvnw spring-boot:run
+DB=sec  DB_USERNAME=root  DB_PASSWORD=walgotech  SHULEONE_BASE_URL=...  SHULEONE_INTERNAL_TOKEN=...
+./mvnw spring-boot:run     # or run com.educraft.lmsbacknew.LmsApp from IntelliJ
 ```
-- MariaDB must be up on `localhost:3306` with database `sec`.
+- **Backend listens on port `8091`** (not 8080) — mobile `.env` must point at `:8091`.
+- **MariaDB 12.3.2** installed locally via winget; service name `MariaDB`, auto-start,
+  `localhost:3306`, root password `walgotech`. Client: `C:\Program Files\MariaDB 12.3\bin\mariadb.exe`.
+- DB `sec` created and loaded from dump `C:\EDUCRAFT PROJECTS\DB BACKUP\03-Jul-2026_..._backup.sql\...backup.sql`
+  (3.4 GB; the ShuleOne monolith DB — the repo has NO migrations/dump, `ddl-auto=none`, Flyway off).
+  Re-import: `mariadb -u root -pwalgotech sec < <dumpfile>`.
 - Datasource keys: `spring.datasource.url=jdbc:mariadb://localhost:3306/${DB:sec}...`,
   `username=${DB_USERNAME}`, `password=${DB_PASSWORD}`.
-- Health check: `GET /actuator/health`.
+- Also requires `SHULEONE_BASE_URL` + `SHULEONE_INTERNAL_TOKEN` (Companion calls ShuleOne-main via REST).
+- Health check: `GET http://localhost:8091/actuator/health`. JWT: set `JWT_SECRET` for stable tokens
+  (otherwise a random key is generated each restart and existing tokens are invalidated).
 
 **Toolchain:** Node **24 LTS** installed at `C:\Program Files\nodejs` (via winget).
 NOTE: pre-existing tool shells were snapshotted before install — if `node` isn't
