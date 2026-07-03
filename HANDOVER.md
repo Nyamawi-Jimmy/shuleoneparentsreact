@@ -36,6 +36,8 @@ branch have been retired. `origin/HEAD → main`.
 DB=sec  DB_USERNAME=root  DB_PASSWORD=walgotech  SHULEONE_BASE_URL=...  SHULEONE_INTERNAL_TOKEN=...
 ./mvnw spring-boot:run     # or run com.educraft.lmsbacknew.LmsApp from IntelliJ
 ```
+- **Run the class `com.educraft.lmsbacknew.LmsApp`** (the `@SpringBootApplication`). Do NOT run
+  `org.springframework.boot.SpringApplication` — that throws `IllegalStateException: No sources defined`.
 - **Backend listens on port `8091`** (not 8080) — mobile `.env` must point at `:8091`.
 - **MariaDB 12.3.2** installed locally via winget; service name `MariaDB`, auto-start,
   `localhost:3306`, root password `walgotech`. Client: `C:\Program Files\MariaDB 12.3\bin\mariadb.exe`.
