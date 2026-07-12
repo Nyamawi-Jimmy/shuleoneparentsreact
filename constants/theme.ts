@@ -14,6 +14,18 @@ export { useTheme, ThemeProvider } from '../theme/ThemeContext';
 export type { ThemeMode } from '../theme/ThemeContext';
 
 // =================================================================
+// Inter — the app's typeface. Loaded in app/_layout.tsx via useFonts.
+// RN maps weights to specific families, so we name each weight explicitly.
+// =================================================================
+export const fonts = {
+  regular:   'Inter_400Regular',
+  medium:    'Inter_500Medium',
+  semibold:  'Inter_600SemiBold',
+  bold:      'Inter_700Bold',
+  extrabold: 'Inter_800ExtraBold',
+};
+
+// =================================================================
 export const spacing = {
   xs: 4,
   sm: 8,

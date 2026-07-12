@@ -8,6 +8,7 @@ import { router } from 'expo-router';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { ParentHeader } from '../../components/ParentHeader';
+import { fonts } from '../../constants/theme';
 import { ChildSwitcherModal } from '../../components/ChildSwitcherModal';
 import { useSelectedChild } from '../../context/SelectedChildContext';
 import { useParentProfile } from '../../context/ParentProfileContext';
@@ -244,68 +245,68 @@ function makeStyles(c: ColorPalette) {
     scroll: { paddingHorizontal: 16, paddingTop: 4 },
 
     hero: {
-      borderRadius: 20, padding: 18, marginBottom: 14,
-      shadowColor: '#4338CA', shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.26, shadowRadius: 18, elevation: 8,
+      borderRadius: 22, padding: 20, marginBottom: 16,
+      shadowColor: '#4338CA', shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.28, shadowRadius: 22, elevation: 9,
     },
-    heroGreeting: { color: '#FFF', fontSize: 19, fontWeight: '800', letterSpacing: -0.3 },
-    heroSub: { color: 'rgba(255,255,255,0.9)', fontSize: 13, marginTop: 4, fontWeight: '500' },
+    heroGreeting: { color: '#FFF', fontSize: 20, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
+    heroSub: { color: 'rgba(255,255,255,0.9)', fontSize: 13.5, marginTop: 5, fontFamily: fonts.medium, lineHeight: 19 },
     statusPill: {
       flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
       backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 999,
-      paddingHorizontal: 11, paddingVertical: 6, marginTop: 14,
-      borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
+      paddingHorizontal: 12, paddingVertical: 7, marginTop: 16,
+      borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
     },
-    statusPillText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+    statusPillText: { color: '#FFF', fontSize: 12, fontFamily: fonts.bold, letterSpacing: 0.1 },
 
     childCard: {
       backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.border,
-      padding: 14, marginBottom: 22,
+      padding: 16, marginBottom: 24,
     },
-    childRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    childRow: { flexDirection: 'row', alignItems: 'center', gap: 13 },
     avatar: {
-      width: 48, height: 48, borderRadius: 24, backgroundColor: c.primarySoft,
+      width: 50, height: 50, borderRadius: 25, backgroundColor: c.primarySoft,
       alignItems: 'center', justifyContent: 'center',
     },
-    avatarText: { color: c.primary, fontSize: 16, fontWeight: '800' },
-    childName: { fontSize: 16, fontWeight: '800', color: c.text, letterSpacing: -0.2 },
-    childMeta: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+    avatarText: { color: c.primary, fontSize: 16, fontFamily: fonts.extrabold },
+    childName: { fontSize: 16.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.3 },
+    childMeta: { fontSize: 12, color: c.textSecondary, marginTop: 3, fontFamily: fonts.regular },
     switchPill: {
       flexDirection: 'row', alignItems: 'center', gap: 4,
-      backgroundColor: c.primarySoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6,
+      backgroundColor: c.primarySoft, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6,
     },
-    switchPillText: { color: c.primary, fontSize: 11, fontWeight: '800' },
+    switchPillText: { color: c.primary, fontSize: 11, fontFamily: fonts.bold },
 
-    tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+    tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 16 },
     tile: {
       flexBasis: '47.5%', flexGrow: 1, backgroundColor: c.backgroundAlt,
-      borderRadius: 12, padding: 11,
+      borderRadius: 13, padding: 12,
     },
-    tileHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-    tileLabel: { fontSize: 11.5, color: c.textSecondary, fontWeight: '600' },
-    tileValue: { fontSize: 15, fontWeight: '800', letterSpacing: -0.2 },
+    tileHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 7 },
+    tileLabel: { fontSize: 11.5, color: c.textSecondary, fontFamily: fonts.semibold },
+    tileValue: { fontSize: 15.5, fontFamily: fonts.extrabold, letterSpacing: -0.3 },
 
-    sectionTitle: { fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 11, letterSpacing: -0.3 },
+    sectionTitle: { fontSize: 15.5, fontFamily: fonts.extrabold, color: c.text, marginBottom: 12, letterSpacing: -0.4 },
     card: {
       backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
-      paddingHorizontal: 14, marginBottom: 22,
+      paddingHorizontal: 14, marginBottom: 24,
     },
     divider: { borderTopWidth: 1, borderTopColor: c.border },
 
-    attnRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
-    attnIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    attnTitle: { fontSize: 14, fontWeight: '700', color: c.text },
-    attnSub: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
-    payBtn: { backgroundColor: c.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
-    payBtnText: { color: '#FFF', fontSize: 12.5, fontWeight: '800' },
+    attnRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
+    attnIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+    attnTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    attnSub: { fontSize: 12, color: c.textSecondary, marginTop: 2, fontFamily: fonts.regular },
+    payBtn: { backgroundColor: c.primary, borderRadius: 11, paddingHorizontal: 15, paddingVertical: 9 },
+    payBtnText: { color: '#FFF', fontSize: 12.5, fontFamily: fonts.bold },
 
-    signalRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
-    signalTime: { fontSize: 11, color: c.textTertiary, fontWeight: '600', width: 46 },
+    signalRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12 },
+    signalTime: { fontSize: 11, color: c.textTertiary, fontFamily: fonts.semibold, width: 48 },
     signalDot: { width: 8, height: 8, borderRadius: 4 },
-    signalTitle: { flex: 1, fontSize: 13, color: c.text, fontWeight: '500' },
+    signalTitle: { flex: 1, fontSize: 13, color: c.text, fontFamily: fonts.medium, lineHeight: 18 },
 
-    empty: { alignItems: 'center', padding: 30, gap: 8 },
-    emptyTitle: { fontSize: 15, fontWeight: '800', color: c.text, marginTop: 4 },
-    emptyText: { fontSize: 13, color: c.textSecondary, textAlign: 'center', lineHeight: 19, paddingHorizontal: 12 },
+    empty: { alignItems: 'center', padding: 32, gap: 8 },
+    emptyTitle: { fontSize: 15.5, fontFamily: fonts.extrabold, color: c.text, marginTop: 4, letterSpacing: -0.3 },
+    emptyText: { fontSize: 13, color: c.textSecondary, textAlign: 'center', lineHeight: 20, paddingHorizontal: 12, fontFamily: fonts.regular },
   });
 }

@@ -1,7 +1,13 @@
+import { useEffect } from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from 'expo-router/react-navigation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import * as SplashScreen from 'expo-splash-screen';
+import {
+  useFonts,
+  Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold,
+} from '@expo-google-fonts/inter';
 import 'react-native-reanimated';
 
 import { AuthProvider } from '../context/AuthContext';
@@ -14,6 +20,8 @@ export const unstable_settings = {
   anchor: 'onboarding',
 };
 
+SplashScreen.preventAutoHideAsync();
+
 // Single app-wide React Query client. staleTime keeps screen re-focuses from
 // refetching instantly; retry once smooths over flaky mobile networks.
 const queryClient = new QueryClient({
@@ -23,6 +31,16 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) SplashScreen.hideAsync().catch(() => {});
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) return null;
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
