@@ -83,6 +83,27 @@ npx expo start        # then a=Android, w=web
       classes, portfolio (replace mock data).
 - [ ] **Phase 5** — Coding labs (P3, via WebView) + Independent Learner role (P4).
 
+## 5a. Parent-side web-parity redesign (screen-by-screen port, IN PROGRESS)
+
+Porting the ENTIRE parent side to match the `lms-react` web parent app, screen by
+screen, redesigned for mobile with the indigo/Inter design system (`fonts` from
+`constants/theme.ts`, colors from `useTheme()`). Priority order: Fees → Class Diary
+→ Communication → Academics + Attendance → Transport/Calendar/Documents/Settings.
+
+- [x] **Today (Home)** — greeting hero, status tiles, needs-attention, upcoming, recent activity.
+- [x] **Learning** — level/XP/streak hero, subject bars, AI insight, recent activity.
+- [x] **More** — full grouped menu (For your child / Messages / Account).
+- [x] **Child switcher** — professional bottom sheet (`ChildSwitcherModal`).
+- [x] **Fees (`FinanceScreen`)** — segmented **Overview / Statement / Payments** tabs:
+      Overview = balance card + % paid donut (react-native-svg) + brought-fwd/this-term/paid
+      breakdown + Pay-with-M-Pesa (`FeePaymentSheet`) + latest receipts; Statement = ledger
+      lines + term/whole PDF download (`downloadAuthFile`); Payments = pay CTA + M-Pesa
+      app-payment list (`getChildFeePayments`) + manual pay instructions (`getPaymentOptions`).
+- [ ] **Class Diary** — next.
+- [ ] **Communication** — announcements + messages + live + events, tabbed to match web.
+- [ ] **Academics + Attendance**.
+- [ ] Transport, Calendar, Documents, Settings.
+
 ## 5b. Corrected gap analysis (parent side is more complete than first assumed)
 
 Tracing the code (not just the web-app summary) revealed the parent side already
