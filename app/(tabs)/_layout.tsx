@@ -26,46 +26,48 @@ export default function TabLayout() {
           paddingTop: 6,
           paddingBottom: Platform.OS === 'ios' ? 24 : 8,
           height: Platform.OS === 'ios' ? 84 : 64,
-          // Soft shadow above the bar
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
           shadowOpacity: colors.scheme === 'dark' ? 0.4 : 0.06,
           shadowRadius: 8,
           elevation: 8,
         },
-        tabBarItemStyle: {
-          paddingVertical: 4,
-        },
+        tabBarItemStyle: { paddingVertical: 4 },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: 'Today',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="academics"
+        name="learning"
         options={{
-          title: 'Academics',
+          title: 'Learning',
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'book' : 'book-outline'} size={size} color={color} />
+            <Ionicons name={focused ? 'rocket' : 'rocket-outline'} size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="finance"
         options={{
-          title: 'Finance',
+          title: 'Fees',
           tabBarIcon: ({ color, size, focused }) => (
-            <MaterialCommunityIcons
-              name={focused ? 'credit-card' : 'credit-card-outline'}
-              size={size}
-              color={color}
-            />
+            <MaterialCommunityIcons name={focused ? 'wallet' : 'wallet-outline'} size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="diary"
+        options={{
+          title: 'Diary',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'book' : 'book-outline'} size={size} color={color} />
           ),
         }}
       />
@@ -73,7 +75,7 @@ export default function TabLayout() {
         name="more"
         options={{
           title: 'More',
-          tabBarIcon: ({ color, size }) => <Feather name="more-horizontal" size={size + 2} color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="grid" size={size - 1} color={color} />,
         }}
       />
     </Tabs>

@@ -45,7 +45,7 @@ export const LearningScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
-      <ParentHeader title="Learning" showBack rightIcon="none" />
+      <ParentHeader title="Learning" showBack={false} rightIcon="none" />
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>

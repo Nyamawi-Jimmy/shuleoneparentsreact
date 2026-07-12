@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -9,204 +9,189 @@ import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { useAuth } from '../../context/AuthContext';
 import { useParentProfile } from '../../context/ParentProfileContext';
-import { useSelectedChild } from '../../context/SelectedChildContext';
+
+const PLACEHOLDER =
+  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face';
+
+interface Row {
+  label: string;
+  desc: string;
+  icon: React.ReactNode;
+  tint: keyof Pick<ColorPalette, 'primary' | 'info' | 'success' | 'warning' | 'purple' | 'danger'>;
+  onPress: () => void;
+}
 
 export const MoreScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-
-  const { signOut, user } = useAuth();
+  const { signOut } = useAuth();
   const { parent } = useParentProfile();
-  const { children } = useSelectedChild();
+
+  const go = (path: string) => () => router.push(path as any);
 
   const handleSignOut = () => {
     Alert.alert('Sign out?', 'You will need to log in again to access your account.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: async () => {
-        await signOut();
-        router.replace('/chooser' as any);
-      }},
+      {
+        text: 'Sign out', style: 'destructive', onPress: async () => {
+          await signOut();
+          router.replace('/chooser' as any);
+        },
+      },
     ]);
   };
 
-  const items = [
+  const forChild: Row[] = [
     {
-      icon: <Ionicons name="chatbubbles" size={18} color={colors.purple} />,
-      bg: colors.purpleLight,
-      label: 'Messages',
-      desc: 'Direct chats with teachers and school staff',
-      onPress: () => router.push('/chat' as any),
+      label: 'Academics', desc: 'Exam results, grades & report cards', tint: 'primary',
+      icon: <Ionicons name="school-outline" size={20} color={colors.primary} />, onPress: go('/academics'),
     },
     {
-      icon: <Ionicons name="megaphone" size={18} color={colors.primary} />,
-      bg: colors.primarySoft,
-      label: 'Communication',
-      desc: 'Announcements, live classes, term events',
-      onPress: () => router.push('/communication' as any),
+      label: 'Attendance', desc: 'Daily presence & this term’s rate', tint: 'success',
+      icon: <Ionicons name="checkmark-done-outline" size={20} color={colors.success} />, onPress: go('/academics'),
     },
     {
-      icon: <MaterialCommunityIcons name="notebook-outline" size={18} color={colors.primary} />,
-      bg: colors.primarySoft,
-      label: 'School Diary',
-      desc: "Weekly class plan and teacher's comments",
-      onPress: () => router.push('/diary' as any),
+      label: 'Transport', desc: 'Live bus tracking & pickup status', tint: 'info',
+      icon: <MaterialCommunityIcons name="bus-school" size={20} color={colors.info} />, onPress: go('/transport'),
     },
     {
-      icon: <Feather name="calendar" size={18} color={colors.info} />,
-      bg: colors.infoSoft,
-      label: 'School Calendar',
-      desc: 'Term dates, holidays and school events',
-      onPress: () => router.push('/calendar' as any),
+      label: 'Calendar', desc: 'Term dates, exams & live classes', tint: 'danger',
+      icon: <Ionicons name="calendar-outline" size={20} color={colors.danger} />, onPress: go('/calendar'),
     },
     {
-      icon: <MaterialCommunityIcons name="video-outline" size={18} color={colors.danger} />,
-      bg: colors.dangerSoft,
-      label: 'Live Classes',
-      desc: 'Join your child’s scheduled online lessons',
-      onPress: () => router.push('/live-classes' as any),
-    },
-    {
-      icon: <MaterialCommunityIcons name="bus" size={18} color={colors.warning} />,
-      bg: colors.warningSoft,
-      label: 'Transport & Bus Tracking',
-      desc: 'View route, live bus location, opt-outs',
-      onPress: () => router.push('/transport' as any),
-    },
-    {
-      icon: <Ionicons name="book" size={18} color={colors.info} />,
-      bg: colors.infoSoft,
-      label: 'Learning Progress',
-      desc: "See how your child's learning is going",
-      onPress: () => router.push('/(tabs)/academics' as any),
-    },
-    {
-      icon: <MaterialCommunityIcons name="rocket-launch" size={18} color={colors.primary} />,
-      bg: colors.primarySoft,
-      label: 'Learn+ Subscription',
-      desc: 'Premium revision and learning packages',
-      onPress: () => router.push('/subscriptions' as any),
-    },
-    {
-      icon: <Ionicons name="notifications" size={18} color={colors.purple} />,
-      bg: colors.purpleLight,
-      label: 'Notifications',
-      desc: 'Inbox + push, SMS, email, WhatsApp preferences',
-      onPress: () => router.push('/notifications' as any),
-    },
-    {
-      icon: <Ionicons name="alarm" size={18} color={colors.primary} />,
-      bg: colors.primarySoft,
-      label: 'Reminders',
-      desc: 'Get alerted before classes, exams and events',
-      onPress: () => router.push('/reminders' as any),
-    },
-    {
-      icon: <Ionicons name="settings" size={18} color={colors.textSecondary} />,
-      bg: colors.scheme === 'dark' ? '#2A3744' : '#F1F1F4',
-      label: 'Settings',
-      desc: 'Profile, password, appearance, devices',
-      onPress: () => router.push('/settings' as any),
-    },
-    {
-      icon: <Ionicons name="people" size={18} color={colors.purple} />,
-      bg: colors.purpleLight,
-      label: 'Linked Children',
-      desc: `${children.length} ${children.length === 1 ? 'child' : 'children'} active`,
-      onPress: () => router.push('/choose-child' as any),
-    },
-    {
-      icon: <Ionicons name="log-out" size={18} color={colors.danger} />,
-      bg: colors.dangerSoft,
-      label: 'Sign Out',
-      desc: user ? `Logged in as ${user.username}` : undefined,
-      onPress: handleSignOut,
-      danger: true,
+      label: 'Documents', desc: 'Fee statements & payment receipts', tint: 'warning',
+      icon: <Ionicons name="folder-open-outline" size={20} color={colors.warning} />, onPress: go('/finance'),
     },
   ];
 
-  return (
-    <View style={styles.safe}>
-      <ParentHeader title="More" />
+  const messages: Row[] = [
+    {
+      label: 'Messages', desc: 'Chat directly with teachers & staff', tint: 'purple',
+      icon: <Ionicons name="chatbubbles-outline" size={20} color={colors.purple} />, onPress: go('/chat'),
+    },
+    {
+      label: 'Announcements', desc: 'School news, notices & events', tint: 'primary',
+      icon: <Ionicons name="megaphone-outline" size={20} color={colors.primary} />, onPress: go('/communication'),
+    },
+  ];
 
+  const account: Row[] = [
+    {
+      label: 'Plans & subscriptions', desc: 'AI learning, coding & bus tracking', tint: 'purple',
+      icon: <Ionicons name="sparkles-outline" size={20} color={colors.purple} />, onPress: go('/subscriptions'),
+    },
+    {
+      label: 'Notifications', desc: 'Alerts & what you get notified about', tint: 'info',
+      icon: <Ionicons name="notifications-outline" size={20} color={colors.info} />, onPress: go('/notifications'),
+    },
+    {
+      label: 'Settings', desc: 'Profile, language, security & devices', tint: 'primary',
+      icon: <Ionicons name="settings-outline" size={20} color={colors.primary} />, onPress: go('/settings'),
+    },
+  ];
+
+  const displayName = [parent?.firstName, (parent as any)?.lastName].filter(Boolean).join(' ') || 'Parent';
+  const subtitle = (parent as any)?.phone || (parent as any)?.email || 'Account & preferences';
+  const photo = (parent as any)?.photoUrl || PLACEHOLDER;
+
+  return (
+    <View style={styles.root}>
+      <ParentHeader title="More" rightIcon="none" />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity activeOpacity={0.85} onPress={() => router.push('/settings' as any)} style={styles.profileCard}>
-          <View style={styles.profileAvatar}>
-            <Text style={styles.profileInitials}>{parent.initials || '?'}</Text>
-          </View>
+
+        {/* Profile */}
+        <TouchableOpacity style={styles.profile} activeOpacity={0.8} onPress={go('/settings')}>
+          <Image source={{ uri: photo }} style={styles.profileImg} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.profileName}>
-              {parent.name || `${parent.firstName} ${parent.lastName}`.trim() || 'Parent'}
-            </Text>
-            <Text style={styles.profilePhone}>{parent.phone || parent.email || '—'}</Text>
+            <Text style={styles.profileName} numberOfLines={1}>{displayName}</Text>
+            <Text style={styles.profileSub} numberOfLines={1}>{subtitle}</Text>
           </View>
-          <Feather name="edit-2" size={15} color={colors.textSecondary} />
+          <Feather name="chevron-right" size={20} color={colors.textTertiary} />
         </TouchableOpacity>
 
-        <View style={styles.menuGroup}>
-          {items.map((item, idx) => (
-            <TouchableOpacity
-              key={item.label}
-              activeOpacity={0.7}
-              onPress={item.onPress}
-              style={[styles.menuRow, idx < items.length - 1 && styles.menuRowDivider]}
-            >
-              <View style={[styles.menuIcon, { backgroundColor: item.bg }]}>{item.icon}</View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.menuLabel, item.danger && { color: colors.danger }]}>{item.label}</Text>
-                {item.desc && <Text style={styles.menuDesc}>{item.desc}</Text>}
-              </View>
-              <Feather name="chevron-right" size={16} color={colors.textTertiary} />
-            </TouchableOpacity>
-          ))}
-        </View>
+        <Section title="For your child" rows={forChild} colors={colors} styles={styles} />
+        <Section title="Messages & updates" rows={messages} colors={colors} styles={styles} />
+        <Section title="Account" rows={account} colors={colors} styles={styles} />
 
-        <Text style={styles.versionText}>ShuleOne by Educraft  •  v1.0.0</Text>
-        <View style={{ height: 40 }} />
+        <TouchableOpacity style={styles.signOut} activeOpacity={0.8} onPress={handleSignOut}>
+          <Ionicons name="log-out-outline" size={20} color={colors.danger} />
+          <Text style={styles.signOutText}>Sign out</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.version}>Shule One · Parent</Text>
+        <View style={{ height: 28 }} />
       </ScrollView>
     </View>
   );
 };
 
-// =================================================================
+const Section: React.FC<{ title: string; rows: Row[]; colors: ColorPalette; styles: any }> =
+  ({ title, rows, colors, styles }) => (
+  <>
+    <Text style={styles.sectionTitle}>{title}</Text>
+    <View style={styles.card}>
+      {rows.map((r, i) => (
+        <TouchableOpacity key={r.label} style={[styles.row, i > 0 && styles.rowDivider]} activeOpacity={0.7} onPress={r.onPress}>
+          <View style={[styles.rowIcon, { backgroundColor: softFor(colors, r.tint) }]}>{r.icon}</View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowLabel}>{r.label}</Text>
+            <Text style={styles.rowDesc} numberOfLines={1}>{r.desc}</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={colors.textTertiary} />
+        </TouchableOpacity>
+      ))}
+    </View>
+  </>
+);
+
+function softFor(c: ColorPalette, tint: string): string {
+  switch (tint) {
+    case 'primary': return c.primarySoft;
+    case 'info': return c.infoSoft;
+    case 'success': return c.successSoft;
+    case 'warning': return c.warningSoft;
+    case 'danger': return c.dangerSoft;
+    case 'purple': return c.purpleLight;
+    default: return c.backgroundAlt;
+  }
+}
+
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: c.backgroundAlt },
-    scroll: { paddingHorizontal: 18, paddingTop: 12 },
-    profileCard: {
-      flexDirection: 'row', alignItems: 'center',
-      backgroundColor: c.card, padding: 14, borderRadius: 16,
-      borderWidth: 1, borderColor: c.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: c.scheme === 'dark' ? 0.3 : 0.04,
-      shadowRadius: 4, elevation: 1,
+    root: { flex: 1, backgroundColor: c.background },
+    scroll: { paddingHorizontal: 16, paddingTop: 4 },
+
+    profile: {
+      flexDirection: 'row', alignItems: 'center', gap: 13,
+      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+      padding: 14, marginBottom: 20,
     },
-    profileAvatar: {
-      width: 46, height: 46, borderRadius: 23,
-      backgroundColor: c.primarySoft,
-      alignItems: 'center', justifyContent: 'center',
-      marginRight: 12,
+    profileImg: { width: 50, height: 50, borderRadius: 25, backgroundColor: c.backgroundAlt },
+    profileName: { fontSize: 16, fontWeight: '800', color: c.text, letterSpacing: -0.2 },
+    profileSub: { fontSize: 12.5, color: c.textSecondary, marginTop: 2 },
+
+    sectionTitle: {
+      fontSize: 12.5, fontWeight: '800', color: c.textSecondary, letterSpacing: 0.3,
+      textTransform: 'uppercase', marginBottom: 10, marginLeft: 2,
     },
-    profileInitials: { color: c.primary, fontSize: 15, fontWeight: '900' },
-    profileName: { fontSize: 14, fontWeight: '800', color: c.text, letterSpacing: -0.2 },
-    profilePhone: { fontSize: 11.5, color: c.textSecondary, marginTop: 2, fontWeight: '500' },
-    menuGroup: {
-      marginTop: 16,
-      backgroundColor: c.card, borderRadius: 16,
-      borderWidth: 1, borderColor: c.border, overflow: 'hidden',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: c.scheme === 'dark' ? 0.3 : 0.04,
-      shadowRadius: 4, elevation: 1,
+    card: {
+      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+      paddingHorizontal: 14, marginBottom: 22,
     },
-    menuRow: { flexDirection: 'row', alignItems: 'center', padding: 14 },
-    menuRowDivider: { borderBottomWidth: 1, borderBottomColor: c.border },
-    menuIcon: {
-      width: 36, height: 36, borderRadius: 10,
-      alignItems: 'center', justifyContent: 'center', marginRight: 12,
+    row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13 },
+    rowDivider: { borderTopWidth: 1, borderTopColor: c.border },
+    rowIcon: {
+      width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginRight: 13,
     },
-    menuLabel: { fontSize: 14, fontWeight: '800', color: c.text, letterSpacing: -0.2 },
-    menuDesc: { fontSize: 11.5, color: c.textSecondary, marginTop: 1, fontWeight: '500' },
-    versionText: { fontSize: 11.5, color: c.textTertiary, textAlign: 'center', marginTop: 28, fontWeight: '500' },
+    rowLabel: { fontSize: 14.5, fontWeight: '700', color: c.text, letterSpacing: -0.2 },
+    rowDesc: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+
+    signOut: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      backgroundColor: c.dangerSoft, borderRadius: 14, paddingVertical: 15, marginTop: 2,
+    },
+    signOutText: { fontSize: 15, fontWeight: '800', color: c.danger },
+
+    version: { textAlign: 'center', fontSize: 11.5, color: c.textTertiary, marginTop: 18 },
   });
 }

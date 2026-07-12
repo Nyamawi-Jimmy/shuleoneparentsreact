@@ -69,7 +69,7 @@ export const HomeScreen: React.FC = () => {
     {
       key: 'academics', title: 'Academics', desc: 'Exam results, grades & report cards',
       icon: <Ionicons name="school-outline" size={22} color={colors.primary} />,
-      tint: 'primary', route: '/(tabs)/academics',
+      tint: 'primary', route: '/academics',
     },
     {
       key: 'learning', title: 'Learning', desc: 'Digital lessons, progress & AI insights',
@@ -79,7 +79,7 @@ export const HomeScreen: React.FC = () => {
     {
       key: 'fees', title: 'Fees & Payments', desc: 'Balance, statements & pay with M-Pesa',
       icon: <MaterialCommunityIcons name="wallet-outline" size={22} color={colors.info} />,
-      tint: 'info', route: '/(tabs)/finance',
+      tint: 'info', route: '/finance',
       status: feesBalance > 0
         ? { label: formatKsh(feesBalance), tone: 'danger' }
         : { label: 'Cleared', tone: 'success' },
@@ -87,7 +87,7 @@ export const HomeScreen: React.FC = () => {
     {
       key: 'attendance', title: 'Attendance', desc: 'Daily presence & this term’s rate',
       icon: <Ionicons name="checkmark-done-outline" size={22} color={colors.success} />,
-      tint: 'success', route: '/(tabs)/academics',
+      tint: 'success', route: '/academics',
       status: { label: `${attendancePercent}%`, tone: attendancePercent >= 90 ? 'success' : 'warning' },
     },
     {
@@ -152,21 +152,21 @@ export const HomeScreen: React.FC = () => {
             label="Fees due"
             value={feesBalance > 0 ? formatKsh(feesBalance) : 'Cleared'}
             valueColor={feesBalance > 0 ? colors.danger : colors.success}
-            onPress={() => router.push('/(tabs)/finance' as any)}
+            onPress={() => router.push('/finance' as any)}
           />
           <View style={styles.metricDivider} />
           <Metric styles={styles}
             label="Average"
             value={`${academicMean}${typeof academicMean === 'number' ? '%' : ''}`}
             valueColor={colors.text}
-            onPress={() => router.push('/(tabs)/academics' as any)}
+            onPress={() => router.push('/academics' as any)}
           />
           <View style={styles.metricDivider} />
           <Metric styles={styles}
             label="Attendance"
             value={`${attendancePercent}%`}
             valueColor={attendancePercent >= 90 ? colors.success : colors.warning}
-            onPress={() => router.push('/(tabs)/academics' as any)}
+            onPress={() => router.push('/academics' as any)}
           />
         </View>
 
