@@ -11,8 +11,7 @@ export function markAnnouncementRead(accessToken: string, announcementId: string
   return apiFetch<void>('/api/parent/announcements/mark-read', {
     method: 'POST',
     accessToken,
-    body: JSON.stringify({ id: announcementId }),
-    headers: { 'Content-Type': 'application/json' },
+    body: { id: announcementId },
   });
 }
 

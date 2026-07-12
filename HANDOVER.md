@@ -99,9 +99,19 @@ screen, redesigned for mobile with the indigo/Inter design system (`fonts` from
       breakdown + Pay-with-M-Pesa (`FeePaymentSheet`) + latest receipts; Statement = ledger
       lines + term/whole PDF download (`downloadAuthFile`); Payments = pay CTA + M-Pesa
       app-payment list (`getChildFeePayments`) + manual pay instructions (`getPaymentOptions`).
-- [ ] **Class Diary** — next.
-- [ ] **Communication** — announcements + messages + live + events, tabbed to match web.
-- [ ] **Academics + Attendance**.
+- [x] **Class Diary (`DiaryScreen`)** — week **list** (stats strip + search + week cards
+      with sign-progress bars) and **detail** (teacher header, Mon–Fri+Weekly day tabs with
+      content dots, learning-plan rows, teacher comment, **parent sign form** →
+      `signDiaryEntry` POST `/diary/sign`).
+- [x] **Communication (`CommunicationScreen`)** — rebuilt as tabbed **Messages** (Tasks /
+      Updates / Chats) matching web: **Assignments** list (new `api/assignments.ts` →
+      `GET /api/parent/children/{id}/assignments`, status chips, subject icons),
+      **Updates** (announcements with type icons, NEW chips + read-state via
+      `getAnnouncementReadIds`/`markAnnouncementRead`, newsletter attachments),
+      **Chats** (thread list → `/conversation`). Also fixed the `markAnnouncementRead`
+      double-encode bug. *Follow-up: the "help do it" AssignmentPlayer (ParentExamController)
+      is a separate P1 build — list is read-only for now.*
+- [ ] **Academics + Attendance** — NEXT.
 - [ ] Transport, Calendar, Documents, Settings.
 
 ## 5b. Corrected gap analysis (parent side is more complete than first assumed)
