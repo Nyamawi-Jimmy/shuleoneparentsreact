@@ -58,8 +58,17 @@ export const ParentProfileProvider: React.FC<{ children: ReactNode }> = ({ child
     try {
       const real = await getParentMe(accessToken);
       if (real) {
-        // Merge: preserve any legacy fields from mock that backend doesn't return
-        setParent((prev) => ({ ...prev, ...real }));
+        // Backend returns `name` (e.g. "Baba Wendy") but not firstName/lastName —
+        // derive them so greetings/initials render correctly.
+        const nm = (real as any).name || `${real.firstName ?? ''} ${real.lastName ?? ''}`.trim();
+        const parts = String(nm).split(/\s+/).filter(Boolean);
+        const derived = {
+          ...real,
+          firstName: real.firstName || parts[0] || '',
+          lastName: real.lastName || parts.slice(1).join(' ') || '',
+          initials: real.initials || parts.slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join(''),
+        };
+        setParent((prev) => ({ ...prev, ...derived }));
         setIsFromBackend(true);
       }
     } catch (e) {
