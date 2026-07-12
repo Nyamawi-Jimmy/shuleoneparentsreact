@@ -4,38 +4,12 @@ import React, {
 import { useAuth } from './AuthContext';
 import { listChildrenNormalized } from '../api/parent';
 import { Child } from '../api/parent.types';
-import { mockParent } from '../api/mockData';
 import { ApiError } from '../config/api';
 
-// =================================================================
-// Mock children - used until backend responds.
-// Preserves every legacy mock field via spread.
-// =================================================================
+// No mock children — the app shows the real parent's children from
+// /api/parent/children, or nothing until they load.
 function buildMockChildren(): Child[] {
-  return (mockParent.children ?? []).map((c: any, i: number): Child => {
-    const fullName = `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim();
-    const className = (c.class ?? c.className ?? '').split('•')[0]?.trim() ?? '';
-    const streamName = (c.class ?? c.className ?? '').split('•')[1]?.trim() ?? '';
-    const studentId = typeof c.id === 'number' ? c.id : i + 1;
-    return {
-      ...c,
-      studentId,
-      id: studentId,
-      firstName: c.firstName ?? '',
-      lastName: c.lastName ?? '',
-      fullName,
-      photoUrl: c.photoUrl,
-      admNo: c.admNo ?? '',
-      className,
-      streamName,
-      classLabel: c.class ?? c.classLabel ?? className,
-      schoolName: c.schoolName ?? '',
-      active: c.active ?? true,
-      codingSchool: c.codingSchool ?? false,
-      codingOnly: c.codingOnly ?? false,
-      initials: fullName.split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join(''),
-    } as Child;
-  });
+  return [];
 }
 
 // =================================================================

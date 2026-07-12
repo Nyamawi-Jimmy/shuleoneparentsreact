@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,27 +11,39 @@ import { ParentHeader } from '../../components/ParentHeader';
 import { ChildSwitcherModal } from '../../components/ChildSwitcherModal';
 import { useSelectedChild } from '../../context/SelectedChildContext';
 import { useParentProfile } from '../../context/ParentProfileContext';
+import { useParentHome } from '../../hooks/useParentHome';
 import { useChildFees } from '../../hooks/useChildFees';
-import { useChildAcademics, useChildAttendance } from '../../hooks/useAcademics';
+import { useChildAttendance } from '../../hooks/useAcademics';
 import { moneyToNumber } from '../../api/fees.types';
+import { ParentHomeAction, ParentHomeSignal } from '../../api/home';
 
-const PLACEHOLDER =
-  'https://images.unsplash.com/photo-1612531048118-826c64158142?w=200&h=200&fit=crop&crop=face';
+const formatKsh = (n: number): string => `KSh ${n.toLocaleString('en-KE')}`;
 
-const formatKsh = (amount: number | null | undefined): string => {
-  const n = typeof amount === 'number' && Number.isFinite(amount) ? amount : 0;
-  return `KSh ${n.toLocaleString('en-KE')}`;
+// Map the web feed's deep links to mobile routes.
+function toMobileRoute(deepLink?: string | null): string {
+  const p = (deepLink || '').toLowerCase();
+  if (p.includes('finance') || p.includes('payment') || p.includes('fee')) return '/finance';
+  if (p.includes('attendance')) return '/academics';
+  if (p.includes('academics') || p.includes('exam') || p.includes('result')) return '/academics';
+  if (p.includes('transport') || p.includes('bus')) return '/transport';
+  if (p.includes('communication') || p.includes('message') || p.includes('announce')) return '/communication';
+  if (p.includes('calendar') || p.includes('event') || p.includes('live')) return '/calendar';
+  if (p.includes('diary')) return '/diary';
+  if (p.includes('learning') || p.includes('progress')) return '/learning';
+  return '/';
+}
+
+const PRIORITY: Record<string, { tintKey: keyof ColorPalette; label: string }> = {
+  URGENT: { tintKey: 'danger', label: 'Urgent' },
+  SOON: { tintKey: 'warning', label: 'Soon' },
+  WHENEVER: { tintKey: 'info', label: '' },
 };
 
-// A self-explanatory menu: every item says exactly what it is.
-interface Section {
-  key: string;
-  title: string;
-  desc: string;
-  icon: React.ReactNode;
-  tint: keyof Pick<ColorPalette, 'primary' | 'info' | 'success' | 'warning' | 'purple' | 'danger'>;
-  route: string;
-  status?: { label: string; tone: 'primary' | 'success' | 'warning' | 'danger' | 'neutral' };
+function greetingWord(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
 }
 
 export const HomeScreen: React.FC = () => {
@@ -42,142 +54,156 @@ export const HomeScreen: React.FC = () => {
   const { selectedChild: child, children } = useSelectedChild();
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
+  const { data: home, loading: homeLoading, refreshing, error: homeError, refresh } = useParentHome();
   const { summary: feesSummary } = useChildFees();
-  const { exams } = useChildAcademics();
   const { summary: attendanceSummary } = useChildAttendance();
 
-  if (!child) {
-    return (
-      <View style={styles.root}>
-        <ParentHeader greetingName={parent.firstName} />
-      </View>
-    );
-  }
-
-  const photoUri = (child as any).photoUrl || PLACEHOLDER;
+  const parentName = parent?.firstName || 'there';
+  const childFirst = child?.firstName || (child as any)?.name?.split(' ')?.[0] || 'your child';
   const hasMultiple = children.length > 1;
 
-  const feesBalance = moneyToNumber(feesSummary?.balance) || (child as any).feesBalance || 0;
-  const academicMean = exams?.[0]?.mean || (child as any).academicAverage || '—';
-  const attendancePercent = attendanceSummary?.attendanceRate != null
-    ? Math.round(attendanceSummary.attendanceRate)
-    : ((child as any).attendancePercent ?? 0);
+  const actions: ParentHomeAction[] = Array.isArray(home?.actions) ? home!.actions : [];
+  const signals: ParentHomeSignal[] = Array.isArray(home?.signals) ? home!.signals : [];
 
-  const firstName = child.firstName || (child as any).firstName || 'your child';
+  // Status tile values — real where available, honest neutral otherwise.
+  const feesBalance = feesSummary ? moneyToNumber(feesSummary.balance) : null;
+  const feesValue = feesBalance == null ? '—' : feesBalance > 0 ? formatKsh(feesBalance) : 'Up to date';
+  const feesTone = feesBalance != null && feesBalance > 0 ? colors.danger : colors.success;
 
-  const sections: Section[] = [
-    {
-      key: 'academics', title: 'Academics', desc: 'Exam results, grades & report cards',
-      icon: <Ionicons name="school-outline" size={22} color={colors.primary} />,
-      tint: 'primary', route: '/academics',
-    },
-    {
-      key: 'learning', title: 'Learning', desc: 'Digital lessons, progress & AI insights',
-      icon: <Ionicons name="rocket-outline" size={22} color={colors.purple} />,
-      tint: 'purple', route: '/learning',
-    },
-    {
-      key: 'fees', title: 'Fees & Payments', desc: 'Balance, statements & pay with M-Pesa',
-      icon: <MaterialCommunityIcons name="wallet-outline" size={22} color={colors.info} />,
-      tint: 'info', route: '/finance',
-      status: feesBalance > 0
-        ? { label: formatKsh(feesBalance), tone: 'danger' }
-        : { label: 'Cleared', tone: 'success' },
-    },
-    {
-      key: 'attendance', title: 'Attendance', desc: 'Daily presence & this term’s rate',
-      icon: <Ionicons name="checkmark-done-outline" size={22} color={colors.success} />,
-      tint: 'success', route: '/academics',
-      status: { label: `${attendancePercent}%`, tone: attendancePercent >= 90 ? 'success' : 'warning' },
-    },
-    {
-      key: 'messages', title: 'Messages', desc: 'Chat with teachers & the school',
-      icon: <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.purple} />,
-      tint: 'purple', route: '/chat',
-    },
-    {
-      key: 'diary', title: 'Class Diary', desc: 'Daily notes, homework & teacher comments',
-      icon: <Ionicons name="book-outline" size={22} color={colors.warning} />,
-      tint: 'warning', route: '/diary',
-    },
-    {
-      key: 'announcements', title: 'Announcements', desc: 'School news, notices & events',
-      icon: <Ionicons name="megaphone-outline" size={22} color={colors.primary} />,
-      tint: 'primary', route: '/communication',
-    },
-    {
-      key: 'transport', title: 'Transport', desc: 'Live bus tracking & pickup status',
-      icon: <MaterialCommunityIcons name="bus-school" size={22} color={colors.info} />,
-      tint: 'info', route: '/transport',
-    },
-  ];
+  const attDays = attendanceSummary?.days ?? [];
+  const attLatest = attDays.length
+    ? [...attDays].sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]
+    : null;
+  const attValue = attendanceSummary?.attendanceRate != null
+    ? `${Math.round(attendanceSummary.attendanceRate)}%`
+    : attLatest?.status
+      ? String(attLatest.status)
+      : '—';
+
+  const statusLine = home?.statusLine || (homeLoading ? 'Loading your day…' : 'Here’s your day');
 
   return (
     <View style={styles.root}>
-      <ParentHeader greetingName={parent.firstName || (child as any).firstName} />
+      <ParentHeader greetingName={parentName} />
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Child card */}
-        <TouchableOpacity activeOpacity={hasMultiple ? 0.92 : 1} onPress={hasMultiple ? () => setSwitcherOpen(true) : undefined}>
-          <LinearGradient
-            colors={['#6366F1', '#4338CA']}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-            style={styles.childCard}
-          >
-            <View style={styles.avatarRing}>
-              <Image source={{ uri: photoUri }} style={styles.avatarImg} />
-            </View>
-            <View style={styles.childInfo}>
-              <Text style={styles.childName} numberOfLines={1}>{child.fullName}</Text>
-              <Text style={styles.childMeta} numberOfLines={1}>
-                {(child as any).grade || child.className}  •  {child.className}
-              </Text>
-              <View style={styles.schoolRow}>
-                <Ionicons name="location-outline" size={13} color="rgba(255,255,255,0.9)" />
-                <Text style={styles.childSchool} numberOfLines={1}>{child.schoolName}</Text>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
+      >
+        {/* Greeting hero */}
+        <LinearGradient colors={['#6366F1', '#4338CA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+          <Text style={styles.heroGreeting}>{greetingWord()}, {parentName} 👋</Text>
+          <Text style={styles.heroSub}>Here’s what’s happening with {childFirst} today.</Text>
+          <View style={styles.statusPill}>
+            <Ionicons
+              name={home?.status === 'ALL_GOOD' ? 'checkmark-circle' : 'sparkles'}
+              size={14} color="#FFF"
+            />
+            <Text style={styles.statusPillText}>{statusLine}</Text>
+          </View>
+        </LinearGradient>
+
+        {/* Child + status tiles */}
+        {child && (
+          <View style={styles.childCard}>
+            <TouchableOpacity
+              style={styles.childRow}
+              activeOpacity={hasMultiple ? 0.7 : 1}
+              onPress={hasMultiple ? () => setSwitcherOpen(true) : () => router.push('/settings' as any)}
+            >
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{initials(child.fullName || (child as any).name)}</Text>
               </View>
-            </View>
-            {hasMultiple && (
-              <View style={styles.switchPill}>
-                <Ionicons name="swap-horizontal" size={14} color="#FFF" />
-                <Text style={styles.switchPillText}>Switch</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.childName} numberOfLines={1}>{child.fullName || (child as any).name}</Text>
+                <Text style={styles.childMeta} numberOfLines={1}>
+                  {[child.className, (child as any).streamName].filter(Boolean).join(' ')}  •  {child.schoolName}
+                </Text>
               </View>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+              {hasMultiple ? (
+                <View style={styles.switchPill}>
+                  <Ionicons name="swap-horizontal" size={13} color={colors.primary} />
+                  <Text style={styles.switchPillText}>Switch</Text>
+                </View>
+              ) : (
+                <Feather name="chevron-right" size={18} color={colors.textTertiary} />
+              )}
+            </TouchableOpacity>
 
-        {/* At-a-glance metrics */}
-        <View style={styles.metrics}>
-          <Metric styles={styles}
-            label="Fees due"
-            value={feesBalance > 0 ? formatKsh(feesBalance) : 'Cleared'}
-            valueColor={feesBalance > 0 ? colors.danger : colors.success}
-            onPress={() => router.push('/finance' as any)}
-          />
-          <View style={styles.metricDivider} />
-          <Metric styles={styles}
-            label="Average"
-            value={`${academicMean}${typeof academicMean === 'number' ? '%' : ''}`}
-            valueColor={colors.text}
-            onPress={() => router.push('/academics' as any)}
-          />
-          <View style={styles.metricDivider} />
-          <Metric styles={styles}
-            label="Attendance"
-            value={`${attendancePercent}%`}
-            valueColor={attendancePercent >= 90 ? colors.success : colors.warning}
-            onPress={() => router.push('/academics' as any)}
-          />
-        </View>
+            <View style={styles.tiles}>
+              <Tile styles={styles} colors={colors} icon={<MaterialCommunityIcons name="wallet-outline" size={16} color={colors.success} />}
+                label="Fees" value={feesValue} valueColor={feesTone} onPress={() => router.push('/finance' as any)} />
+              <Tile styles={styles} colors={colors} icon={<Ionicons name="checkmark-done-outline" size={16} color={colors.info} />}
+                label="Attendance" value={attValue} onPress={() => router.push('/academics' as any)} />
+              <Tile styles={styles} colors={colors} icon={<MaterialCommunityIcons name="bus-school" size={16} color={colors.info} />}
+                label="Bus" value="View" onPress={() => router.push('/transport' as any)} />
+              <Tile styles={styles} colors={colors} icon={<Ionicons name="megaphone-outline" size={16} color={colors.warning} />}
+                label="Updates" value="View" onPress={() => router.push('/communication' as any)} />
+            </View>
+          </View>
+        )}
 
-        {/* Self-explanatory menu */}
-        <Text style={styles.sectionTitle}>Everything for {firstName}</Text>
-        <View style={styles.list}>
-          {sections.map((s) => (
-            <SectionRow key={s.key} colors={colors} styles={styles} section={s}
-              onPress={() => router.push(s.route as any)} />
-          ))}
-        </View>
+        {/* Needs your attention */}
+        {actions.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Needs your attention</Text>
+            <View style={styles.card}>
+              {actions.map((a, i) => {
+                const pr = PRIORITY[String(a.priority || 'WHENEVER').toUpperCase()] || PRIORITY.WHENEVER;
+                const tint = colors[pr.tintKey] as string;
+                const isFee = a.kind === 'PAY_FEES';
+                return (
+                  <TouchableOpacity key={a.id || i} style={[styles.attnRow, i > 0 && styles.divider]} activeOpacity={0.7}
+                    onPress={() => router.push(toMobileRoute(a.deepLink) as any)}>
+                    <View style={[styles.attnIcon, { backgroundColor: tint + '1A' }]}>
+                      <Ionicons name={isFee ? 'wallet' : 'alert-circle'} size={18} color={tint} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.attnTitle}>{a.title}</Text>
+                      {!!a.subtitle && <Text style={styles.attnSub} numberOfLines={1}>{a.subtitle}</Text>}
+                    </View>
+                    {isFee ? (
+                      <View style={styles.payBtn}><Text style={styles.payBtnText}>Pay now</Text></View>
+                    ) : (
+                      <Feather name="chevron-right" size={18} color={colors.textTertiary} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
+
+        {/* Today's timeline */}
+        {signals.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Today’s timeline</Text>
+            <View style={styles.card}>
+              {signals.slice(0, 8).map((s, i) => (
+                <TouchableOpacity key={s.id || i} style={[styles.signalRow, i > 0 && styles.divider]} activeOpacity={0.7}
+                  onPress={() => router.push(toMobileRoute(s.deepLink) as any)}>
+                  <Text style={styles.signalTime}>{timeLabel(s.occurredAt)}</Text>
+                  <View style={[styles.signalDot, { backgroundColor: s.isNew ? colors.primary : colors.border }]} />
+                  <Text style={styles.signalTitle} numberOfLines={2}>{s.title}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+
+        {/* Empty / error */}
+        {!homeLoading && actions.length === 0 && signals.length === 0 && (
+          <View style={styles.empty}>
+            <Ionicons name={homeError ? 'cloud-offline-outline' : 'checkmark-circle-outline'} size={42} color={colors.textTertiary} />
+            <Text style={styles.emptyTitle}>{homeError ? 'Couldn’t load your home' : 'Nothing on your list'}</Text>
+            <Text style={styles.emptyText}>
+              {homeError
+                ? 'Pull down to try again.'
+                : 'When fees, attendance, announcements or events need you, they’ll show up here.'}
+            </Text>
+          </View>
+        )}
 
         <View style={{ height: 32 }} />
       </ScrollView>
@@ -187,63 +213,29 @@ export const HomeScreen: React.FC = () => {
   );
 };
 
-const Metric: React.FC<{
-  styles: any; label: string; value: string; valueColor: string; onPress: () => void;
-}> = ({ styles, label, value, valueColor, onPress }) => (
-  <TouchableOpacity style={styles.metric} activeOpacity={0.7} onPress={onPress}>
-    <Text style={[styles.metricValue, { color: valueColor }]} numberOfLines={1}>{value}</Text>
-    <Text style={styles.metricLabel}>{label}</Text>
+function initials(name?: string | null): string {
+  if (!name) return '?';
+  return name.trim().split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('') || '?';
+}
+
+function timeLabel(ms?: number | null): string {
+  if (!ms) return '';
+  const d = new Date(Number(ms));
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
+}
+
+const Tile: React.FC<{
+  styles: any; colors: ColorPalette; icon: React.ReactNode; label: string; value: string; valueColor?: string; onPress: () => void;
+}> = ({ styles, colors, icon, label, value, valueColor, onPress }) => (
+  <TouchableOpacity style={styles.tile} activeOpacity={0.7} onPress={onPress}>
+    <View style={styles.tileHead}>
+      {icon}
+      <Text style={styles.tileLabel}>{label}</Text>
+    </View>
+    <Text style={[styles.tileValue, { color: valueColor || colors.text }]} numberOfLines={1}>{value}</Text>
   </TouchableOpacity>
 );
-
-const TONE_KEY: Record<string, keyof ColorPalette> = {
-  primary: 'primary', success: 'success', warning: 'warning', danger: 'danger', neutral: 'textSecondary',
-};
-
-const SectionRow: React.FC<{
-  colors: ColorPalette; styles: any; section: Section; onPress: () => void;
-}> = ({ colors, styles, section, onPress }) => {
-  const tintColor = colors[section.tint];
-  const iconBg = softFor(colors, section.tint);
-  return (
-    <TouchableOpacity style={styles.row} activeOpacity={0.7} onPress={onPress}>
-      <View style={[styles.rowIcon, { backgroundColor: iconBg }]}>{section.icon}</View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowTitle}>{section.title}</Text>
-        <Text style={styles.rowDesc} numberOfLines={1}>{section.desc}</Text>
-      </View>
-      {section.status && (
-        <View style={[styles.statusPill, { backgroundColor: softForTone(colors, section.status.tone) }]}>
-          <Text style={[styles.statusText, { color: colors[TONE_KEY[section.status.tone]] as string }]} numberOfLines={1}>
-            {section.status.label}
-          </Text>
-        </View>
-      )}
-      <Feather name="chevron-right" size={18} color={colors.textTertiary} style={{ marginLeft: 4 }} />
-    </TouchableOpacity>
-  );
-};
-
-function softFor(c: ColorPalette, tint: string): string {
-  switch (tint) {
-    case 'primary': return c.primarySoft;
-    case 'info': return c.infoSoft;
-    case 'success': return c.successSoft;
-    case 'warning': return c.warningSoft;
-    case 'danger': return c.dangerSoft;
-    case 'purple': return c.purpleLight;
-    default: return c.backgroundAlt;
-  }
-}
-function softForTone(c: ColorPalette, tone: string): string {
-  switch (tone) {
-    case 'success': return c.successSoft;
-    case 'warning': return c.warningSoft;
-    case 'danger': return c.dangerSoft;
-    case 'primary': return c.primarySoft;
-    default: return c.backgroundAlt;
-  }
-}
 
 // =================================================================
 function makeStyles(c: ColorPalette) {
@@ -251,62 +243,69 @@ function makeStyles(c: ColorPalette) {
     root: { flex: 1, backgroundColor: c.background },
     scroll: { paddingHorizontal: 16, paddingTop: 4 },
 
-    childCard: {
-      flexDirection: 'row', alignItems: 'center', padding: 18, borderRadius: 20, marginBottom: 14,
-      shadowColor: '#4338CA',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.28, shadowRadius: 18, elevation: 8,
+    hero: {
+      borderRadius: 20, padding: 18, marginBottom: 14,
+      shadowColor: '#4338CA', shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.26, shadowRadius: 18, elevation: 8,
     },
-    avatarRing: {
-      width: 60, height: 60, borderRadius: 30,
-      borderWidth: 2.5, borderColor: 'rgba(255,255,255,0.5)',
-      overflow: 'hidden', marginRight: 15,
-      backgroundColor: 'rgba(255,255,255,0.2)',
-    },
-    avatarImg: { width: '100%', height: '100%' },
-    childInfo: { flex: 1 },
-    childName: { color: '#FFF', fontSize: 18, fontWeight: '800', letterSpacing: -0.2 },
-    childMeta: { color: 'rgba(255,255,255,0.92)', fontSize: 12.5, marginTop: 3, fontWeight: '500' },
-    schoolRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-    childSchool: { color: 'rgba(255,255,255,0.92)', fontSize: 12, marginLeft: 3, fontWeight: '500', flexShrink: 1 },
-    switchPill: {
-      position: 'absolute', top: 12, right: 12,
-      flexDirection: 'row', alignItems: 'center',
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
-      gap: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
-    },
-    switchPillText: { color: '#FFF', fontSize: 10.5, fontWeight: '700', letterSpacing: 0.3 },
-
-    // Metrics strip
-    metrics: {
-      flexDirection: 'row', alignItems: 'stretch',
-      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
-      paddingVertical: 14, marginBottom: 22,
-    },
-    metric: { flex: 1, alignItems: 'center', paddingHorizontal: 6 },
-    metricValue: { fontSize: 16, fontWeight: '800', letterSpacing: -0.3 },
-    metricLabel: { fontSize: 11.5, color: c.textSecondary, marginTop: 3, fontWeight: '500' },
-    metricDivider: { width: 1, backgroundColor: c.border, marginVertical: 4 },
-
-    sectionTitle: { fontSize: 16, fontWeight: '800', color: c.text, marginBottom: 12, letterSpacing: -0.3 },
-
-    // Self-explanatory list
-    list: { gap: 10 },
-    row: {
-      flexDirection: 'row', alignItems: 'center',
-      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
-      paddingVertical: 13, paddingHorizontal: 14,
-    },
-    rowIcon: {
-      width: 44, height: 44, borderRadius: 12,
-      alignItems: 'center', justifyContent: 'center', marginRight: 13,
-    },
-    rowTitle: { fontSize: 15, fontWeight: '700', color: c.text, letterSpacing: -0.2 },
-    rowDesc: { fontSize: 12.5, color: c.textSecondary, marginTop: 2 },
+    heroGreeting: { color: '#FFF', fontSize: 19, fontWeight: '800', letterSpacing: -0.3 },
+    heroSub: { color: 'rgba(255,255,255,0.9)', fontSize: 13, marginTop: 4, fontWeight: '500' },
     statusPill: {
-      paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, marginLeft: 8, maxWidth: 110,
+      flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+      backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 999,
+      paddingHorizontal: 11, paddingVertical: 6, marginTop: 14,
+      borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
     },
-    statusText: { fontSize: 11.5, fontWeight: '700' },
+    statusPillText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+
+    childCard: {
+      backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.border,
+      padding: 14, marginBottom: 22,
+    },
+    childRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    avatar: {
+      width: 48, height: 48, borderRadius: 24, backgroundColor: c.primarySoft,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    avatarText: { color: c.primary, fontSize: 16, fontWeight: '800' },
+    childName: { fontSize: 16, fontWeight: '800', color: c.text, letterSpacing: -0.2 },
+    childMeta: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+    switchPill: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: c.primarySoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6,
+    },
+    switchPillText: { color: c.primary, fontSize: 11, fontWeight: '800' },
+
+    tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+    tile: {
+      flexBasis: '47.5%', flexGrow: 1, backgroundColor: c.backgroundAlt,
+      borderRadius: 12, padding: 11,
+    },
+    tileHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+    tileLabel: { fontSize: 11.5, color: c.textSecondary, fontWeight: '600' },
+    tileValue: { fontSize: 15, fontWeight: '800', letterSpacing: -0.2 },
+
+    sectionTitle: { fontSize: 15, fontWeight: '800', color: c.text, marginBottom: 11, letterSpacing: -0.3 },
+    card: {
+      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+      paddingHorizontal: 14, marginBottom: 22,
+    },
+    divider: { borderTopWidth: 1, borderTopColor: c.border },
+
+    attnRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
+    attnIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    attnTitle: { fontSize: 14, fontWeight: '700', color: c.text },
+    attnSub: { fontSize: 12, color: c.textSecondary, marginTop: 2 },
+    payBtn: { backgroundColor: c.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+    payBtnText: { color: '#FFF', fontSize: 12.5, fontWeight: '800' },
+
+    signalRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
+    signalTime: { fontSize: 11, color: c.textTertiary, fontWeight: '600', width: 46 },
+    signalDot: { width: 8, height: 8, borderRadius: 4 },
+    signalTitle: { flex: 1, fontSize: 13, color: c.text, fontWeight: '500' },
+
+    empty: { alignItems: 'center', padding: 30, gap: 8 },
+    emptyTitle: { fontSize: 15, fontWeight: '800', color: c.text, marginTop: 4 },
+    emptyText: { fontSize: 13, color: c.textSecondary, textAlign: 'center', lineHeight: 19, paddingHorizontal: 12 },
   });
 }

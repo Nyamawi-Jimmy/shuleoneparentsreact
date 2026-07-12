@@ -4,26 +4,24 @@ import React, {
 import { useAuth } from './AuthContext';
 import { getParentMe, updateParentMe } from '../api/parent';
 import { Parent, UpdateProfileRequest } from '../api/parent.types';
-import { mockParent } from '../api/mockData';
 import { ApiError } from '../config/api';
 
 // =================================================================
-// Build a Parent from the legacy mockParent so the app always has
-// something to show before /api/parent/me responds.
+// A blank profile so the app has a valid (non-mock) shape before
+// /api/parent/me responds. Real data replaces it on fetch — we never
+// show placeholder names/numbers.
 // =================================================================
-function buildMockProfile(): Parent {
-  const m = mockParent as any;
-  const fullName = `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim();
+function buildEmptyProfile(): Parent {
   return {
-    id: typeof m.id === 'number' ? m.id : 0,
-    name: fullName || 'Parent',
-    firstName: m.firstName ?? '',
-    lastName: m.lastName ?? '',
-    email: m.email ?? '',
-    phone: m.phone ?? '',
-    image: m.photoUrl ?? '',
-    photoUrl: m.photoUrl ?? '',
-    initials: fullName.split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join(''),
+    id: 0,
+    name: '',
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    image: '',
+    photoUrl: '',
+    initials: '',
   };
 }
 
@@ -45,7 +43,7 @@ const ParentProfileContext = createContext<ContextValue | undefined>(undefined);
 export const ParentProfileProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { accessToken, user } = useAuth();
 
-  const initial = useMemo(() => buildMockProfile(), []);
+  const initial = useMemo(() => buildEmptyProfile(), []);
   const [parent, setParent] = useState<Parent>(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +77,7 @@ export const ParentProfileProvider: React.FC<{ children: ReactNode }> = ({ child
       refresh();
     }
     if (!accessToken) {
-      setParent(buildMockProfile());
+      setParent(buildEmptyProfile());
       setIsFromBackend(false);
       setError(null);
     }
