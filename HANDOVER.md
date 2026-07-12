@@ -111,7 +111,14 @@ screen, redesigned for mobile with the indigo/Inter design system (`fonts` from
       **Chats** (thread list → `/conversation`). Also fixed the `markAnnouncementRead`
       double-encode bug. *Follow-up: the "help do it" AssignmentPlayer (ParentExamController)
       is a separate P1 build — list is read-only for now.*
-- [ ] **Academics + Attendance** — NEXT.
+- [x] **Academics + Attendance (`AcademicsScreen`)** — rebuilt as tabbed (Exam results /
+      Attendance), removed the DUMMY fallback (honest-empty now). **Results**: exam selector
+      strip, selected-exam analytics card (grade square, mean·points, trend chip, %-mean donut),
+      performance-over-time line chart (react-native-svg), analytics modal (grade/mean/trend
+      tiles + subject breakdown + **Print assessment PDF** via
+      `/children/{id}/academics/report-pdf?examId=`). **Attendance**: rate donut card +
+      present-streak, Present/Late/Absent/Excused count tiles, month heat-grid (recorded days
+      only), recent-days list. Both match the web pages.
 - [ ] Transport, Calendar, Documents, Settings.
 
 ## 5b. Corrected gap analysis (parent side is more complete than first assumed)
