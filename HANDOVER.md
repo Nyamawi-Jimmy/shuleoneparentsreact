@@ -108,6 +108,25 @@ raw object as `body` (see the corrected `registerFcmToken`, and `api/auth.ts` wh
 already correct). Affects billing, call, chat, communication(markRead), fees,
 notifications(prefs/reminder), parent, transport.
 
+## 5c. Upstream sync (2026-07-10) — new features to fold into parity backlog
+
+Both sibling repos pulled to latest `main` and rebuilt green:
+`lms-react` → `0a86657` (added `sweetalert2`); `lms-spring` → `469d3f2`
+(added `spring-boot-starter-websocket` + `pdfbox 3.0.3`). New capabilities that
+the mobile app does NOT have yet — add to P2/P3 parity as appropriate:
+- **Realtime student events/push** over WebSocket (`realtime/StudentEventsHandler`,
+  `StudentPushController`, `StudentWsHandshakeInterceptor`) — first native WS in the
+  backend (previously all realtime was delegated to ShuleOne-main). Web uses SockJS/STOMP.
+- **AI "Explain this"** (`ai/explain/**` + web `quests/ExplainThis.jsx`, `CheckYourself.jsx`,
+  `InteractiveHtml.jsx`) — in-lesson AI explanation/feedback.
+- **Professional certificates** (`certificate/**`, PDF via pdfbox; web cert views) —
+  completion certificates + public verification.
+- **Readiness** endpoints (`ai/readiness/**`, web `ReadinessCard.jsx`).
+- **Student nudges / professional routing** (`student/web/StudentNudgeController`,
+  `student/service/ProfessionalRouting`, `SchoolCategoryLookup`).
+- Tutor: **ExamBuilder**, **QuestReviewQueue/Detail** (web `tutor/pages/*`).
+Local runtime `logs/` changes in lms-spring were stashed (`git stash@{0}`) before the pull.
+
 ## 6. Architecture notes (for reuse)
 
 - **API client:** `config/api.ts` (`apiFetch`, `ApiError`). Typed mirrors in `api/*.types.ts`.
