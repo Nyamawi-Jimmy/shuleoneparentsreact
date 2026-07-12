@@ -127,6 +127,34 @@ the mobile app does NOT have yet — add to P2/P3 parity as appropriate:
 - Tutor: **ExamBuilder**, **QuestReviewQueue/Detail** (web `tutor/pages/*`).
 Local runtime `logs/` changes in lms-spring were stashed (`git stash@{0}`) before the pull.
 
+## 5d. Local run state (all three up, 2026-07-12)
+
+All env vars from the reference machine are set at **User scope** (DB creds, `SHULEONE_*`,
+`JWT_SECRET`, payment/AI/SMTP keys, etc.). `OPENAI_API_KEY` was truncated in the source dump
+so it's unset (Gemini is the active LLM — fine). `IMAGE_STYLE` was empty in the dump → set to
+`natural` (image-gen also needs the OpenAI key, so inert).
+
+Running:
+- **Backend** `lms-spring` → `http://localhost:8091` (LmsApp, JDK 25). **Functional** — parent
+  login hits the real `sec` DB (returns 401 on bad creds). `/actuator/health` returns **503**
+  but that's benign: a health indicator times out reaching **ShuleOne‑main at :8090** (that
+  separate app isn't running here). DB-backed features work; features that proxy to
+  ShuleOne‑main won't until :8090 is up.
+- **Web** `lms-react` → `http://localhost:8088` (Vite; its config uses 8088).
+- **Mobile** Expo Metro → `http://localhost:8081`; `.env` sets
+  `EXPO_PUBLIC_API_BASE_URL=http://<LAN-IP>:8091` (LAN IP was 192.168.100.180 — regenerate per network). `.env` is gitignored.
+
+Run gotchas discovered:
+- **Missing Companion tables:** the dump is ShuleOne‑main's DB and lacks the Companion's own
+  tables (`app_session`, new-feature tables). Booted **once** with `SPRING_JPA_HIBERNATE_DDL_AUTO=update`
+  to create them (additive, non-destructive). They now persist, so normal `ddl-auto=none` runs
+  (IntelliJ) work — provided the env vars are present (restart IntelliJ to inherit User-scope vars,
+  or add them to the run config).
+- **Stale upstream test:** `LearnerBillingServicePaystackRoutingTest` misses the new `PromoService`
+  ctor arg → `mvn test`/testCompile fails. Run with `-Dmaven.test.skip=true`. Report upstream.
+- Backend launched via `mvnw '-Dmaven.test.skip=true' spring-boot:run` with env loaded from User scope.
+- If the phone can't reach the backend, allow inbound **8091**/**8081** through Windows Firewall.
+
 ## 6. Architecture notes (for reuse)
 
 - **API client:** `config/api.ts` (`apiFetch`, `ApiError`). Typed mirrors in `api/*.types.ts`.
