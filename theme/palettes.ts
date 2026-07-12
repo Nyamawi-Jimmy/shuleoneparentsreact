@@ -50,41 +50,43 @@ export interface ColorPalette {
 }
 
 // =================================================================
+// Light — professional, calm, trustworthy. Indigo primary on a soft
+// slate canvas with white cards. Reads "school / bank" reliable, modern.
 export const lightColors: ColorPalette = {
-  primary:       '#E11D48',
-  primaryLight:  '#FB7185',
-  primarySoft:   '#FFE4ED',
-  primarySofter: '#FFF1F5',
+  primary:       '#4F46E5',   // indigo-600
+  primaryLight:  '#818CF8',   // indigo-400
+  primarySoft:   '#E0E7FF',   // indigo-100
+  primarySofter: '#EEF2FF',   // indigo-50
 
-  purple:        '#7C3AED',
+  purple:        '#7C3AED',   // violet accent (academics)
   purpleLight:   '#EDE9FE',
   purpleDeep:    '#5B21B6',
 
-  success:       '#10B981',
+  success:       '#059669',   // emerald-600
   successSoft:   '#D1FAE5',
-  warning:       '#F59E0B',
+  warning:       '#D97706',   // amber-600
   warningSoft:   '#FEF3C7',
-  danger:        '#EF4444',
+  danger:        '#DC2626',   // red-600
   dangerSoft:    '#FEE2E2',
-  info:          '#3B82F6',
+  info:          '#2563EB',   // blue-600
   infoSoft:      '#DBEAFE',
 
-  subjectMath:     '#10B981',
-  subjectEnglish:  '#3B82F6',
-  subjectScience:  '#EF4444',
-  subjectKiswahili:'#7C3AED',
-  subjectSocial:   '#F59E0B',
-  subjectCRE:      '#06B6D4',
-  subjectComputer: '#6366F1',
-  subjectArt:      '#EC4899',
+  subjectMath:     '#0D9488',   // teal
+  subjectEnglish:  '#2563EB',   // blue
+  subjectScience:  '#DC2626',   // red
+  subjectKiswahili:'#7C3AED',   // violet
+  subjectSocial:   '#D97706',   // amber
+  subjectCRE:      '#0891B2',   // cyan
+  subjectComputer: '#4F46E5',   // indigo
+  subjectArt:      '#DB2777',   // pink
 
-  text:          '#1F2937',
-  textSecondary: '#6B7280',
-  textTertiary:  '#9CA3AF',
-  border:        '#F1F1F4',
+  text:          '#0F172A',     // slate-900
+  textSecondary: '#475569',     // slate-600
+  textTertiary:  '#94A3B8',     // slate-400
+  border:        '#E2E8F0',     // slate-200
   card:          '#FFFFFF',
-  background:    '#FFFFFF',
-  backgroundAlt: '#FAFBFC',
+  background:    '#F8FAFC',      // slate-50 — soft modern canvas
+  backgroundAlt: '#F1F5F9',      // slate-100
 
   scheme: 'light',
   statusBarStyle: 'dark-content',
@@ -92,12 +94,12 @@ export const lightColors: ColorPalette = {
 
 // =================================================================
 export const darkColors: ColorPalette = {
-  // Brand colours stay vivid on dark - they pop
-  primary:       '#E11D48',
-  primaryLight:  '#FB7185',
+  // Indigo lifts nicely on dark and keeps the professional feel
+  primary:       '#6366F1',     // indigo-500 — pops on slate
+  primaryLight:  '#818CF8',
   // Soft tints become low-saturation dark variants of the brand
-  primarySoft:   '#3F1721',
-  primarySofter: '#2A0F18',
+  primarySoft:   '#1E1B4B',     // indigo-950
+  primarySofter: '#171635',
 
   purple:        '#A78BFA',     // lifted purple, sits better on dark
   purpleLight:   '#332554',
