@@ -15,6 +15,7 @@ import { useParentProfile } from '../../context/ParentProfileContext';
 import { useParentHome } from '../../hooks/useParentHome';
 import { useChildFees } from '../../hooks/useChildFees';
 import { useChildAttendance } from '../../hooks/useAcademics';
+import { useChildUpcoming, UpcomingItem } from '../../hooks/useChildUpcoming';
 import { moneyToNumber } from '../../api/fees.types';
 import { ParentHomeAction, ParentHomeSignal } from '../../api/home';
 
@@ -58,6 +59,7 @@ export const HomeScreen: React.FC = () => {
   const { data: home, loading: homeLoading, refreshing, error: homeError, refresh } = useParentHome();
   const { summary: feesSummary } = useChildFees();
   const { summary: attendanceSummary } = useChildAttendance();
+  const { items: upcoming } = useChildUpcoming();
 
   const parentName = parent?.firstName || 'there';
   const childFirst = child?.firstName || (child as any)?.name?.split(' ')?.[0] || 'your child';
@@ -148,7 +150,7 @@ export const HomeScreen: React.FC = () => {
         {/* Needs your attention */}
         {actions.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Needs your attention</Text>
+            <SectionHeader styles={styles} colors={colors} title="Needs your attention" />
             <View style={styles.card}>
               {actions.map((a, i) => {
                 const pr = PRIORITY[String(a.priority || 'WHENEVER').toUpperCase()] || PRIORITY.WHENEVER;
@@ -176,10 +178,40 @@ export const HomeScreen: React.FC = () => {
           </>
         )}
 
-        {/* Today's timeline */}
+        {/* Upcoming events */}
+        {upcoming.length > 0 && (
+          <>
+            <SectionHeader styles={styles} colors={colors} title="Upcoming events"
+              actionLabel="View calendar" onAction={() => router.push('/calendar' as any)} />
+            <View style={styles.card}>
+              {upcoming.map((u, i) => (
+                <TouchableOpacity key={u.key} style={[styles.eventRow, i > 0 && styles.divider]} activeOpacity={0.7}
+                  onPress={() => router.push('/calendar' as any)}>
+                  <View style={[styles.eventDate, { backgroundColor: u.isLive ? colors.dangerSoft : colors.primarySoft }]}>
+                    <Text style={[styles.eventDay, { color: u.isLive ? colors.danger : colors.primary }]}>{dayNum(u.date)}</Text>
+                    <Text style={[styles.eventMon, { color: u.isLive ? colors.danger : colors.primary }]}>{monShort(u.date)}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.eventTitle} numberOfLines={1}>{u.title}</Text>
+                    <Text style={styles.eventMeta} numberOfLines={1}>
+                      {eventDateLabel(u.date)}{u.time ? `  •  ${u.time}` : ''}
+                    </Text>
+                  </View>
+                  {u.isLive ? (
+                    <View style={styles.livePill}><View style={styles.liveDot} /><Text style={styles.liveText}>Live</Text></View>
+                  ) : (
+                    <Feather name="chevron-right" size={18} color={colors.textTertiary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+
+        {/* Recent activity */}
         {signals.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Today’s timeline</Text>
+            <SectionHeader styles={styles} colors={colors} title="Recent activity" />
             <View style={styles.card}>
               {signals.slice(0, 8).map((s, i) => (
                 <TouchableOpacity key={s.id || i} style={[styles.signalRow, i > 0 && styles.divider]} activeOpacity={0.7}
@@ -194,7 +226,7 @@ export const HomeScreen: React.FC = () => {
         )}
 
         {/* Empty / error */}
-        {!homeLoading && actions.length === 0 && signals.length === 0 && (
+        {!homeLoading && actions.length === 0 && signals.length === 0 && upcoming.length === 0 && (
           <View style={styles.empty}>
             <Ionicons name={homeError ? 'cloud-offline-outline' : 'checkmark-circle-outline'} size={42} color={colors.textTertiary} />
             <Text style={styles.emptyTitle}>{homeError ? 'Couldn’t load your home' : 'Nothing on your list'}</Text>
@@ -237,6 +269,40 @@ const Tile: React.FC<{
     <Text style={[styles.tileValue, { color: valueColor || colors.text }]} numberOfLines={1}>{value}</Text>
   </TouchableOpacity>
 );
+
+const SectionHeader: React.FC<{
+  styles: any; colors: ColorPalette; title: string; actionLabel?: string; onAction?: () => void;
+}> = ({ styles, colors, title, actionLabel, onAction }) => (
+  <View style={styles.sectionHeader}>
+    <Text style={styles.sectionTitle}>{title}</Text>
+    {actionLabel && onAction && (
+      <TouchableOpacity onPress={onAction} hitSlop={8} activeOpacity={0.7} style={styles.sectionAction}>
+        <Text style={styles.sectionActionText}>{actionLabel}</Text>
+        <Feather name="chevron-right" size={14} color={colors.primary} />
+      </TouchableOpacity>
+    )}
+  </View>
+);
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function dayNum(date: string): string {
+  const d = new Date(`${date}T00:00:00`);
+  return isNaN(d.getTime()) ? '–' : String(d.getDate());
+}
+function monShort(date: string): string {
+  const d = new Date(`${date}T00:00:00`);
+  return isNaN(d.getTime()) ? '' : MONTHS[d.getMonth()];
+}
+function eventDateLabel(date: string): string {
+  const d = new Date(`${date}T00:00:00`);
+  if (isNaN(d.getTime())) return '';
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  if (diff > 1 && diff < 7) return d.toLocaleDateString('en-KE', { weekday: 'long' });
+  return d.toLocaleDateString('en-KE', { day: 'numeric', month: 'short' });
+}
 
 // =================================================================
 function makeStyles(c: ColorPalette) {
@@ -286,7 +352,24 @@ function makeStyles(c: ColorPalette) {
     tileLabel: { fontSize: 11.5, color: c.textSecondary, fontFamily: fonts.semibold },
     tileValue: { fontSize: 15.5, fontFamily: fonts.extrabold, letterSpacing: -0.3 },
 
-    sectionTitle: { fontSize: 15.5, fontFamily: fonts.extrabold, color: c.text, marginBottom: 12, letterSpacing: -0.4 },
+    sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+    sectionTitle: { fontSize: 15.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.4 },
+    sectionAction: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+    sectionActionText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.primary },
+
+    eventRow: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 12 },
+    eventDate: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    eventDay: { fontSize: 17, fontFamily: fonts.extrabold, lineHeight: 20 },
+    eventMon: { fontSize: 10, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 0.5 },
+    eventTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    eventMeta: { fontSize: 12, fontFamily: fonts.medium, color: c.textSecondary, marginTop: 2 },
+    livePill: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      backgroundColor: c.dangerSoft, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4,
+    },
+    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: c.danger },
+    liveText: { fontSize: 11, fontFamily: fonts.bold, color: c.danger },
+
     card: {
       backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
       paddingHorizontal: 14, marginBottom: 24,
