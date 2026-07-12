@@ -72,6 +72,11 @@ export const HomeScreen: React.FC = () => {
       tint: 'primary', route: '/(tabs)/academics',
     },
     {
+      key: 'learning', title: 'Learning', desc: 'Digital lessons, progress & AI insights',
+      icon: <Ionicons name="rocket-outline" size={22} color={colors.purple} />,
+      tint: 'purple', route: '/learning',
+    },
+    {
       key: 'fees', title: 'Fees & Payments', desc: 'Balance, statements & pay with M-Pesa',
       icon: <MaterialCommunityIcons name="wallet-outline" size={22} color={colors.info} />,
       tint: 'info', route: '/(tabs)/finance',
