@@ -63,18 +63,21 @@ export function useOptOuts() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  // The backend answers both mutations with the refreshed opt-out list.
   const submitOptOut = useCallback(async (body: OptOutRequest) => {
     if (!accessToken || studentId == null) throw new Error('Not ready');
-    const created = await createOptOut(accessToken, studentId, body);
-    setItems((prev) => [created, ...prev]);
-    return created;
+    const list = await createOptOut(accessToken, studentId, body);
+    setItems(list ?? []);
+    return list;
   }, [accessToken, studentId]);
 
   const removeOptOut = useCallback(async (optOutId: number) => {
     if (!accessToken || studentId == null) return;
     setItems((prev) => prev.filter((o) => o.id !== optOutId));
-    try { await deleteOptOut(accessToken, studentId, optOutId); }
-    catch { load(); }
+    try {
+      const list = await deleteOptOut(accessToken, studentId, optOutId);
+      setItems(list ?? []);
+    } catch { load(); }
   }, [accessToken, studentId, load]);
 
   return { items, loading, error, refresh: load, submitOptOut, removeOptOut };

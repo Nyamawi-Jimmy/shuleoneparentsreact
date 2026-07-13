@@ -160,12 +160,11 @@ has more than the original plan assumed. **Already built** (do NOT rebuild):
 5. **Documents/PDF hub** — statements/receipts/report PDFs via `utils/downloadAuthFile.ts`.
 6. **Google Sign-In** — `loginWithGoogle` exists in `api/auth.ts` but the button is a stub.
 
-**Systemic bug to fix (mechanical, ~12 call sites):** several `api/*.ts` POST helpers
-pass `body: JSON.stringify(obj)` while `apiFetch` also stringifies → double-encoded
-requests + the `TS2322 'string' is not assignable to 'object'` errors. Fix: pass the
-raw object as `body` (see the corrected `registerFcmToken`, and `api/auth.ts` which is
-already correct). Affects billing, call, chat, communication(markRead), fees,
-notifications(prefs/reminder), parent, transport.
+**Systemic bug — FIXED (2026-07-13):** several `api/*.ts` POST helpers passed
+`body: JSON.stringify(obj)` while `apiFetch` also stringifies → double-encoded
+requests (backend answered 400 "JSON parse error") + the `TS2322 'string' is not
+assignable to 'object'` errors. All call sites now pass the raw object as `body`
+(billing, call, chat, fees, parent, transport). Keep new helpers on that contract.
 
 ## 5c. Upstream sync (2026-07-10) — new features to fold into parity backlog
 

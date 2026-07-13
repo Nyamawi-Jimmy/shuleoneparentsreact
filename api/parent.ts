@@ -33,7 +33,7 @@ export function updateParentMeRaw(accessToken: string, body: UpdateProfileReques
   return apiFetch<ParentRef>('/api/parent/me', {
     method: 'PUT',
     accessToken,
-    body: JSON.stringify(body),
+    body,
     headers: { 'Content-Type': 'application/json' },
   });
 }
@@ -50,7 +50,7 @@ export function changeParentPassword(accessToken: string, body: ChangePasswordRe
   return apiFetch<void>('/api/parent/me/password', {
     method: 'POST',
     accessToken,
-    body: JSON.stringify(body),
+    body,
     headers: { 'Content-Type': 'application/json' },
   });
 }

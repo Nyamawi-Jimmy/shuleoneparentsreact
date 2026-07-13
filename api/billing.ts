@@ -49,7 +49,7 @@ export async function mpesaCheckoutChild(
     {
       method: 'POST',
       accessToken,
-      body: JSON.stringify(body),
+      body,
       headers: { 'Content-Type': 'application/json' },
     },
   );
@@ -67,7 +67,7 @@ export async function paystackCheckoutChild(
     {
       method: 'POST',
       accessToken,
-      body: JSON.stringify(body),
+      body,
       headers: { 'Content-Type': 'application/json' },
     },
   );
@@ -100,7 +100,7 @@ export async function mpesaCheckoutFamily(
     {
       method: 'POST',
       accessToken,
-      body: JSON.stringify(body),
+      body,
       headers: { 'Content-Type': 'application/json' },
     },
   );
@@ -117,7 +117,7 @@ export async function paystackCheckoutFamily(
     {
       method: 'POST',
       accessToken,
-      body: JSON.stringify(body),
+      body,
       headers: { 'Content-Type': 'application/json' },
     },
   );

@@ -29,7 +29,7 @@ export function sendChatMessage(accessToken: string, body: SendChatBody) {
   return apiFetch<ChatMessage>('/api/parent/chat/send', {
     method: 'POST',
     accessToken,
-    body: JSON.stringify(body),
+    body,
     headers: { 'Content-Type': 'application/json' },
   });
 }

@@ -52,7 +52,7 @@ export function initiateMpesaPayment(
     {
       method: 'POST',
       accessToken,
-      body: JSON.stringify(body),
+      body,
       headers: { 'Content-Type': 'application/json' },
     },
   );

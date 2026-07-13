@@ -116,14 +116,12 @@ export const TransportScreen: React.FC = () => {
   return (
     <View style={styles.root}>
       <GradientAppBar
-        overlap
         title="Transport"
         subtitle={child?.onTransport ? [child.routeName, child.vehiclePlate].filter(Boolean).join(' · ') : 'School bus & live tracking'}
         showBack
       />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
-          style={styles.scrollBody}
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -334,10 +332,7 @@ export const TransportScreen: React.FC = () => {
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
-    // Viewport rides over the app bar band; a negative margin on the first
-    // scroll child would be clipped by the ScrollView instead.
-    scrollBody: { marginTop: -22 },
-    scroll: { paddingHorizontal: 16 },
+    scroll: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 24 },
     center: { padding: 44, alignItems: 'center' },
 
     errorBox: { backgroundColor: c.dangerSoft, borderRadius: 12, padding: 14, marginTop: 14 },

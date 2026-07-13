@@ -8,7 +8,7 @@ export async function inviteCall(accessToken: string, body: InviteBody): Promise
   const raw = await apiFetch<string>('/api/parent/call/invite', {
     method: 'POST',
     accessToken,
-    body: JSON.stringify(body),
+    body,
     headers: { 'Content-Type': 'application/json' },
   });
   return safeJson<InviteResponse>(raw) ?? { callId: String(raw) };
@@ -43,7 +43,7 @@ export function signalCall(accessToken: string, callId: string, body: SignalBody
   return apiFetch<string>(`/api/parent/call/${encodeURIComponent(callId)}/signal`, {
     method: 'POST',
     accessToken,
-    body: JSON.stringify(body),
+    body,
     headers: { 'Content-Type': 'application/json' },
   });
 }

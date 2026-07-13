@@ -22,22 +22,19 @@ export function listOptOuts(accessToken: string, studentId: number) {
   );
 }
 
-/** POST /api/parent/children/{studentId}/transport/opt-outs */
+/** POST /api/parent/children/{studentId}/transport/opt-outs — returns the refreshed list.
+ * apiFetch stringifies the body itself; passing a pre-stringified body double-encodes
+ * it and the backend rejects it with a JSON parse error. */
 export function createOptOut(accessToken: string, studentId: number, body: OptOutRequest) {
-  return apiFetch<OptOut>(
+  return apiFetch<OptOut[]>(
     `/api/parent/children/${studentId}/transport/opt-outs`,
-    {
-      method: 'POST',
-      accessToken,
-      body: JSON.stringify(body),
-      headers: { 'Content-Type': 'application/json' },
-    },
+    { method: 'POST', accessToken, body },
   );
 }
 
-/** DELETE /api/parent/children/{studentId}/transport/opt-outs/{optOutId} */
+/** DELETE /api/parent/children/{studentId}/transport/opt-outs/{optOutId} — returns the refreshed list. */
 export function deleteOptOut(accessToken: string, studentId: number, optOutId: number) {
-  return apiFetch<void>(
+  return apiFetch<OptOut[]>(
     `/api/parent/children/${studentId}/transport/opt-outs/${optOutId}`,
     { method: 'DELETE', accessToken },
   );
