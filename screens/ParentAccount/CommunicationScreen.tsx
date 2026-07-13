@@ -115,7 +115,7 @@ export const CommunicationScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
-      <ParentHeader title="Messages" showBack rightIcon="none" />
+      <ParentHeader title="Messages" showBack={false} rightIcon="none" />
 
       <ScrollView
         contentContainerStyle={styles.scroll}

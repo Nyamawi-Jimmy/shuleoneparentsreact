@@ -4,6 +4,7 @@ import {
   RefreshControl, Dimensions, Modal, Pressable,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
 import Svg, { Circle, Polyline, Line as SvgLine, Path } from 'react-native-svg';
 import { ParentHeader } from '../../components/ParentHeader';
 import { fonts } from '../../constants/theme';
@@ -51,13 +52,22 @@ export const AcademicsScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { selectedChild } = useSelectedChild();
-  const [tab, setTab] = useState<Tab>('results');
+  // ?tab=attendance deep link (Today's quick access) — also honoured when the
+  // tab is already mounted and the parent taps the shortcut again. Derived-state
+  // pattern: adopt the param during render whenever it changes.
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  const [tab, setTab] = useState<Tab>(tabParam === 'attendance' ? 'attendance' : 'results');
+  const [seenParam, setSeenParam] = useState(tabParam);
+  if (tabParam !== seenParam) {
+    setSeenParam(tabParam);
+    if (tabParam === 'attendance' || tabParam === 'results') setTab(tabParam);
+  }
 
   const childName = selectedChild?.firstName || selectedChild?.fullName || 'your child';
 
   return (
     <View style={styles.root}>
-      <ParentHeader title="Academics" showBack rightIcon="none" />
+      <ParentHeader title="Academics" showBack={false} rightIcon="none" />
       <View style={styles.tabsWrap}>
         <View style={styles.tabs}>
           {(['results', 'attendance'] as Tab[]).map((t) => (

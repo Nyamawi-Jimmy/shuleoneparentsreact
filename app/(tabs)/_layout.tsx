@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 import { useTheme } from '../../theme/ThemeContext';
 import { fonts } from '../../constants/theme';
@@ -64,19 +64,21 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="diary"
+        name="academics"
         options={{
-          title: 'Diary',
+          title: 'Academics',
           tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'book' : 'book-outline'} size={size} color={color} />
+            <Ionicons name={focused ? 'school' : 'school-outline'} size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="more"
+        name="communication"
         options={{
-          title: 'More',
-          tabBarIcon: ({ color, size }) => <Feather name="grid" size={size - 1} color={color} />,
+          title: 'Messages',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={size} color={color} />
+          ),
         }}
       />
     </Tabs>

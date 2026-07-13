@@ -120,7 +120,6 @@ function ThemedAppShell() {
         <Stack.Screen name="student/code/robotics" />
 
         {/* Parent feature screens */}
-        <Stack.Screen name="communication" />
         <Stack.Screen name="subscriptions" />
         <Stack.Screen name="notifications" />
         <Stack.Screen name="settings" />

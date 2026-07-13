@@ -59,17 +59,17 @@ function greetingWord(): string {
   return 'Good evening';
 }
 
-// Quick access — every section one tap away, so More stays a fallback, not a maze.
+// Quick access — everything that isn't a bottom tab, one tap away (More is gone).
 interface QuickItem { label: string; route: string; icon: React.ReactNode; tint: string }
 const quickItems = (c: ColorPalette): QuickItem[] => [
-  { label: 'Fees',      route: '/finance',       tint: '#10B981', icon: <MaterialCommunityIcons name="wallet-outline" size={21} color="#10B981" /> },
-  { label: 'Academics', route: '/academics',     tint: '#6366F1', icon: <Ionicons name="school-outline" size={21} color="#6366F1" /> },
-  { label: 'Bus',       route: '/transport',     tint: '#2563EB', icon: <MaterialCommunityIcons name="bus-school" size={21} color="#2563EB" /> },
-  { label: 'Messages',  route: '/chat',          tint: '#0891B2', icon: <Ionicons name="chatbubbles-outline" size={21} color="#0891B2" /> },
-  { label: 'Coding',    route: '/coding',        tint: '#059669', icon: <MaterialCommunityIcons name="code-tags" size={21} color="#059669" /> },
-  { label: 'Calendar',  route: '/calendar',      tint: '#E11D48', icon: <Ionicons name="calendar-outline" size={21} color="#E11D48" /> },
-  { label: 'Documents', route: '/documents',     tint: '#D97706', icon: <Ionicons name="folder-open-outline" size={21} color="#D97706" /> },
-  { label: 'Updates',   route: '/communication', tint: '#7C3AED', icon: <Ionicons name="megaphone-outline" size={21} color="#7C3AED" /> },
+  { label: 'Coding',     route: '/coding',                    tint: '#059669', icon: <MaterialCommunityIcons name="code-tags" size={21} color="#059669" /> },
+  { label: 'Transport',  route: '/transport',                 tint: '#2563EB', icon: <MaterialCommunityIcons name="bus-school" size={21} color="#2563EB" /> },
+  { label: 'Attendance', route: '/academics?tab=attendance',  tint: '#0891B2', icon: <Ionicons name="checkmark-done-outline" size={21} color="#0891B2" /> },
+  { label: 'Diary',      route: '/diary',                     tint: '#DB2777', icon: <Ionicons name="book-outline" size={21} color="#DB2777" /> },
+  { label: 'Live',       route: '/live-classes',              tint: '#E11D48', icon: <Ionicons name="videocam-outline" size={21} color="#E11D48" /> },
+  { label: 'Calendar',   route: '/calendar',                  tint: '#7C3AED', icon: <Ionicons name="calendar-outline" size={21} color="#7C3AED" /> },
+  { label: 'Documents',  route: '/documents',                 tint: '#D97706', icon: <Ionicons name="folder-open-outline" size={21} color="#D97706" /> },
+  { label: 'Settings',   route: '/settings',                  tint: '#64748B', icon: <Ionicons name="settings-outline" size={21} color="#64748B" /> },
 ];
 
 export const HomeScreen: React.FC = () => {
@@ -200,7 +200,7 @@ export const HomeScreen: React.FC = () => {
               icon={<Ionicons name="checkmark-done-outline" size={17} color="#6366F1" />}
               value={attValue} foot={attFoot}
               progress={attRate != null ? Math.max(0, Math.min(100, attRate)) : null}
-              onPress={() => router.push('/academics' as any)}
+              onPress={() => router.push('/academics?tab=attendance' as any)}
             />
             <StatCard
               styles={styles} tint="#2563EB" label="School bus"
