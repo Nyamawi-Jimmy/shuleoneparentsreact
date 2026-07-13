@@ -14,6 +14,7 @@ import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import Svg, { Circle } from 'react-native-svg';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { fonts } from '../../constants/theme';
@@ -86,7 +87,6 @@ export const HomeScreen: React.FC = () => {
   const { items: upcoming } = useChildUpcoming();
 
   const parentName = parent?.firstName || 'there';
-  const childFirst = child?.firstName || (child as any)?.name?.split(' ')?.[0] || 'your child';
   const hasMultiple = children.length > 1;
 
   const actions: ParentHomeAction[] = Array.isArray(home?.actions) ? home!.actions : [];
@@ -175,7 +175,47 @@ export const HomeScreen: React.FC = () => {
         </LinearGradient>
 
         <View style={styles.body}>
-          {/* ── Quick access — elevated card overlapping the header ───────── */}
+          {/* ── Status cards — the day's numbers, riding over the header ──── */}
+          <View style={styles.statGrid}>
+            <StatCard
+              styles={styles} colors={colors} label="Fees"
+              gradient={['#10B981', '#059669']}
+              icon={<MaterialCommunityIcons name="wallet-outline" size={17} color="#FFF" />}
+              chip={feesBalance == null ? null : feesBalance > 0
+                ? { text: 'Due', tint: colors.danger }
+                : { text: 'Cleared', tint: colors.success }}
+              value={feesValue} valueColor={feesTone} foot={feesFoot}
+              onPress={() => router.push('/finance' as any)}
+            />
+            <StatCard
+              styles={styles} colors={colors} label="Attendance"
+              gradient={['#6366F1', '#4F46E5']}
+              icon={<Ionicons name="checkmark-done-outline" size={17} color="#FFF" />}
+              ring={attRate != null ? Math.max(0, Math.min(100, attRate)) : null}
+              value={attValue} foot={attFoot}
+              onPress={() => router.push('/academics?tab=attendance' as any)}
+            />
+            <StatCard
+              styles={styles} colors={colors} label="School bus"
+              gradient={['#3B82F6', '#2563EB']}
+              icon={<MaterialCommunityIcons name="bus-school" size={17} color="#FFF" />}
+              chip={{ text: 'Live', tint: '#2563EB', dot: true }}
+              value="Track bus" foot="Pickup, drop-off & route"
+              onPress={() => router.push('/transport' as any)}
+            />
+            <StatCard
+              styles={styles} colors={colors} label="Updates"
+              gradient={['#8B5CF6', '#7C3AED']}
+              icon={<Ionicons name="megaphone-outline" size={17} color="#FFF" />}
+              chip={newSignals > 0 ? { text: `${newSignals} new`, tint: '#D97706' } : null}
+              value={newSignals > 0 ? `${newSignals} unread` : 'All read'}
+              foot={newSignals > 0 ? 'School news waiting' : 'Nothing unread'}
+              onPress={() => router.push('/communication' as any)}
+            />
+          </View>
+
+          {/* ── Quick access ──────────────────────────────────────────────── */}
+          <SectionHeader styles={styles} colors={colors} title="Quick access" />
           <View style={styles.quickCard}>
             {quickItems(colors).map((q) => (
               <TouchableOpacity key={q.label} style={styles.quickItem} activeOpacity={0.7}
@@ -184,37 +224,6 @@ export const HomeScreen: React.FC = () => {
                 <Text style={styles.quickLabel} numberOfLines={1}>{q.label}</Text>
               </TouchableOpacity>
             ))}
-          </View>
-
-          {/* ── At a glance ────────────────────────────────────────────────── */}
-          <SectionHeader styles={styles} colors={colors} title={`${childFirst}’s day at a glance`} />
-          <View style={styles.statGrid}>
-            <StatCard
-              styles={styles} tint="#10B981" label="Fees"
-              icon={<MaterialCommunityIcons name="wallet-outline" size={17} color="#10B981" />}
-              value={feesValue} valueColor={feesTone} foot={feesFoot}
-              onPress={() => router.push('/finance' as any)}
-            />
-            <StatCard
-              styles={styles} tint="#6366F1" label="Attendance"
-              icon={<Ionicons name="checkmark-done-outline" size={17} color="#6366F1" />}
-              value={attValue} foot={attFoot}
-              progress={attRate != null ? Math.max(0, Math.min(100, attRate)) : null}
-              onPress={() => router.push('/academics?tab=attendance' as any)}
-            />
-            <StatCard
-              styles={styles} tint="#2563EB" label="School bus"
-              icon={<MaterialCommunityIcons name="bus-school" size={17} color="#2563EB" />}
-              value="Track live" foot="Pickup, drop-off & route"
-              onPress={() => router.push('/transport' as any)}
-            />
-            <StatCard
-              styles={styles} tint="#7C3AED" label="Updates"
-              icon={<Ionicons name="megaphone-outline" size={17} color="#7C3AED" />}
-              value={newSignals > 0 ? `${newSignals} new` : 'All read'}
-              foot={newSignals > 0 ? 'School news waiting' : 'Nothing unread'}
-              onPress={() => router.push('/communication' as any)}
-            />
           </View>
 
           {/* Coding class report — only when the child's class was delivered recently */}
@@ -380,22 +389,53 @@ function timeLabel(ms?: number | null): string {
   return d.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
 }
 
-/** One "At a glance" card: tinted icon tile, small-caps label, value, footnote. */
+/** Compact SVG progress ring — the attendance donut. */
+const Ring: React.FC<{ pct: number; color: string; track: string; size?: number; stroke?: number }> =
+  ({ pct, color, track, size = 34, stroke = 4 }) => {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const filled = (Math.max(0, Math.min(100, pct)) / 100) * c;
+  return (
+    <Svg width={size} height={size}>
+      <Circle cx={size / 2} cy={size / 2} r={r} stroke={track} strokeWidth={stroke} fill="none" />
+      <Circle
+        cx={size / 2} cy={size / 2} r={r}
+        stroke={color} strokeWidth={stroke} fill="none"
+        strokeDasharray={`${filled} ${c}`} strokeLinecap="round"
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+    </Svg>
+  );
+};
+
+/**
+ * One status card: gradient icon tile top-left, a live chip or progress ring
+ * top-right, big value, small-caps label and a one-line footnote.
+ */
 const StatCard: React.FC<{
-  styles: any; tint: string; label: string; icon: React.ReactNode;
-  value: string; valueColor?: string; foot: string; progress?: number | null; onPress: () => void;
-}> = ({ styles, tint, label, icon, value, valueColor, foot, progress, onPress }) => (
-  <TouchableOpacity style={styles.statCard} activeOpacity={0.7} onPress={onPress}>
+  styles: any; colors: ColorPalette; label: string; gradient: [string, string]; icon: React.ReactNode;
+  value: string; valueColor?: string; foot: string;
+  chip?: { text: string; tint: string; dot?: boolean } | null;
+  ring?: number | null;
+  onPress: () => void;
+}> = ({ styles, colors, label, gradient, icon, value, valueColor, foot, chip, ring, onPress }) => (
+  <TouchableOpacity style={styles.statCard} activeOpacity={0.75} onPress={onPress}>
     <View style={styles.statHead}>
-      <View style={[styles.statIcon, { backgroundColor: tint + '14' }]}>{icon}</View>
-      <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
+      <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statIcon}>
+        {icon}
+      </LinearGradient>
+      <View style={{ flex: 1 }} />
+      {ring != null ? (
+        <Ring pct={ring} color={gradient[1]} track={colors.backgroundAlt} />
+      ) : chip ? (
+        <View style={[styles.statChip, { backgroundColor: chip.tint + '16' }]}>
+          {chip.dot && <View style={[styles.statChipDot, { backgroundColor: chip.tint }]} />}
+          <Text style={[styles.statChipText, { color: chip.tint }]}>{chip.text}</Text>
+        </View>
+      ) : null}
     </View>
+    <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
     <Text style={[styles.statValue, valueColor ? { color: valueColor } : null]} numberOfLines={1}>{value}</Text>
-    {progress != null ? (
-      <View style={styles.statTrack}>
-        <View style={[styles.statFill, { width: `${progress}%`, backgroundColor: tint }]} />
-      </View>
-    ) : null}
     <Text style={styles.statFoot} numberOfLines={1}>{foot}</Text>
   </TouchableOpacity>
 );
@@ -498,7 +538,7 @@ function makeStyles(c: ColorPalette) {
       backgroundColor: c.card, borderRadius: 20,
       borderWidth: 1, borderColor: c.border,
       paddingVertical: 14, paddingHorizontal: 6,
-      marginTop: -28, marginBottom: 24,
+      marginBottom: 24,
       shadowColor: '#312E81', shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.12, shadowRadius: 18, elevation: 6,
     },
@@ -514,25 +554,37 @@ function makeStyles(c: ColorPalette) {
     sectionAction: { flexDirection: 'row', alignItems: 'center', gap: 2 },
     sectionActionText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.primary },
 
-    statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
+    statGrid: {
+      flexDirection: 'row', flexWrap: 'wrap', gap: 10,
+      marginTop: -28, marginBottom: 24,
+    },
     statCard: {
       flexBasis: '47.5%', flexGrow: 1,
-      backgroundColor: c.card, borderRadius: 18,
+      backgroundColor: c.card, borderRadius: 20,
       borderWidth: 1, borderColor: c.border,
-      padding: 14,
-      shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+      padding: 15,
+      shadowColor: '#312E81', shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.12, shadowRadius: 18, elevation: 5,
     },
-    statHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 11 },
-    statIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    statHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+    statIcon: {
+      width: 36, height: 36, borderRadius: 12,
+      alignItems: 'center', justifyContent: 'center',
+      shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.18, shadowRadius: 5, elevation: 3,
+    },
+    statChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4,
+    },
+    statChipDot: { width: 6, height: 6, borderRadius: 3 },
+    statChipText: { fontSize: 10.5, fontFamily: fonts.extrabold, letterSpacing: 0.2 },
     statLabel: {
-      flex: 1, fontSize: 10.5, fontFamily: fonts.bold, color: c.textTertiary,
+      fontSize: 10.5, fontFamily: fonts.bold, color: c.textTertiary,
       textTransform: 'uppercase', letterSpacing: 0.7,
     },
-    statValue: { fontSize: 17, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.4 },
-    statTrack: { height: 5, borderRadius: 999, backgroundColor: c.backgroundAlt, overflow: 'hidden', marginTop: 7 },
-    statFill: { height: '100%', borderRadius: 999 },
-    statFoot: { fontSize: 11, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 6 },
+    statValue: { fontSize: 18, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.4, marginTop: 3 },
+    statFoot: { fontSize: 11, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 5 },
 
     card: {
       backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
