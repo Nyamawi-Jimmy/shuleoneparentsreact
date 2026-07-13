@@ -1,316 +1,362 @@
-import React from 'react';
+// Code Lab — real data, web parity (CodingView): identity strip with
+// progress coins derived from the live curriculum, an "in class now"
+// banner when the teacher has a lesson open, the real lesson quest list
+// (status + quiz results + objectives), the Playground tools, and a
+// progress snapshot. Interactive lesson content itself stays a classroom/
+// desktop experience for now — rows show everything about each lesson.
+
+import React, { useCallback, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert,
+  ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens, SHARED } from '../tokens';
 import { TopBar } from '../components/TopBar';
 import { AgeSwitcher } from '../components/AgeSwitcher';
+import { useAuth } from '../../../context/AuthContext';
 import {
-  mockCodingTracks, mockProjects, mockCodingCerts,
-} from '../codeLabData';
+  getCodingProgress, getCodingLessons, CodingProgressRow, CodingLessonInfo,
+} from '../../../api/coding-student';
+import { useStudentMe } from '../../../hooks/useStudentMe';
+
+// Playground tools — the app's built-in coding sandboxes.
+const TOOLS = [
+  { id: 'scratch', emoji: '🐱', name: 'Scratch', sub: 'Visual blocks', colors: ['#ff5e9c', '#ffa3c6'] as [string, string], route: '/student/code/scratch' },
+  { id: 'blockly', emoji: '🧩', name: 'Blockly', sub: 'Logic puzzles', colors: ['#f4a716', '#ffd766'] as [string, string], route: '/student/code/blockly' },
+  { id: 'python', emoji: '🐍', name: 'Python', sub: 'Real code', colors: ['#3aa0ff', '#7fc4ff'] as [string, string], route: '/student/code/python' },
+  { id: 'mobile', emoji: '📱', name: 'Mobile', sub: 'Build apps', colors: ['#15c98c', '#74e6b4'] as [string, string], route: '/student/code/mobile' },
+  { id: 'robotics', emoji: '🤖', name: 'Robotics', sub: 'Code robots', colors: ['#5b6cff', '#9aa6ff'] as [string, string], route: '/student/code/robotics' },
+];
 
 export const CodeView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
+  const { accessToken } = useAuth();
+  const { profile } = useStudentMe();
+  const playful = tier === 'sprout' || tier === 'explorer';
 
-  // Show only tracks appropriate for the current tier
-  const tracks = mockCodingTracks.filter((t) => t.tier.includes(tier));
+  const [progress, setProgress] = useState<CodingProgressRow[] | null>(null);
+  const [lessons, setLessons] = useState<CodingLessonInfo[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [failed, setFailed] = useState(false);
 
-  const title = pickByTier(tier, {
-    base: '💻 Code Studio',
-    sprout: '🤖 Code Lab — Build, Play, Create!',
-    explorer: '🤖 Code Lab — Build, Play, Create!',
-    scholar: '💻 Coding & Robotics',
-    campus: '💻 Coding Labs',
-  });
+  const load = useCallback(async (isRefresh = false) => {
+    if (!accessToken) return;
+    if (isRefresh) setRefreshing(true);
+    const [p, l] = await Promise.allSettled([
+      getCodingProgress(accessToken),
+      getCodingLessons(accessToken),
+    ]);
+    if (p.status === 'fulfilled' && Array.isArray(p.value)) {
+      setProgress(p.value);
+      setFailed(false);
+    } else {
+      setProgress((prev) => prev ?? []);
+      setFailed(true);
+    }
+    if (l.status === 'fulfilled' && Array.isArray(l.value)) setLessons(l.value);
+    setRefreshing(false);
+  }, [accessToken]);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const rows = progress ?? [];
+  const done = rows.filter((r) => r.quizPassed || r.status === 'COMPLETED').length;
+  const pct = rows.length ? Math.round((100 * done) / rows.length) : 0;
+  const objectiveFor = (lessonId: number) =>
+    lessons.find((l) => l.id === lessonId)?.objective ?? null;
+
+  // The web's "Today" banner: the teacher has this lesson open in class.
+  const inClassNow = rows.find((r) => r.teacherOpen && r.available && r.status !== 'COMPLETED') ?? null;
+
+  const firstName = profile?.firstName
+    ? profile.firstName.charAt(0) + profile.firstName.slice(1).toLowerCase()
+    : 'coder';
+
+  const showLessonInfo = (r: CodingProgressRow) => {
+    const obj = objectiveFor(r.lessonId);
+    Alert.alert(
+      `Lesson ${r.lessonNumber}: ${r.title ?? ''}`,
+      [
+        obj ? `🎯 ${obj}` : null,
+        r.status === 'LOCKED'
+          ? '🔒 Finish the lesson before this one to unlock it.'
+          : r.quizPassed
+            ? `✅ Quiz passed${r.lastQuizPercent != null ? ` — ${r.lastQuizPercent}%` : ''}`
+            : r.lastQuizPercent != null
+              ? `📝 Best quiz so far: ${r.lastQuizPercent}% — try again in class!`
+              : '📝 The quiz is waiting — you do it in class.',
+        r.teacherOpen ? '📣 Your teacher has this lesson open right now.' : null,
+      ].filter(Boolean).join('\n\n'),
+    );
+  };
+
+  if (progress === null) {
+    return (
+      <View style={[styles.safe, styles.center, { backgroundColor: tokens.bgColor }]}>
+        <ActivityIndicator size="large" color={tokens.accent1} />
+        <Text style={styles.loadingText}>Opening the Code Lab…</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
       <TopBar />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.secH}>
-          <Text style={styles.secHTitle}>{title}</Text>
-          <View style={styles.secHLine} />
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={tokens.accent1} />}
+      >
+        {/* Identity strip — mirrors the web's slim coding brand row */}
+        <View style={[styles.brandCard, { borderRadius: tokens.radius }]}>
+          {playful && <Text style={{ fontSize: 34 }}>🦄</Text>}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.brandTitle}>
+              {pickByTier(tier, { base: 'ShuleOne Coding', scholar: 'Coding', campus: 'Coding' })}
+            </Text>
+            <Text style={styles.brandSub} numberOfLines={1}>
+              {playful
+                ? `Hi ${firstName}! Ready for today’s adventure? 🌟`
+                : `Welcome back, ${firstName}.`}
+            </Text>
+          </View>
+          <View style={styles.coins}>
+            <Text style={styles.coin}>⭐ {done}</Text>
+            <Text style={styles.coin}>🏅 {pct}%</Text>
+          </View>
         </View>
 
-        {/* Featured project row - last 1 in-progress project */}
-        {mockProjects.find((p) => p.status === 'in-progress') && (
-          <ContinueProjectCard
-            project={mockProjects.find((p) => p.status === 'in-progress')!}
-            radius={tokens.radius}
-          />
+        {failed && (
+          <TouchableOpacity style={styles.errorRow} onPress={() => load(true)} activeOpacity={0.8}>
+            <Text style={styles.errorText}>⚠️ Could not load your lessons — tap to retry.</Text>
+          </TouchableOpacity>
         )}
 
-        {/* Coding tracks header */}
+        {/* In class now */}
+        {inClassNow && (
+          <TouchableOpacity activeOpacity={0.9} onPress={() => showLessonInfo(inClassNow)}>
+            <LinearGradient
+              colors={[SHARED.orange1, SHARED.pink1]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={[styles.todayBanner, { borderRadius: tokens.radius }]}
+            >
+              <Text style={{ fontSize: 26 }}>📣</Text>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.todayKick}>IN CLASS NOW</Text>
+                <Text style={styles.todayTitle} numberOfLines={1}>
+                  Lesson {inClassNow.lessonNumber}: {inClassNow.title}
+                </Text>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
+        {/* Lesson quest list */}
         <View style={styles.secH}>
           <Text style={styles.secHTitle}>
-            {pickByTier(tier, { base: '🚀 Choose a track', sprout: '🚀 Pick what to learn' })}
+            {pickByTier(tier, { base: '🗺️ My lessons', sprout: '🗺️ My coding quest', explorer: '🗺️ My coding quest' })}
           </Text>
           <View style={styles.secHLine} />
         </View>
 
-        <View style={styles.tracksGrid}>
-          {tracks.map((track) => (
-            <TouchableOpacity
-              key={track.id}
-              activeOpacity={0.85}
-              style={styles.trackCard}
-              onPress={() => router.push(track.route as any)}
-            >
-              <LinearGradient
-                colors={track.color}
-                style={[styles.trackGrad, { borderRadius: tokens.radius }]}
-              >
-                <View style={styles.trackHeader}>
-                  <Text style={styles.trackEmoji}>{track.emoji}</Text>
-                  <View style={styles.diffPill}>
-                    <Text style={styles.diffText}>{track.difficulty}</Text>
-                  </View>
-                </View>
-                <Text style={styles.trackName}>{track.name}</Text>
-                <Text style={styles.trackDesc} numberOfLines={2}>
-                  {track.description}
-                </Text>
-                <View style={styles.trackStatsRow}>
-                  <View style={styles.statItem}>
-                    <Ionicons name="book-outline" size={11} color="#fff" />
-                    <Text style={styles.statText}>
-                      {track.lessonsDone}/{track.lessonsTotal} lessons
+        {rows.length === 0 && !failed && (
+          <View style={styles.empty}>
+            <Text style={{ fontSize: 44 }}>🌱</Text>
+            <Text style={styles.emptyTitle}>No coding lessons yet</Text>
+            <Text style={styles.emptyText}>Your class programme will appear here.</Text>
+          </View>
+        )}
+
+        {rows.length > 0 && (
+          <View style={[styles.lessonCard, { borderRadius: tokens.radius }]}>
+            {rows.map((r, i) => {
+              const state = r.quizPassed || r.status === 'COMPLETED' ? 'done'
+                : r.available ? 'cur' : 'lock';
+              return (
+                <TouchableOpacity
+                  key={r.lessonId}
+                  activeOpacity={0.75}
+                  onPress={() => showLessonInfo(r)}
+                  style={[styles.lessonRow, i > 0 && styles.lessonRowLine]}
+                >
+                  {state === 'done' ? (
+                    <LinearGradient colors={[SHARED.green1, '#0fae78']} style={styles.numBubble}>
+                      <Text style={styles.numBubbleText}>✓</Text>
+                    </LinearGradient>
+                  ) : state === 'cur' ? (
+                    <LinearGradient colors={[SHARED.orange1, SHARED.pink1]} style={styles.numBubble}>
+                      <Text style={styles.numBubbleText}>{r.lessonNumber}</Text>
+                    </LinearGradient>
+                  ) : (
+                    <View style={[styles.numBubble, { backgroundColor: '#d9d4ee' }]}>
+                      <Text style={[styles.numBubbleText, { color: '#8b84b3' }]}>🔒</Text>
+                    </View>
+                  )}
+
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.lessonTitle, state === 'lock' && { color: '#8b84b3' }]} numberOfLines={1}>
+                      {r.title ?? `Lesson ${r.lessonNumber}`}
+                    </Text>
+                    <Text style={styles.lessonSub} numberOfLines={1}>
+                      {state === 'done' ? 'completed ✨'
+                        : state === 'cur' ? 'ready to learn'
+                        : 'locked'}
+                      {r.teacherOpen && state !== 'done' ? ' · 📣 open in class' : ''}
                     </Text>
                   </View>
-                  <View style={styles.statItem}>
-                    <Ionicons name="construct-outline" size={11} color="#fff" />
-                    <Text style={styles.statText}>{track.projects} projects</Text>
-                  </View>
-                </View>
-                <View style={styles.trackPg}>
-                  <View
-                    style={[
-                      styles.trackPgFill,
-                      { width: `${(track.lessonsDone / track.lessonsTotal) * 100}%` },
-                    ]}
-                  />
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          ))}
-        </View>
 
-        {/* My Projects */}
+                  {r.hasQuiz && r.lastQuizPercent != null && (
+                    <View style={[
+                      styles.quizChip,
+                      { backgroundColor: r.quizPassed ? '#eafef3' : '#fff3da' },
+                    ]}>
+                      <Text style={[styles.quizChipText, { color: r.quizPassed ? '#0fae78' : '#b45309' }]}>
+                        {r.lastQuizPercent}%
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Playground */}
         <View style={styles.secH}>
           <Text style={styles.secHTitle}>
-            {pickByTier(tier, { base: '🛠️ My projects', sprout: '🎮 My Creations' })}
+            {pickByTier(tier, { base: '🎮 Playground', sprout: '🎮 Play & Build' })}
           </Text>
           <View style={styles.secHLine} />
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingRight: 16, gap: 12 }}
-        >
-          {mockProjects.map((p) => (
-            <TouchableOpacity key={p.id} activeOpacity={0.85} style={styles.projectCard}>
-              <LinearGradient colors={p.color} style={styles.projectThumb}>
-                <Text style={styles.projectEmoji}>{p.thumb}</Text>
-                {p.status === 'reviewed' && p.score !== undefined && (
-                  <View style={styles.scoreBadge}>
-                    <Text style={styles.scoreText}>{p.score}/30</Text>
-                  </View>
-                )}
-                {p.status === 'submitted' && (
-                  <View style={styles.statusBadge}>
-                    <Text style={styles.statusText}>SUBMITTED</Text>
-                  </View>
-                )}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolsRow}>
+          {TOOLS.map((t) => (
+            <TouchableOpacity key={t.id} activeOpacity={0.85} onPress={() => router.push(t.route as any)}>
+              <LinearGradient colors={t.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.toolCard, { borderRadius: tokens.radius }]}>
+                <Text style={{ fontSize: 30 }}>{t.emoji}</Text>
+                <Text style={styles.toolName}>{t.name}</Text>
+                <Text style={styles.toolSub}>{t.sub}</Text>
               </LinearGradient>
-              <Text style={styles.projectTitle} numberOfLines={1}>{p.title}</Text>
-              <Text style={styles.projectMeta}>{p.lastEdited}</Text>
-              {p.versions && (
-                <Text style={styles.versionsText}>{p.versions} versions</Text>
-              )}
             </TouchableOpacity>
           ))}
-          <TouchableOpacity activeOpacity={0.85} style={[styles.projectCard, styles.newProjectCard]}>
-            <View style={styles.newProjectThumb}>
-              <Ionicons name="add" size={32} color="#7c5cff" />
-            </View>
-            <Text style={styles.newProjectText}>New project</Text>
-          </TouchableOpacity>
         </ScrollView>
 
-        {/* Certificates */}
-        <View style={[styles.secH, { marginTop: 18 }]}>
-          <Text style={styles.secHTitle}>🏆 Earned</Text>
-          <View style={styles.secHLine} />
-        </View>
-
-        <View style={styles.certsRow}>
-          {mockCodingCerts.map((c) => (
-            <View key={c.id} style={styles.certCard}>
-              <Text style={styles.certEmoji}>{c.emoji}</Text>
-              <Text style={styles.certTrack}>{c.track}</Text>
-              <Text style={styles.certLevel}>{c.level}</Text>
-              <Text style={styles.certDate}>{c.earned}</Text>
+        {/* Progress snapshot */}
+        {rows.length > 0 && (
+          <>
+            <View style={styles.secH}>
+              <Text style={styles.secHTitle}>🏆 My progress</Text>
+              <View style={styles.secHLine} />
             </View>
-          ))}
-        </View>
+            <View style={styles.statsRow}>
+              <StatBox value={done} label="Done" tint={SHARED.green1} />
+              <StatBox value={rows.filter((r) => r.available && !(r.quizPassed || r.status === 'COMPLETED')).length} label="In progress" tint={SHARED.orange1} />
+              <StatBox value={rows.filter((r) => !r.available).length} label="Locked" tint="#8b84b3" />
+              <StatBox value={`${pct}%`} label="Complete" tint={SHARED.purple1} />
+            </View>
+          </>
+        )}
 
-        <View style={{ height: 120 }} />
+        <View style={{ height: 110 }} />
       </ScrollView>
       <AgeSwitcher />
     </View>
   );
 };
 
-const ContinueProjectCard: React.FC<{
-  project: typeof mockProjects[0];
-  radius: number;
-}> = ({ project, radius }) => (
-  <View style={[styles.continueCard, { borderRadius: radius }]}>
-    <LinearGradient colors={project.color} style={styles.continueThumb}>
-      <Text style={{ fontSize: 28 }}>{project.thumb}</Text>
-    </LinearGradient>
-    <View style={{ flex: 1, marginLeft: 12 }}>
-      <Text style={styles.continueLabel}>CONTINUE BUILDING</Text>
-      <Text style={styles.continueTitle} numberOfLines={1}>{project.title}</Text>
-      <Text style={styles.continueMeta}>{project.lastEdited} • {project.versions} saves</Text>
-    </View>
-    <LinearGradient colors={['#15c98c', '#0fae78']} style={styles.openBtn}>
-      <TouchableOpacity activeOpacity={0.85} style={styles.openBtnTouch}>
-        <Text style={styles.openBtnText}>▶ Open</Text>
-      </TouchableOpacity>
-    </LinearGradient>
+const StatBox: React.FC<{ value: number | string; label: string; tint: string }> = ({ value, label, tint }) => (
+  <View style={styles.statBox}>
+    <Text style={[styles.statValue, { color: tint }]}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
   </View>
 );
 
+// =================================================================
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  center: { alignItems: 'center', justifyContent: 'center' },
+  loadingText: { color: '#6f679c', marginTop: 14, fontWeight: '600' },
   scroll: { padding: 16 },
 
-  secH: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 8 },
-  secHTitle: { fontSize: 17, fontWeight: '800', color: '#2c2550' },
+  secH: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 16 },
+  secHTitle: { fontSize: 16.5, fontWeight: '800', color: '#2c2550' },
   secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: '#ece8fb' },
 
-  // Continue card
-  continueCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#fff', padding: 12,
-    marginBottom: 8,
-    borderWidth: 2, borderColor: '#fff',
+  brandCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#fff', padding: 14,
+    borderWidth: 1.5, borderColor: '#ece8fb',
     shadowColor: '#5038A0',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.14,
-    shadowRadius: 12, elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1, shadowRadius: 10, elevation: 3,
   },
-  continueThumb: {
-    width: 54, height: 54, borderRadius: 14,
-    alignItems: 'center', justifyContent: 'center',
+  brandTitle: { fontSize: 16, fontWeight: '800', color: '#2c2550' },
+  brandSub: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 2 },
+  coins: { gap: 4, alignItems: 'flex-end' },
+  coin: {
+    fontSize: 11, fontWeight: '800', color: '#2c2550',
+    backgroundColor: '#f4f1ff', borderRadius: 99,
+    paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden',
   },
-  continueLabel: { fontSize: 9.5, color: '#7c5cff', fontWeight: '800', letterSpacing: 0.6 },
-  continueTitle: { fontSize: 14, fontWeight: '800', color: '#2c2550', marginTop: 3 },
-  continueMeta: { fontSize: 11, color: '#6f679c', fontWeight: '600', marginTop: 3 },
-  openBtn: { borderRadius: 999, marginLeft: 8 },
-  openBtnTouch: { paddingVertical: 8, paddingHorizontal: 12 },
-  openBtnText: { color: '#fff', fontWeight: '800', fontSize: 11.5 },
 
-  // Tracks grid
-  tracksGrid: { gap: 12 },
-  trackCard: {},
-  trackGrad: {
-    padding: 16,
-    overflow: 'hidden',
+  errorRow: { backgroundColor: '#fee2e2', borderRadius: 14, padding: 12, marginTop: 12 },
+  errorText: { color: '#b91c1c', fontWeight: '700', fontSize: 12.5 },
+
+  todayBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14, marginTop: 12,
     shadowColor: '#5038A0',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16, shadowRadius: 10, elevation: 3,
   },
-  trackHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-  },
-  trackEmoji: { fontSize: 38 },
-  diffPill: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: 999,
-  },
-  diffText: { color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
-  trackName: { color: '#fff', fontSize: 18, fontWeight: '800', marginTop: 10 },
-  trackDesc: { color: '#fff', fontSize: 12, fontWeight: '500', opacity: 0.92, marginTop: 4, lineHeight: 16 },
-  trackStatsRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  statItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  statText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  trackPg: {
-    height: 6, borderRadius: 99,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    marginTop: 10, overflow: 'hidden',
-  },
-  trackPgFill: { height: '100%', backgroundColor: '#fff', borderRadius: 99 },
+  todayKick: { color: 'rgba(255,255,255,0.9)', fontSize: 9.5, fontWeight: '800', letterSpacing: 0.8 },
+  todayTitle: { color: '#fff', fontSize: 14.5, fontWeight: '800', marginTop: 2 },
 
-  // Projects horizontal
-  projectCard: {
-    width: 140,
+  empty: { alignItems: 'center', paddingVertical: 30 },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: '#2c2550', marginTop: 8 },
+  emptyText: { fontSize: 12.5, color: '#6f679c', fontWeight: '600', marginTop: 4 },
+
+  lessonCard: {
     backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 10,
-    shadowColor: '#5038A0',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  projectThumb: {
-    height: 84, borderRadius: 11,
-    alignItems: 'center', justifyContent: 'center',
-    position: 'relative', marginBottom: 8,
-  },
-  projectEmoji: { fontSize: 34 },
-  scoreBadge: {
-    position: 'absolute', top: 6, right: 6,
-    backgroundColor: '#15c98c',
-    paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: 99,
-  },
-  scoreText: { color: '#fff', fontSize: 10.5, fontWeight: '800' },
-  statusBadge: {
-    position: 'absolute', top: 6, left: 6,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    paddingHorizontal: 6, paddingVertical: 2,
-    borderRadius: 5,
-  },
-  statusText: { color: '#7c5cff', fontSize: 7.5, fontWeight: '800', letterSpacing: 0.5 },
-  projectTitle: { fontSize: 12.5, fontWeight: '800', color: '#2c2550' },
-  projectMeta: { fontSize: 10.5, color: '#6f679c', fontWeight: '600', marginTop: 2 },
-  versionsText: { fontSize: 10, color: '#9b94c4', fontWeight: '600', marginTop: 2 },
-
-  newProjectCard: {
-    backgroundColor: '#f4f1ff',
-    borderWidth: 2, borderColor: '#ece8fb', borderStyle: 'dashed',
-  },
-  newProjectThumb: {
-    height: 84, borderRadius: 11,
-    backgroundColor: 'rgba(124,92,255,0.1)',
-    alignItems: 'center', justifyContent: 'center', marginBottom: 8,
-  },
-  newProjectText: { fontSize: 12, color: '#7c5cff', fontWeight: '800', textAlign: 'center' },
-
-  // Certs
-  certsRow: { flexDirection: 'row', gap: 10 },
-  certCard: {
-    flex: 1,
-    backgroundColor: '#fff', padding: 12, borderRadius: 14,
-    alignItems: 'center',
+    borderWidth: 1.5, borderColor: '#ece8fb',
+    paddingHorizontal: 14, paddingVertical: 4,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
-  certEmoji: { fontSize: 32 },
-  certTrack: { fontSize: 12, fontWeight: '800', color: '#2c2550', marginTop: 4 },
-  certLevel: { fontSize: 10, color: '#7c5cff', fontWeight: '700', marginTop: 2 },
-  certDate: { fontSize: 9.5, color: '#9b94c4', fontWeight: '600', marginTop: 2 },
+  lessonRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11 },
+  lessonRowLine: { borderTopWidth: 1, borderTopColor: '#f2effc' },
+  numBubble: {
+    width: 38, height: 38, borderRadius: 19,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  numBubbleText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+  lessonTitle: { fontSize: 13.5, fontWeight: '800', color: '#2c2550' },
+  lessonSub: { fontSize: 11, color: '#6f679c', fontWeight: '600', marginTop: 2 },
+  quizChip: { borderRadius: 99, paddingHorizontal: 9, paddingVertical: 4 },
+  quizChipText: { fontSize: 11.5, fontWeight: '800' },
+
+  toolsRow: { gap: 12, paddingRight: 16 },
+  toolCard: {
+    width: 118, padding: 12, minHeight: 108,
+    shadowColor: '#5038A0',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16, shadowRadius: 10, elevation: 3,
+  },
+  toolName: { color: '#fff', fontSize: 14, fontWeight: '800', marginTop: 8 },
+  toolSub: { color: '#fff', fontSize: 10.5, fontWeight: '600', opacity: 0.92, marginTop: 2 },
+
+  statsRow: { flexDirection: 'row', gap: 10 },
+  statBox: {
+    flex: 1, alignItems: 'center',
+    backgroundColor: '#fff', borderRadius: 16,
+    borderWidth: 1.5, borderColor: '#ece8fb',
+    paddingVertical: 12,
+  },
+  statValue: { fontSize: 18, fontWeight: '800' },
+  statLabel: { fontSize: 10, color: '#6f679c', fontWeight: '700', marginTop: 2 },
 });
