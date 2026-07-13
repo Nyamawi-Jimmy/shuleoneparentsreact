@@ -58,6 +58,26 @@ export interface FamilySubscriptionStatus {
 export interface MpesaCheckoutBody {
   phone: string;
   numLearners?: number | null;     // family plan only
+  period?: string | null;          // MONTHLY | TERMLY | ANNUAL
+  code?: string | null;            // promo / referral code
+}
+
+/** A priced plan row from /learner/billing/plans (per seats × period). */
+export interface BillingPlanRow {
+  numLearners?: number | null;
+  period?: string | null;        // MONTHLY | TERMLY | ANNUAL
+  amountKes?: number | null;
+  savingsPct?: number | null;
+  [key: string]: any;
+}
+
+/** Promo check result from /parent/billing/promo/{code}. */
+export interface PromoResult {
+  valid?: boolean;
+  percentOff?: number | null;
+  newAmountKes?: number | null;
+  label?: string | null;
+  [key: string]: any;
 }
 
 export interface PaystackCheckoutBody {

@@ -60,9 +60,10 @@ export async function paystackCheckoutChild(
   accessToken: string,
   studentId: number,
   body: PaystackCheckoutBody,
+  qs = '',
 ): Promise<BillingPayment> {
   const raw = await apiFetch<string | object>(
-    `/api/parent/billing/child/${studentId}/paystack/checkout`,
+    `/api/parent/billing/child/${studentId}/paystack/checkout${qs}`,
     {
       method: 'POST',
       accessToken,
@@ -109,9 +110,10 @@ export async function mpesaCheckoutFamily(
 export async function paystackCheckoutFamily(
   accessToken: string,
   body: PaystackCheckoutBody,
+  qs = '',
 ): Promise<BillingPayment> {
   const raw = await apiFetch<string | object>(
-    '/api/parent/billing/family/paystack/checkout',
+    `/api/parent/billing/family/paystack/checkout${qs}`,
     {
       method: 'POST',
       accessToken,
@@ -131,4 +133,31 @@ export async function verifyPaystack(accessToken: string, reference: string): Pr
     { accessToken },
   );
   return parseBillingPayment(raw);
+}
+
+
+// =================================================================
+// Plans catalogue + promo codes (same endpoints the web page uses)
+// =================================================================
+import { BillingPlanRow, PromoResult } from './billing.types';
+
+/** GET /api/learner/billing/plans — priced rows per seats × period. */
+export function listBillingPlans(accessToken: string) {
+  return apiFetch<BillingPlanRow[]>('/api/learner/billing/plans', { accessToken });
+}
+
+/** GET /api/parent/billing/promo/{code} — validate a discount/referral code. */
+export function fetchParentPromo(
+  accessToken: string, code: string, scope: 'child' | 'family',
+  studentId?: number | null, period?: string | null,
+) {
+  const qs = [`scope=${scope}`, studentId != null ? `studentId=${studentId}` : null, period ? `period=${period}` : null]
+    .filter(Boolean).join('&');
+  return apiFetch<PromoResult>(`/api/parent/billing/promo/${encodeURIComponent(code)}?${qs}`, { accessToken });
+}
+
+/** Query-string suffix for paystack checkouts (period + promo). */
+export function paystackQs(period?: string | null, code?: string | null): string {
+  const qs = [period ? `period=${period}` : null, code ? `code=${encodeURIComponent(code)}` : null].filter(Boolean).join('&');
+  return qs ? `?${qs}` : '';
 }

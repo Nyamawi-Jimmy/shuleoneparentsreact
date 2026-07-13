@@ -1,531 +1,568 @@
-import React, { useMemo, useState } from 'react';
+// Plans & subscriptions — mirrors the web ParentSubscriptions page:
+// value banner → Free vs Premium comparison → billing-period picker →
+// family package → per-child list (trial / subscribe / cancel / resume) →
+// payment panel (promo code, M-Pesa STK, card via Paystack) → history.
+// All data comes from the same /parent/billing endpoints the web uses.
+
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Linking,
+  RefreshControl, TextInput, KeyboardAvoidingView, Platform, Linking,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect, router } from 'expo-router';
 import { GradientAppBar } from '../../components/GradientAppBar';
+import { fonts } from '../../constants/theme';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { useAuth } from '../../context/AuthContext';
-import { useSelectedChild } from '../../context/SelectedChildContext';
+import { useParentProfile } from '../../context/ParentProfileContext';
 import { useBilling, useBillingPaymentPoller } from '../../hooks/useBilling';
 import {
   startTrial, mpesaCheckoutChild, mpesaCheckoutFamily, cancelChildSubscription, resumeChildSubscription,
-  paystackCheckoutChild, paystackCheckoutFamily,
+  paystackCheckoutChild, paystackCheckoutFamily, listBillingPlans, fetchParentPromo, paystackQs,
 } from '../../api/billing';
-import { ChildSubscriptionStatus, isSubscribed, BillingPayment } from '../../api/billing.types';
-import { moneyToNumber, formatMoney, normalizeKenyanPhone } from '../../api/fees.types';
+import { BillingPayment, BillingPlanRow, PromoResult } from '../../api/billing.types';
+import { normalizeKenyanPhone } from '../../api/fees.types';
 
-type Plan = 'individual' | 'family';
+const PERIODS = [
+  { id: 'MONTHLY', label: 'Monthly' },
+  { id: 'TERMLY', label: 'Termly' },
+  { id: 'ANNUAL', label: 'Annual' },
+] as const;
+type Period = typeof PERIODS[number]['id'];
+const PERIOD_UNIT: Record<Period, string> = { MONTHLY: 'month', TERMLY: 'term', ANNUAL: 'year' };
+
+const COMPARISON: [string, boolean, boolean][] = [
+  ['Fee balance, receipts & M-Pesa payments', true, true],
+  ['School announcements, diary & messages', true, true],
+  ['AI homework helper (step-by-step guidance)', false, true],
+  ['Adaptive revision paths & practice for every subject', false, true],
+  ['Coding & robotics lessons + projects', false, true],
+  ['Live bus map & stop-by-stop tracking', false, true],
+  ['Weekly progress insight & next-best-action', false, true],
+];
+
+const kes = (n: number) => `KES ${Number(n || 0).toLocaleString('en-KE')}`;
+const fmtDate = (iso?: string | null) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+const validEmail = (e?: string | null) => /.+@.+\..+/.test(String(e || ''));
+
+interface Target { kind: 'child' | 'family'; studentId?: number; label: string }
 
 export const SubscriptionsScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-
-  const { children: kids } = useSelectedChild();
-  const { status, history, loading, refreshing, refresh, error } = useBilling();
-
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [checkoutPlan, setCheckoutPlan] = useState<Plan>('individual');
-  const [checkoutStudentId, setCheckoutStudentId] = useState<number | null>(null);
-
-  const pricePerChild = moneyToNumber(status?.pricePerChild ?? null) || 499;
-  const pricePerFamily = moneyToNumber(status?.pricePerFamily ?? null) || 1499;
-
-  const openCheckout = (plan: Plan, studentId?: number) => {
-    setCheckoutPlan(plan);
-    setCheckoutStudentId(studentId ?? null);
-    setCheckoutOpen(true);
-  };
-
-  return (
-    <View style={styles.safe}>
-      <GradientAppBar title="Plans & subscriptions" subtitle="AI Learning, Coding & live bus tracking" showBack />
-
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
-      >
-        {loading ? (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={styles.loadingText}>Loading subscriptions…</Text>
-          </View>
-        ) : (
-          <>
-            <LinearGradient
-              colors={[colors.primaryLight, colors.primary]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={styles.hero}
-            >
-              <View style={styles.heroIconWrap}>
-                <MaterialCommunityIcons name="rocket-launch" size={28} color="#fff" />
-              </View>
-              <Text style={styles.heroTitle}>Unlock Learn+</Text>
-              <Text style={styles.heroSubtitle}>
-                Premium revision videos, quizzes, exam packs, and progress reports per child.
-              </Text>
-            </LinearGradient>
-
-            {/* Family plan */}
-            <Text style={styles.sectionTitle}>Family Plan</Text>
-            <View style={[styles.planCard, isSubscribed(status?.family?.status) && styles.planCardActive]}>
-              <View style={styles.planHeader}>
-                <View style={styles.planIcon}>
-                  <MaterialCommunityIcons name="account-group" size={20} color={colors.purple} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.planTitle}>All children, one price</Text>
-                  <Text style={styles.planMeta}>
-                    {kids.length > 1 ? `Covers all ${kids.length} children` : 'Covers all children in your account'}
-                  </Text>
-                </View>
-                <PlanStatusPill status={status?.family?.status} colors={colors} styles={styles} />
-              </View>
-              <View style={styles.priceRow}>
-                <Text style={styles.priceAmount}>{formatMoney(pricePerFamily, 'KSh')}</Text>
-                <Text style={styles.pricePer}>/month</Text>
-              </View>
-              {isSubscribed(status?.family?.status) ? (
-                <View style={styles.planActions}>
-                  <Text style={styles.activeNote}>Renews {formatDate(status?.family?.currentPeriodEnd) ?? '—'}</Text>
-                </View>
-              ) : (
-                <TouchableOpacity activeOpacity={0.85} style={styles.subscribeBtn} onPress={() => openCheckout('family')}>
-                  <Ionicons name="phone-portrait-outline" size={15} color="#fff" />
-                  <Text style={styles.subscribeBtnText}>Pay with M-Pesa</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Per-child plans */}
-            <Text style={styles.sectionTitle}>Per-child Plans</Text>
-            {kids.length === 0 && (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyText}>Add a child first to subscribe.</Text>
-              </View>
-            )}
-            {kids.map((c) => {
-              const childStatus = status?.childStatuses?.find((cs) => cs.studentId === c.studentId);
-              return (
-                <ChildPlanCard
-                  key={c.studentId}
-                  colors={colors} styles={styles}
-                  childName={c.fullName}
-                  classLabel={c.classLabel}
-                  childStatus={childStatus}
-                  price={pricePerChild}
-                  studentId={c.studentId}
-                  onSubscribe={() => openCheckout('individual', c.studentId)}
-                  refresh={refresh}
-                />
-              );
-            })}
-
-            {/* History */}
-            {history.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Payment History</Text>
-                <View style={styles.historyCard}>
-                  {history.map((h, idx) => (
-                    <View
-                      key={`${h.id}-${idx}`}
-                      style={[styles.historyRow, idx < history.length - 1 && styles.historyRowDivider]}
-                    >
-                      <View style={[styles.historyIcon, (h.status ?? '').toUpperCase() === 'SUCCESS' && { backgroundColor: colors.successSoft }]}>
-                        <Ionicons
-                          name={(h.status ?? '').toUpperCase() === 'SUCCESS' ? 'checkmark' : 'time-outline'}
-                          size={14}
-                          color={(h.status ?? '').toUpperCase() === 'SUCCESS' ? colors.success : colors.warning}
-                        />
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 12 }}>
-                        <Text style={styles.historyTitle}>{h.description ?? 'Subscription payment'}</Text>
-                        <Text style={styles.historyMeta}>
-                          {formatDate(h.date) ?? '—'} • {h.channel ?? 'M-Pesa'}
-                          {h.reference && ` • ${h.reference}`}
-                        </Text>
-                      </View>
-                      <Text style={styles.historyAmount}>{formatMoney(h.amount ?? null, h.currency ?? 'KSh')}</Text>
-                    </View>
-                  ))}
-                </View>
-              </>
-            )}
-
-            {error && (
-              <View style={styles.errorBanner}>
-                <Ionicons name="warning" size={16} color={colors.danger} />
-                <Text style={styles.errorBannerText}>{error}</Text>
-                <TouchableOpacity onPress={refresh}><Text style={styles.retryInline}>Retry</Text></TouchableOpacity>
-              </View>
-            )}
-          </>
-        )}
-        <View style={{ height: 40 }} />
-      </ScrollView>
-
-      <CheckoutSheet
-        colors={colors}
-        visible={checkoutOpen}
-        plan={checkoutPlan}
-        studentId={checkoutStudentId}
-        numLearners={kids.length}
-        priceIndividual={pricePerChild}
-        priceFamily={pricePerFamily}
-        onClose={() => setCheckoutOpen(false)}
-        onSuccess={() => { setCheckoutOpen(false); refresh(); }}
-      />
-    </View>
-  );
-};
-
-const ChildPlanCard: React.FC<{
-  colors: ColorPalette; styles: any;
-  childName: string; classLabel: string;
-  childStatus: ChildSubscriptionStatus | undefined;
-  price: number; studentId: number | null;
-  onSubscribe: () => void; refresh: () => void;
-}> = ({ colors, styles, childName, classLabel, childStatus, price, studentId, onSubscribe, refresh }) => {
   const { accessToken } = useAuth();
-  const status = childStatus?.status;
-  const active = isSubscribed(status);
-  const cancelled = (status ?? '').toUpperCase() === 'CANCELLED';
+  const { parent } = useParentProfile();
+  const { status, history, loading, refreshing, refresh } = useBilling();
 
-  const handleCancel = async () => {
-    if (!studentId || !accessToken) return;
-    Alert.alert('Cancel subscription?', `${childName} will lose Learn+ access at end of period.`, [
-      { text: 'Keep', style: 'cancel' },
-      { text: 'Cancel', style: 'destructive', onPress: async () => {
-        try { await cancelChildSubscription(accessToken, studentId); refresh(); } catch {}
-      }},
-    ]);
-  };
-  const handleResume = async () => {
-    if (!studentId || !accessToken) return;
-    try { await resumeChildSubscription(accessToken, studentId); refresh(); } catch {}
-  };
-  const handleTrial = async () => {
-    if (!studentId || !accessToken) return;
-    try { await startTrial(accessToken, studentId); refresh(); } catch {}
-  };
-
-  return (
-    <View style={[styles.planCard, active && styles.planCardActive]}>
-      <View style={styles.planHeader}>
-        <View style={[styles.planIcon, { backgroundColor: colors.primarySoft }]}>
-          <Ionicons name="person-circle-outline" size={20} color={colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.planTitle}>{childName}</Text>
-          {!!classLabel && <Text style={styles.planMeta}>{classLabel}</Text>}
-        </View>
-        <PlanStatusPill status={status} colors={colors} styles={styles} />
-      </View>
-      <View style={styles.priceRow}>
-        <Text style={styles.priceAmount}>{formatMoney(price, 'KSh')}</Text>
-        <Text style={styles.pricePer}>/month</Text>
-      </View>
-
-      {active ? (
-        <View style={styles.planActions}>
-          <Text style={styles.activeNote}>Renews {formatDate(childStatus?.currentPeriodEnd) ?? '—'}</Text>
-          <TouchableOpacity onPress={handleCancel} hitSlop={6} style={styles.linkBtn}>
-            <Text style={styles.linkBtnText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      ) : cancelled ? (
-        <TouchableOpacity activeOpacity={0.85} style={[styles.subscribeBtn, { backgroundColor: colors.purple }]} onPress={handleResume}>
-          <Ionicons name="play-circle" size={15} color="#fff" />
-          <Text style={styles.subscribeBtnText}>Resume subscription</Text>
-        </TouchableOpacity>
-      ) : (
-        <View style={{ gap: 8 }}>
-          <TouchableOpacity activeOpacity={0.85} style={styles.subscribeBtn} onPress={onSubscribe}>
-            <Ionicons name="phone-portrait-outline" size={15} color="#fff" />
-            <Text style={styles.subscribeBtnText}>Pay with M-Pesa</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleTrial} style={styles.trialBtn} activeOpacity={0.7}>
-            <Text style={styles.trialBtnText}>Start 7-day free trial</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
-};
-
-const PlanStatusPill: React.FC<{ status: string | null | undefined; colors: ColorPalette; styles: any }> = ({ status, colors, styles }) => {
-  const s = (status ?? '').toUpperCase();
-  if (!s || s === 'NONE') return null;
-  const map: Record<string, { bg: string; color: string }> = {
-    ACTIVE:    { bg: colors.successSoft, color: colors.success },
-    TRIAL:     { bg: colors.purpleLight, color: colors.purple },
-    PAST_DUE:  { bg: colors.warningSoft, color: colors.warning },
-    CANCELLED: { bg: colors.scheme === 'dark' ? '#2A3744' : '#f1f1f4', color: colors.textSecondary },
-    EXPIRED:   { bg: colors.dangerSoft,  color: colors.danger },
-  };
-  const m = map[s] ?? { bg: colors.scheme === 'dark' ? '#2A3744' : '#f1f1f4', color: colors.textSecondary };
-  return (
-    <View style={[styles.statusPill, { backgroundColor: m.bg }]}>
-      <Text style={[styles.statusPillText, { color: m.color }]}>{s}</Text>
-    </View>
-  );
-};
-
-const CheckoutSheet: React.FC<{
-  colors: ColorPalette;
-  visible: boolean; plan: Plan; studentId: number | null;
-  numLearners: number; priceIndividual: number; priceFamily: number;
-  onClose: () => void; onSuccess: () => void;
-}> = ({ colors, visible, plan, studentId, numLearners, priceIndividual, priceFamily, onClose, onSuccess }) => {
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { accessToken } = useAuth();
+  const [plans, setPlans] = useState<BillingPlanRow[]>([]);
+  const [period, setPeriod] = useState<Period>('MONTHLY');
+  const [target, setTarget] = useState<Target | null>(null);
+  const [promoInput, setPromoInput] = useState('');
+  const [promo, setPromo] = useState<(PromoResult & { code: string }) | null>(null);
+  const [promoErr, setPromoErr] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
-  const [phoneError, setPhoneError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [phase, setPhase] = useState<'idle' | 'mpesa' | 'paystack'>('idle');
   const [payment, setPayment] = useState<BillingPayment | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  useFocusEffect(useCallback(() => {
+    if (!accessToken) return;
+    listBillingPlans(accessToken).then((p) => setPlans(Array.isArray(p) ? p : [])).catch(() => {});
+  }, [accessToken]));
 
   const { done } = useBillingPaymentPoller(payment?.id ?? null, {
-    onSuccess: () => { onSuccess(); },
-    onFailure: () => { /* keep modal open */ },
+    onSuccess: () => { setPhase('idle'); setPayment(null); setTarget(null); refresh(); },
+    onFailure: () => { setPhase('idle'); setPayment(null); setError('Payment was not completed.'); },
   });
 
-  const handleSubmit = async () => {
-    setPhoneError(null);
+  // Raw status payload — same field names the web reads.
+  const raw = (status?.raw ?? {}) as any;
+  const children: any[] = raw.children ?? status?.childStatuses ?? [];
+  const family = raw.family ?? { numChildren: 0, amountKes: 0 };
+  const childMonthlyKes = Number(raw.childMonthlyKes ?? (family.numChildren === 1 ? family.amountKes : 0)) || 0;
+  const periodUnit = PERIOD_UNIT[period];
+  const clampSeats = (n: number) => Math.max(1, Math.min(4, n || 1));
+  const periodPriceFor = (seats: number) => {
+    const r = plans.find((p) => p.numLearners === clampSeats(seats) && p.period === period);
+    return r ? Number(r.amountKes) : null;
+  };
+  const childPeriodKes = periodPriceFor(1) ?? childMonthlyKes;
+  const familyPeriodKes = periodPriceFor(family.numChildren) ?? (Number(family.amountKes) || 0);
+  const selectedAmount = target ? (target.kind === 'family' ? familyPeriodKes : childPeriodKes) : 0;
+  const chargedAmount = promo?.newAmountKes != null ? promo.newAmountKes : selectedAmount;
+  const activeChildren = children.filter((c) => c.active);
+  const cardEmailReady = raw.parentEmailAvailable === true || validEmail(raw.parentEmail || parent?.email);
+
+  const clearPromo = () => { setPromo(null); setPromoErr(null); };
+  const pick = (t: Target) => { setError(null); clearPromo(); setTarget(t); };
+  const pickPeriod = (p: Period) => { setPeriod(p); clearPromo(); };
+
+  const applyPromo = async () => {
+    const code = promoInput.trim();
+    if (!code || !target || !accessToken) return;
+    setPromoErr(null);
+    try {
+      const r = await fetchParentPromo(accessToken, code, target.kind, target.studentId ?? null, period);
+      if (r?.valid) setPromo({ ...r, code });
+      else { setPromo(null); setPromoErr('That code isn’t valid.'); }
+    } catch { setPromo(null); setPromoErr('Could not check that code.'); }
+  };
+
+  const payMpesa = async () => {
+    if (!target || !accessToken || phase !== 'idle') return;
     const phoneNorm = normalizeKenyanPhone(phone);
-    if (!phoneNorm) { setPhoneError('Enter a valid Kenyan phone number'); return; }
-    if (!accessToken) return;
-    setSubmitting(true);
+    if (!phoneNorm) { setError('Enter a valid M-Pesa phone number.'); return; }
+    setError(null); setPhase('mpesa');
     try {
-      const p = plan === 'family'
-        ? await mpesaCheckoutFamily(accessToken, { phone: phoneNorm, numLearners })
-        : studentId != null
-          ? await mpesaCheckoutChild(accessToken, studentId, { phone: phoneNorm })
-          : null;
-      if (p) setPayment(p);
-    } catch (e: any) { Alert.alert('Checkout failed', e?.message ?? String(e)); }
-    finally { setSubmitting(false); }
+      const body = { phone: phoneNorm, period, code: promo?.code ?? null };
+      const p = target.kind === 'family'
+        ? await mpesaCheckoutFamily(accessToken, { ...body, numLearners: family.numChildren })
+        : await mpesaCheckoutChild(accessToken, target.studentId!, body);
+      setPayment(p);
+    } catch (e: any) { setPhase('idle'); setError(e?.message || 'Could not start M-Pesa payment.'); }
   };
 
-  // Card payment (Paystack) — the browser handles the card form, exactly like
-  // the web page; we then poll the payment until the backend confirms it.
-  const [cardBusy, setCardBusy] = useState(false);
-  const handleCard = async () => {
-    if (!accessToken || cardBusy) return;
-    setCardBusy(true);
+  const payCard = async () => {
+    if (!target || !accessToken || phase !== 'idle') return;
+    if (!cardEmailReady) { setError('Card payment needs an email address — add one in Settings, or use M-Pesa.'); return; }
+    setError(null); setPhase('paystack');
     try {
-      const p = plan === 'family'
-        ? await paystackCheckoutFamily(accessToken, { numLearners })
-        : studentId != null
-          ? await paystackCheckoutChild(accessToken, studentId, {})
-          : null;
+      const qs = paystackQs(period, promo?.code ?? null);
+      const p = target.kind === 'family'
+        ? await paystackCheckoutFamily(accessToken, { numLearners: family.numChildren }, qs)
+        : await paystackCheckoutChild(accessToken, target.studentId!, {}, qs);
       const url = (p?.raw as any)?.redirectUrl || (p?.raw as any)?.authorizationUrl;
-      if (p && url) {
-        setPayment(p);
-        Linking.openURL(String(url));
-      } else {
-        Alert.alert('Card payment unavailable', 'Use M-Pesa, or add your email in Settings first.');
-      }
-    } catch (e: any) { Alert.alert('Card checkout failed', e?.message ?? String(e)); }
-    finally { setCardBusy(false); }
+      if (p && url) { setPayment(p); Linking.openURL(String(url)); }
+      else { setPhase('idle'); setError('Card payment is currently unavailable.'); }
+    } catch (e: any) { setPhase('idle'); setError(e?.message || 'Could not start card payment.'); }
   };
 
-  const amount = plan === 'family' ? priceFamily : priceIndividual;
+  const doTrial = async (studentId: number) => {
+    if (!accessToken || busyId != null) return;
+    setBusyId(studentId); setError(null);
+    try { await startTrial(accessToken, studentId); refresh(); }
+    catch (e: any) { setError(e?.message || 'Could not start the trial.'); }
+    finally { setBusyId(null); }
+  };
+  const doCancel = async (studentId: number) => {
+    if (!accessToken || busyId != null) return;
+    setBusyId(studentId); setError(null);
+    try { await cancelChildSubscription(accessToken, studentId); refresh(); }
+    catch (e: any) { setError(e?.message || 'Could not cancel.'); }
+    finally { setBusyId(null); }
+  };
+  const doResume = async (studentId: number) => {
+    if (!accessToken || busyId != null) return;
+    setBusyId(studentId); setError(null);
+    try { await resumeChildSubscription(accessToken, studentId); refresh(); }
+    catch (e: any) { setError(e?.message || 'Could not resume.'); }
+    finally { setBusyId(null); }
+  };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.sheetHeader}>
-          <Text style={styles.sheetTitle}>{plan === 'family' ? 'Family Plan' : 'Subscribe'}</Text>
-          <TouchableOpacity hitSlop={8} onPress={onClose}>
-            <Ionicons name="close" size={22} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-        <View style={{ flex: 1, padding: 18 }}>
-          <View style={styles.amountBox}>
-            <Text style={styles.amountBoxLabel}>Pay today</Text>
-            <Text style={styles.amountBoxValue}>{formatMoney(amount, 'KSh')}</Text>
-          </View>
-
-          {!payment ? (
-            <>
-              <Text style={styles.label}>M-Pesa phone number</Text>
-              <View style={[styles.inputWrap, phoneError && { borderColor: colors.danger }]}>
-                <Text style={styles.inputPrefix}>+254</Text>
-                <TextInput
-                  style={styles.input}
-                  value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
-                  placeholder="7XX XXX XXX"
-                  placeholderTextColor={colors.textTertiary}
-                />
-              </View>
-              {phoneError && <Text style={{ color: colors.danger, fontSize: 11.5, marginTop: 4 }}>{phoneError}</Text>}
-              <View style={{ flex: 1 }} />
-              <TouchableOpacity activeOpacity={0.85} onPress={handleSubmit} disabled={submitting}
-                style={[styles.subscribeBtn, submitting && { opacity: 0.6 }]}>
-                <Ionicons name="phone-portrait-outline" size={15} color="#fff" />
-                <Text style={styles.subscribeBtnText}>{submitting ? 'Sending STK…' : 'Send STK Push'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.8} onPress={handleCard} disabled={cardBusy}
-                style={[styles.cardBtn, cardBusy && { opacity: 0.6 }]}>
-                {cardBusy
-                  ? <ActivityIndicator size="small" color={colors.text} />
-                  : <><Ionicons name="card-outline" size={15} color={colors.text} /><Text style={styles.cardBtnText}>Pay with card instead</Text></>}
-              </TouchableOpacity>
-            </>
+    <View style={styles.root}>
+      <GradientAppBar title="Subscriptions" subtitle="Per child, or the whole family at a discount" showBack />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
+        >
+          {loading && !status ? (
+            <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>
           ) : (
-            <View style={styles.center}>
-              {!done ? (
-                <>
-                  <ActivityIndicator size="large" color={colors.primary} />
-                  <Text style={styles.checkoutWait}>Check your phone for the M-Pesa prompt</Text>
-                  <Text style={styles.checkoutWaitSmall}>Status: {(payment.status ?? 'PENDING').toString()}</Text>
-                </>
+            <>
+              {/* Value banner — the web's gradient statement panel */}
+              <LinearGradient colors={['#7C3AED', '#DB2777']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.banner}>
+                <View style={styles.bannerCircleA} />
+                <View style={styles.bannerCircleB} />
+                <Text style={styles.bannerTitle}>Give your children the best advantage</Text>
+                <Text style={styles.bannerSub}>
+                  Adaptive learning, coding & robotics, weekly insights, and live bus tracking — everything below unlocks with Premium.
+                </Text>
+              </LinearGradient>
+
+              {/* Free vs Premium comparison */}
+              <View style={styles.tableCard}>
+                <View style={[styles.tableRow, styles.tableHead]}>
+                  <Text style={[styles.tableLabel, { fontFamily: fonts.bold, color: colors.text }]}>What you get</Text>
+                  <Text style={styles.tableColHead}>Free</Text>
+                  <Text style={[styles.tableColHead, { color: colors.primary }]}>Premium</Text>
+                </View>
+                {COMPARISON.map(([label, free, prem], i) => (
+                  <View key={label} style={[styles.tableRow, i > 0 && styles.divider]}>
+                    <Text style={styles.tableLabel}>{label}</Text>
+                    <Text style={[styles.tableTick, { color: free ? colors.success : colors.textTertiary }]}>{free ? '✓' : '—'}</Text>
+                    <Text style={[styles.tableTick, { color: prem ? colors.success : colors.textTertiary }]}>{prem ? '✓' : '—'}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Billing period */}
+              <Text style={styles.kicker}>BILLING PERIOD</Text>
+              <View style={styles.periodRow}>
+                {PERIODS.map((po) => {
+                  const r = plans.find((p) => p.numLearners === 1 && p.period === po.id);
+                  const active = period === po.id;
+                  const savings = Number(r?.savingsPct || 0);
+                  return (
+                    <TouchableOpacity key={po.id} activeOpacity={0.8} onPress={() => pickPeriod(po.id)}
+                      style={[styles.periodBtn, active && { borderColor: colors.primary, backgroundColor: colors.primarySofter }]}>
+                      <Text style={[styles.periodLabel, active && { color: colors.primary }]}>{po.label}</Text>
+                      {savings > 0 && (
+                        <Text style={styles.periodSave}>
+                          {po.id === 'ANNUAL' && savings >= 16 ? `${Math.round(12 * savings / 100)} months free` : `save ${savings}%`}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Family package */}
+              {activeChildren.length > 1 && (
+                <View style={styles.familyCard}>
+                  <View style={styles.popularRibbon}><Text style={styles.popularRibbonText}>MOST POPULAR</Text></View>
+                  <View style={styles.familyTop}>
+                    <View style={styles.familyIcon}>
+                      <MaterialCommunityIcons name="account-group" size={20} color={colors.primary} />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.familyTitle}>Family package</Text>
+                      <Text style={styles.familyDesc}>{family.note || `Covers all ${family.numChildren} active children.`}</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.familyPrice}>{kes(familyPeriodKes)}</Text>
+                      <Text style={styles.familyPer}>/ {periodUnit}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity activeOpacity={0.85}
+                    onPress={() => pick({ kind: 'family', label: `Family package · ${family.numChildren} ${family.numChildren === 1 ? 'child' : 'children'}` })}>
+                    <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.familyBtn}>
+                      <Text style={styles.familyBtnText}>
+                        {target?.kind === 'family' ? 'Selected — choose how to pay below' : 'Subscribe the whole family'}
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Per-child list */}
+              <Text style={styles.sectionTitle}>Your children</Text>
+              {children.length === 0 ? (
+                <View style={styles.emptyCard}><Text style={styles.emptyText}>No children found on your account yet.</Text></View>
               ) : (
+                <View style={styles.listCard}>
+                  {children.map((c, i) => {
+                    const expiry = fmtDate(c.entitlementExpiresAt || c.planExpiresAt || c.trialExpiresAt);
+                    const isTrial = c.plan === 'TRIAL' || c.trialActive;
+                    const selected = target?.kind === 'child' && target.studentId === c.studentId;
+                    const busy = busyId === c.studentId;
+                    return (
+                      <View key={c.studentId ?? i} style={[styles.childRow, i > 0 && styles.divider]}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <View style={styles.childNameRow}>
+                            <Text style={styles.childName} numberOfLines={1}>{c.name || `Student ${c.studentId}`}</Text>
+                            {!c.active && <View style={styles.inactiveChip}><Text style={styles.inactiveChipText}>INACTIVE</Text></View>}
+                          </View>
+                          <Text style={styles.childMeta} numberOfLines={1}>
+                            {c.className || '—'}
+                            {c.premiumActive
+                              ? isTrial ? ` · Trial until ${expiry}`
+                                : c.cancelAtPeriodEnd ? ` · Premium ends ${expiry}` : ` · Premium until ${expiry}`
+                              : c.trialAvailable ? ' · Free · trial available' : ' · Free'}
+                          </Text>
+                          <View style={styles.childActions}>
+                            {c.premiumActive ? (
+                              c.cancelAtPeriodEnd ? (
+                                <TouchableOpacity style={[styles.actBtn, { backgroundColor: colors.primary }]} disabled={busy}
+                                  activeOpacity={0.85} onPress={() => doResume(c.studentId)}>
+                                  {busy ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.actBtnText}>Resume</Text>}
+                                </TouchableOpacity>
+                              ) : (
+                                <TouchableOpacity style={styles.cancelBtn} disabled={busy}
+                                  activeOpacity={0.8} onPress={() => doCancel(c.studentId)}>
+                                  {busy ? <ActivityIndicator size="small" color={colors.danger} /> : <Text style={styles.cancelBtnText}>Cancel</Text>}
+                                </TouchableOpacity>
+                              )
+                            ) : (
+                              <>
+                                {c.trialAvailable && (
+                                  <TouchableOpacity style={[styles.actBtn, { backgroundColor: colors.purple }]} disabled={busy}
+                                    activeOpacity={0.85} onPress={() => doTrial(c.studentId)}>
+                                    {busy ? <ActivityIndicator size="small" color="#FFF" /> : (
+                                      <><Ionicons name="sparkles" size={12} color="#FFF" /><Text style={styles.actBtnText}>Start trial</Text></>
+                                    )}
+                                  </TouchableOpacity>
+                                )}
+                                <TouchableOpacity
+                                  style={[styles.actBtn, { backgroundColor: selected ? colors.success : '#059669' }]}
+                                  activeOpacity={0.85}
+                                  onPress={() => pick({ kind: 'child', studentId: c.studentId, label: c.name || `Student ${c.studentId}` })}>
+                                  <Ionicons name="sparkles" size={12} color="#FFF" />
+                                  <Text style={styles.actBtnText}>{selected ? 'Selected' : `Subscribe · ${kes(childPeriodKes)}`}</Text>
+                                </TouchableOpacity>
+                              </>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Payment panel — appears once a target is chosen */}
+              {target && (
+                <View style={styles.payCard}>
+                  <View style={styles.payHead}>
+                    <Text style={styles.payFor} numberOfLines={1}>
+                      <Text style={{ color: colors.textTertiary }}>Paying for: </Text>{target.label}
+                    </Text>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.payAmount}>{kes(chargedAmount)}<Text style={styles.payPer}> / {periodUnit}</Text></Text>
+                      {promo && <Text style={styles.payWas}>{kes(selectedAmount)}</Text>}
+                    </View>
+                  </View>
+
+                  {phase === 'mpesa' && payment && !done ? (
+                    <View style={styles.waitBox}>
+                      <ActivityIndicator size="small" color={colors.warning} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.waitTitle}>Check your phone for the M-Pesa prompt</Text>
+                        <Text style={styles.waitSub}>Waiting for confirmation…</Text>
+                      </View>
+                    </View>
+                  ) : phase === 'paystack' && payment && !done ? (
+                    <View style={styles.waitBox}>
+                      <ActivityIndicator size="small" color={colors.info} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.waitTitle}>Finish the card payment in your browser</Text>
+                        <Text style={styles.waitSub}>We’ll confirm it here automatically.</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.inline}>
+                        <TextInput style={styles.input} value={promoInput} onChangeText={setPromoInput}
+                          placeholder="Discount or referral code" placeholderTextColor={colors.textTertiary} autoCapitalize="characters" />
+                        <TouchableOpacity style={[styles.applyBtn, !promoInput.trim() && { opacity: 0.4 }]}
+                          disabled={!promoInput.trim()} activeOpacity={0.8} onPress={applyPromo}>
+                          <Text style={styles.applyBtnText}>Apply</Text>
+                        </TouchableOpacity>
+                      </View>
+                      {promo && <Text style={styles.promoOk}>Code applied — {promo.percentOff}% off{promo.label ? ` · ${promo.label}` : ''}</Text>}
+                      {promoErr && <Text style={styles.promoErr}>{promoErr}</Text>}
+
+                      <View style={styles.inline}>
+                        <TextInput style={styles.input} value={phone} onChangeText={setPhone}
+                          keyboardType="phone-pad" placeholder="07XX XXX XXX" placeholderTextColor={colors.textTertiary} />
+                        <TouchableOpacity style={styles.mpesaBtn} activeOpacity={0.85} onPress={payMpesa}>
+                          <Ionicons name="phone-portrait-outline" size={14} color="#FFF" />
+                          <Text style={styles.mpesaBtnText}>M-Pesa</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      {!cardEmailReady && (
+                        <View style={styles.emailNote}>
+                          <Text style={styles.emailNoteText}>
+                            Card payment needs an email for checkout and receipts. Continue with M-Pesa, or{' '}
+                            <Text style={{ fontFamily: fonts.bold, textDecorationLine: 'underline' }}
+                              onPress={() => router.push('/settings' as any)}>add an email in Settings</Text>.
+                          </Text>
+                        </View>
+                      )}
+                      <TouchableOpacity style={[styles.cardPayBtn, !cardEmailReady && { backgroundColor: colors.textTertiary }]}
+                        activeOpacity={0.85} disabled={!cardEmailReady} onPress={payCard}>
+                        <Ionicons name="card-outline" size={15} color="#FFF" />
+                        <Text style={styles.cardPayBtnText}>Pay with card</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => { setTarget(null); setError(null); clearPromo(); }}>
+                        <Text style={styles.payCancel}>Cancel</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              )}
+
+              {error && (
+                <View style={styles.errRow}>
+                  <Ionicons name="alert-circle" size={15} color={colors.danger} />
+                  <Text style={styles.errText}>{error}</Text>
+                </View>
+              )}
+
+              {/* Payment history */}
+              {history.length > 0 && (
                 <>
-                  <Ionicons name="checkmark-circle" size={64} color={colors.success} />
-                  <Text style={styles.checkoutWait}>Payment confirmed</Text>
+                  <Text style={styles.sectionTitle}>Payment history</Text>
+                  <View style={styles.listCard}>
+                    {history.map((h, i) => {
+                      const r = (h.raw ?? {}) as any;
+                      const st = String(h.status || r.status || '').toUpperCase();
+                      const tone = st === 'SUCCESS' ? colors.success : st === 'PENDING' ? colors.warning : colors.danger;
+                      const provider = r.provider === 'MPESA' || h.channel === 'MPESA' ? 'M-Pesa'
+                        : r.provider === 'PAYSTACK' || h.channel === 'PAYSTACK' ? 'Card' : (r.provider || h.channel || '—');
+                      const scope = r.scope === 'FAMILY' ? `Family (${r.numChildren ?? ''})` : '1 child';
+                      const amount = Number(r.amountKes ?? h.amount ?? 0);
+                      return (
+                        <View key={`${h.id}-${i}`} style={[styles.historyRow, i > 0 && styles.divider]}>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={styles.historyTitle}>{kes(amount)} · {scope}</Text>
+                            <Text style={styles.historyMeta} numberOfLines={1}>
+                              {fmtDate(h.date || r.createdAt)} · {provider}{r.receipt ? ` · ${r.receipt}` : ''}
+                            </Text>
+                          </View>
+                          <Text style={[styles.historyStatus, { color: tone }]}>
+                            {st === 'SUCCESS' ? 'Paid' : st === 'PENDING' ? 'Pending' : st === 'CANCELLED' ? 'Cancelled' : 'Failed'}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
                 </>
               )}
-            </View>
+            </>
           )}
-        </View>
+          <View style={{ height: 32 }} />
+        </ScrollView>
       </KeyboardAvoidingView>
-    </Modal>
+    </View>
   );
 };
-
-function formatDate(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  try {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  } catch { return iso; }
-}
 
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: c.backgroundAlt },
-    scroll: { paddingHorizontal: 18, paddingTop: 12 },
-    center: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
-    loadingText: { fontSize: 11.5, color: c.textSecondary, marginTop: 8, fontWeight: '500' },
+    root: { flex: 1, backgroundColor: c.background },
+    scroll: { paddingHorizontal: 16 },
+    center: { padding: 44, alignItems: 'center' },
 
-    hero: {
-      borderRadius: 22, padding: 18, alignItems: 'center', marginBottom: 20,
-      shadowColor: c.primary, shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.25, shadowRadius: 16, elevation: 8,
+    banner: {
+      borderRadius: 20, padding: 18, overflow: 'hidden',
+      marginTop: -20, marginBottom: 18,
+      shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.25, shadowRadius: 18, elevation: 7,
     },
-    heroIconWrap: {
-      width: 56, height: 56, borderRadius: 28,
-      backgroundColor: 'rgba(255,255,255,0.2)',
-      alignItems: 'center', justifyContent: 'center', marginBottom: 12,
-    },
-    heroTitle: { color: '#fff', fontSize: 28, fontWeight: '800', marginBottom: 6 },
-    heroSubtitle: { color: '#fff', opacity: 0.95, fontSize: 13.5, textAlign: 'center', lineHeight: 20 },
+    bannerCircleA: { position: 'absolute', right: -40, top: -56, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.1)' },
+    bannerCircleB: { position: 'absolute', left: -32, bottom: -48, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.07)' },
+    bannerTitle: { color: '#FFF', fontSize: 17.5, fontFamily: fonts.extrabold, letterSpacing: -0.3, lineHeight: 22 },
+    bannerSub: { color: 'rgba(255,255,255,0.88)', fontSize: 12.5, fontFamily: fonts.regular, marginTop: 5, lineHeight: 18 },
 
-    sectionTitle: { fontSize: 17, fontWeight: '700', color: c.text, marginTop: 20, marginBottom: 12 },
+    tableCard: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, overflow: 'hidden', marginBottom: 20 },
+    tableHead: { backgroundColor: c.backgroundAlt },
+    tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 13 },
+    tableLabel: { flex: 1, fontSize: 12, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 16, paddingRight: 8 },
+    tableColHead: { width: 56, textAlign: 'center', fontSize: 11.5, fontFamily: fonts.bold, color: c.textTertiary },
+    tableTick: { width: 56, textAlign: 'center', fontSize: 13, fontFamily: fonts.extrabold },
+    divider: { borderTopWidth: 1, borderTopColor: c.border },
 
-    planCard: {
-      backgroundColor: c.card, borderRadius: 16,
-      borderWidth: 1, borderColor: c.border,
-      padding: 12, marginBottom: 8,
+    kicker: { fontSize: 10.5, fontFamily: fonts.bold, color: c.textTertiary, letterSpacing: 1, marginBottom: 8 },
+    periodRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+    periodBtn: {
+      flex: 1, alignItems: 'center', borderWidth: 1.5, borderColor: c.border,
+      borderRadius: 13, paddingVertical: 10, backgroundColor: c.card,
     },
-    planCardActive: { borderColor: c.success, borderLeftWidth: 3 },
-    planHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-    planIcon: {
-      width: 38, height: 38, borderRadius: 12,
-      backgroundColor: c.purpleLight,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    planTitle: { fontSize: 13.5, fontWeight: '700', color: c.text },
-    planMeta: { fontSize: 11.5, color: c.textSecondary, marginTop: 1 },
-    statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99 },
-    statusPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+    periodLabel: { fontSize: 12.5, fontFamily: fonts.bold, color: c.text },
+    periodSave: { fontSize: 10, fontFamily: fonts.bold, color: c.success, marginTop: 2 },
 
-    priceRow: { flexDirection: 'row', alignItems: 'baseline', gap: 4, marginBottom: 12 },
-    priceAmount: { fontSize: 17, fontWeight: '700', color: c.text },
-    pricePer: { fontSize: 11.5, color: c.textSecondary },
+    familyCard: {
+      borderWidth: 1.5, borderColor: c.primary + '55', backgroundColor: c.primarySofter,
+      borderRadius: 18, padding: 15, paddingTop: 18, marginBottom: 20,
+    },
+    popularRibbon: {
+      position: 'absolute', top: -10, left: 16,
+      backgroundColor: c.primary, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3,
+    },
+    popularRibbonText: { color: '#FFF', fontSize: 9, fontFamily: fonts.extrabold, letterSpacing: 0.8 },
+    familyTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 11 },
+    familyIcon: { width: 38, height: 38, borderRadius: 11, backgroundColor: c.primary + '1F', alignItems: 'center', justifyContent: 'center' },
+    familyTitle: { fontSize: 14.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    familyDesc: { fontSize: 12, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 2, lineHeight: 17 },
+    familyPrice: { fontSize: 19, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.4 },
+    familyPer: { fontSize: 10.5, fontFamily: fonts.regular, color: c.textTertiary },
+    familyBtn: { borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 13 },
+    familyBtnText: { color: '#FFF', fontSize: 13.5, fontFamily: fonts.bold },
 
-    planActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    activeNote: { fontSize: 11.5, color: c.textSecondary, flex: 1 },
-    linkBtn: { paddingVertical: 4, paddingHorizontal: 8 },
-    linkBtnText: { color: c.danger, fontWeight: '700', fontSize: 12.5 },
+    sectionTitle: { fontSize: 15.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.4, marginBottom: 12 },
+    listCard: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, marginBottom: 20, overflow: 'hidden' },
+    emptyCard: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 22, alignItems: 'center', marginBottom: 20 },
+    emptyText: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary },
 
-    cardBtn: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      borderWidth: 1, borderColor: c.border,
-      paddingVertical: 11, borderRadius: 12, marginTop: 10,
+    childRow: { paddingHorizontal: 14, paddingVertical: 12 },
+    childNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    childName: { fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2, flexShrink: 1 },
+    inactiveChip: { borderWidth: 1, borderColor: c.border, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 },
+    inactiveChipText: { fontSize: 8.5, fontFamily: fonts.bold, color: c.textTertiary, letterSpacing: 0.8 },
+    childMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
+    childActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+    actBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      borderRadius: 10, paddingHorizontal: 13, paddingVertical: 8,
     },
-    cardBtnText: { color: c.text, fontSize: 13, fontWeight: '700' },
-    subscribeBtn: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      backgroundColor: c.primary,
-      paddingVertical: 11, borderRadius: 12,
+    actBtnText: { color: '#FFF', fontSize: 12, fontFamily: fonts.bold },
+    cancelBtn: {
+      borderWidth: 1.5, borderColor: c.danger + '55', borderRadius: 10,
+      paddingHorizontal: 13, paddingVertical: 8,
     },
-    subscribeBtnText: { color: '#fff', fontWeight: '800', fontSize: 13.5 },
-    trialBtn: { alignItems: 'center', paddingVertical: 8 },
-    trialBtnText: { color: c.primary, fontWeight: '700', fontSize: 12.5 },
+    cancelBtnText: { color: c.danger, fontSize: 12, fontFamily: fonts.bold },
 
-    historyCard: {
-      backgroundColor: c.card, borderRadius: 16,
-      borderWidth: 1, borderColor: c.border, overflow: 'hidden',
+    payCard: { backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.border, padding: 15, marginBottom: 14, gap: 10 },
+    payHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+    payFor: { flex: 1, fontSize: 13, fontFamily: fonts.bold, color: c.text },
+    payAmount: { fontSize: 16.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3 },
+    payPer: { fontSize: 11, fontFamily: fonts.regular, color: c.textTertiary },
+    payWas: { fontSize: 11, fontFamily: fonts.regular, color: c.textTertiary, textDecorationLine: 'line-through' },
+    inline: { flexDirection: 'row', gap: 8 },
+    input: {
+      flex: 1, borderWidth: 1, borderColor: c.border, borderRadius: 11,
+      backgroundColor: c.background, paddingHorizontal: 12, height: 44,
+      fontSize: 13, fontFamily: fonts.regular, color: c.text,
     },
-    historyRow: { flexDirection: 'row', alignItems: 'center', padding: 12 },
-    historyRowDivider: { borderBottomWidth: 1, borderBottomColor: c.border },
-    historyIcon: {
-      width: 28, height: 28, borderRadius: 14,
-      backgroundColor: c.warningSoft,
-      alignItems: 'center', justifyContent: 'center',
+    applyBtn: {
+      borderRadius: 11, backgroundColor: c.primarySoft,
+      paddingHorizontal: 16, justifyContent: 'center',
     },
-    historyTitle: { fontSize: 13.5, fontWeight: '700', color: c.text },
-    historyMeta: { fontSize: 11.5, color: c.textTertiary, marginTop: 1 },
-    historyAmount: { fontSize: 13.5, fontWeight: '700', color: c.text },
+    applyBtnText: { color: c.primary, fontSize: 13, fontFamily: fonts.bold },
+    promoOk: { fontSize: 11.5, fontFamily: fonts.bold, color: c.success },
+    promoErr: { fontSize: 11.5, fontFamily: fonts.regular, color: c.danger },
+    mpesaBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      borderRadius: 11, backgroundColor: '#059669',
+      paddingHorizontal: 15, justifyContent: 'center',
+    },
+    mpesaBtnText: { color: '#FFF', fontSize: 13, fontFamily: fonts.bold },
+    emailNote: { borderWidth: 1, borderColor: c.warning + '55', backgroundColor: c.warningSoft, borderRadius: 10, padding: 10 },
+    emailNoteText: { fontSize: 11.5, fontFamily: fonts.regular, color: c.warning, lineHeight: 16 },
+    cardPayBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+      backgroundColor: '#4F46E5', borderRadius: 11, paddingVertical: 12,
+    },
+    cardPayBtnText: { color: '#FFF', fontSize: 13.5, fontFamily: fonts.bold },
+    payCancel: { textAlign: 'center', fontSize: 12, fontFamily: fonts.semibold, color: c.textTertiary, paddingVertical: 4 },
 
-    emptyCard: {
-      backgroundColor: c.card, borderRadius: 16,
-      borderWidth: 1, borderColor: c.border,
-      padding: 16, alignItems: 'center',
+    waitBox: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      borderWidth: 1, borderColor: c.warning + '55', backgroundColor: c.warningSoft,
+      borderRadius: 12, padding: 12,
     },
-    emptyText: { fontSize: 11.5, color: c.textSecondary },
+    waitTitle: { fontSize: 12.5, fontFamily: fonts.bold, color: c.text },
+    waitSub: { fontSize: 11, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 1 },
 
-    errorBanner: {
-      flexDirection: 'row', alignItems: 'center', gap: 8,
-      backgroundColor: c.dangerSoft, borderRadius: 12,
-      padding: 12, marginTop: 12,
-    },
-    errorBannerText: { flex: 1, color: c.danger, fontSize: 12.5, fontWeight: '700' },
-    retryInline: { color: c.danger, fontWeight: '800', fontSize: 13 },
+    errRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14, paddingHorizontal: 2 },
+    errText: { flex: 1, fontSize: 12.5, fontFamily: fonts.medium, color: c.danger },
 
-    sheetHeader: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: 18, paddingTop: 18, paddingBottom: 12,
-      backgroundColor: c.background,
-      borderBottomWidth: 1, borderBottomColor: c.border,
-    },
-    sheetTitle: { fontSize: 17, fontWeight: '700', color: c.text },
-    amountBox: {
-      backgroundColor: c.card, borderRadius: 16,
-      borderWidth: 1, borderColor: c.border,
-      padding: 18, marginBottom: 18, alignItems: 'center',
-    },
-    amountBoxLabel: { fontSize: 11.5, color: c.textSecondary },
-    amountBoxValue: { fontSize: 28, fontWeight: '800', color: c.primary, marginTop: 4 },
-    label: { fontSize: 11.5, fontWeight: '700', color: c.textSecondary, marginBottom: 6 },
-    inputWrap: {
-      flexDirection: 'row', alignItems: 'center',
-      backgroundColor: c.card,
-      borderRadius: 12, borderWidth: 1, borderColor: c.border,
-      paddingHorizontal: 12,
-    },
-    inputPrefix: { fontSize: 13.5, color: c.textSecondary, marginRight: 8, fontWeight: '700' },
-    input: { flex: 1, fontSize: 13.5, color: c.text, paddingVertical: 12 },
-    checkoutWait: { fontSize: 15, fontWeight: '700', color: c.text, marginTop: 12, textAlign: 'center' },
-    checkoutWaitSmall: { fontSize: 11.5, color: c.textSecondary, marginTop: 4 },
+    historyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 11 },
+    historyTitle: { fontSize: 13, fontFamily: fonts.bold, color: c.text },
+    historyMeta: { fontSize: 11, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
+    historyStatus: { fontSize: 11.5, fontFamily: fonts.bold },
   });
 }

@@ -36,11 +36,59 @@ export const SettingsScreen: React.FC = () => {
 
   const { signOut, user, accessToken } = useAuth();
   const { parent, refresh: refreshProfile, update: updateProfile } = useParentProfile();
-  const { children, selectedChild } = useSelectedChild();
+  const { children, selectedChild, selectChild } = useSelectedChild();
 
-  const [editOpen, setEditOpen] = useState(false);
-  const [passwordOpen, setPasswordOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+
+  // Inline profile form — mirrors the web Settings Profile card.
+  const [pName, setPName] = useState('');
+  const [pEmail, setPEmail] = useState('');
+  const [pPhone, setPPhone] = useState('');
+  const [profileDirty, setProfileDirty] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const resetProfileForm = useCallback(() => {
+    setPName(parent.name || `${parent.firstName} ${parent.lastName}`.trim());
+    setPEmail(parent.email || '');
+    setPPhone(parent.phone || '');
+    setProfileDirty(false);
+    setProfileMsg(null);
+  }, [parent.name, parent.firstName, parent.lastName, parent.email, parent.phone]);
+  useFocusEffect(useCallback(() => { resetProfileForm(); }, [resetProfileForm]));
+  const editField = (setter: (v: string) => void) => (v: string) => { setter(v); setProfileDirty(true); };
+  const saveProfile = async () => {
+    if (!pName.trim()) { setProfileMsg({ ok: false, text: 'Name is required.' }); return; }
+    setProfileSaving(true); setProfileMsg(null);
+    try {
+      await updateProfile({ name: pName.trim(), email: pEmail.trim() || null, phone: pPhone.trim() || null });
+      await refreshProfile();
+      setProfileDirty(false);
+      setProfileMsg({ ok: true, text: 'Profile saved.' });
+    } catch (e: any) {
+      setProfileMsg({ ok: false, text: e?.message || 'Could not save your profile.' });
+    } finally { setProfileSaving(false); }
+  };
+
+  // Inline security form — mirrors the web Security card.
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNext, setPwNext] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMsg, setPwMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const savePassword = async () => {
+    setPwMsg(null);
+    if (pwNext.length < 8) { setPwMsg({ ok: false, text: 'New password must be at least 8 characters.' }); return; }
+    if (pwNext !== pwConfirm) { setPwMsg({ ok: false, text: 'New passwords do not match.' }); return; }
+    if (!accessToken) return;
+    setPwSaving(true);
+    try {
+      await changeParentPassword(accessToken, { currentPassword: pwCurrent, newPassword: pwNext });
+      setPwMsg({ ok: true, text: 'Password updated.' });
+      setPwCurrent(''); setPwNext(''); setPwConfirm('');
+    } catch {
+      setPwMsg({ ok: false, text: 'Could not update — check your current password.' });
+    } finally { setPwSaving(false); }
+  };
 
   // Plans at a glance + active devices — same data the web Settings page shows.
   const [billing, setBilling] = useState<BillingStatus | null>(null);
@@ -95,64 +143,100 @@ export const SettingsScreen: React.FC = () => {
       <GradientAppBar title="Settings" subtitle="Profile, preferences & account" showBack />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Profile card */}
+        {/* Profile — identity + inline editable fields, like the web card */}
         <View style={styles.profileCard}>
-          <View style={styles.profileAvatar}>
-            {parent.photoUrl ? (
-              <Image source={{ uri: parent.photoUrl }} style={{ width: '100%', height: '100%' }} />
-            ) : (
-              <Text style={styles.profileInitials}>{parent.initials || '?'}</Text>
-            )}
+          <View style={styles.profileTop}>
+            <View style={styles.profileAvatar}>
+              {parent.photoUrl ? (
+                <Image source={{ uri: parent.photoUrl }} style={{ width: '100%', height: '100%' }} />
+              ) : (
+                <Text style={styles.profileInitials}>{parent.initials || '?'}</Text>
+              )}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.profileName}>
+                {parent.name || `${parent.firstName} ${parent.lastName}`.trim() || 'Parent'}
+              </Text>
+              <Text style={styles.profileSub}>{parent.email || parent.phone || '—'}</Text>
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.profileName}>
-              {parent.name || `${parent.firstName} ${parent.lastName}`.trim() || 'Parent'}
-            </Text>
-            <Text style={styles.profileSub}>{parent.email || parent.phone || '—'}</Text>
-          </View>
-          <TouchableOpacity activeOpacity={0.85} onPress={() => setEditOpen(true)} style={styles.editBtn}>
-            <Feather name="edit-2" size={14} color={colors.primary} />
-            <Text style={styles.editBtnText}>Edit</Text>
-          </TouchableOpacity>
+
+          <Text style={styles.fieldLabel}>NAME</Text>
+          <TextInput style={styles.fieldInput} value={pName} onChangeText={editField(setPName)}
+            placeholder="Your name" placeholderTextColor={colors.textTertiary} />
+          <Text style={styles.fieldLabel}>EMAIL</Text>
+          <TextInput style={styles.fieldInput} value={pEmail} onChangeText={editField(setPEmail)}
+            placeholder="you@example.com" placeholderTextColor={colors.textTertiary}
+            keyboardType="email-address" autoCapitalize="none" />
+          <Text style={styles.fieldLabel}>PHONE</Text>
+          <TextInput style={styles.fieldInput} value={pPhone} onChangeText={editField(setPPhone)}
+            placeholder="07XX XXX XXX" placeholderTextColor={colors.textTertiary} keyboardType="phone-pad" />
+
+          {profileMsg && (
+            <Text style={[styles.formMsg, { color: profileMsg.ok ? colors.success : colors.danger }]}>{profileMsg.text}</Text>
+          )}
+          {profileDirty && (
+            <View style={styles.formActions}>
+              <TouchableOpacity style={styles.ghostBtn} activeOpacity={0.7} disabled={profileSaving} onPress={resetProfileForm}>
+                <Text style={styles.ghostBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.saveBtn, profileSaving && { opacity: 0.6 }]} activeOpacity={0.85}
+                disabled={profileSaving} onPress={saveProfile}>
+                {profileSaving ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={styles.saveBtnText}>Save changes</Text>}
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
-        <Text style={styles.sectionLabel}>ACCOUNT</Text>
+        {/* Linked children — switch the active child, like the web card */}
+        <Text style={styles.sectionLabel}>LINKED CHILDREN</Text>
         <View style={styles.menuGroup}>
-          <Row colors={colors} styles={styles}
-            icon={<Ionicons name="person-circle-outline" size={20} color={colors.primary} />}
-            iconBg={colors.primarySoft}
-            label="Edit Profile" sub="Name, photo, email, phone"
-            onPress={() => setEditOpen(true)}
-          />
-          <Row colors={colors} styles={styles}
-            icon={<Ionicons name="lock-closed" size={18} color={colors.purple} />}
-            iconBg={colors.purpleLight}
-            label="Change Password" sub="Update your account password"
-            onPress={() => setPasswordOpen(true)}
-            divider
-          />
-          <Row colors={colors} styles={styles}
-            icon={<Ionicons name="people" size={18} color={colors.info} />}
-            iconBg={colors.infoSoft}
-            label="Linked Children"
-            sub={`${children.length} child${children.length === 1 ? '' : 'ren'} on this account`}
-            onPress={() => router.push('/choose-child' as any)}
-            divider
-          />
-          <Row colors={colors} styles={styles}
-            icon={<Ionicons name="folder-open" size={18} color={colors.success} />}
-            iconBg={colors.successSoft}
-            label="Documents" sub="Statements, receipts & report cards"
-            onPress={() => router.push('/documents' as any)}
-            divider
-          />
-          <Row colors={colors} styles={styles}
-            icon={<Ionicons name="diamond" size={18} color={colors.purple} />}
-            iconBg={colors.purpleLight}
-            label="Plans & subscriptions" sub="AI Learning, Coding, live bus tracking"
-            onPress={() => router.push('/subscriptions' as any)}
-            divider
-          />
+          {children.map((c, i) => {
+            const active = c.studentId === selectedChild?.studentId;
+            return (
+              <View key={c.studentId} style={[styles.childRow, i > 0 && styles.deviceDivider]}>
+                <View style={styles.childAvatar}>
+                  <Text style={styles.childInitials}>{c.initials}</Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.childName} numberOfLines={1}>{c.fullName}</Text>
+                  <Text style={styles.childMeta} numberOfLines={1}>
+                    {[c.classLabel, c.schoolName].filter(Boolean).join(' · ')}
+                  </Text>
+                  {!!c.admNo && <Text style={styles.childAdm}>Admission: {c.admNo}</Text>}
+                </View>
+                {active ? (
+                  <View style={styles.activeChip}><Text style={styles.activeChipText}>Active</Text></View>
+                ) : (
+                  <TouchableOpacity style={styles.switchBtn} activeOpacity={0.7} onPress={() => selectChild(c.studentId)}>
+                    <Text style={styles.switchBtnText}>Switch</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Language — the web's EN/SW picker */}
+        <Text style={styles.sectionLabel}>LANGUAGE</Text>
+        <View style={styles.langRow}>
+          {[
+            { id: 'en', label: 'English', native: 'English' },
+            { id: 'sw', label: 'Swahili', native: 'Kiswahili' },
+          ].map((l) => {
+            const active = l.id === 'en';
+            return (
+              <TouchableOpacity key={l.id} activeOpacity={0.8}
+                style={[styles.langCard, active && { borderColor: colors.primary, backgroundColor: colors.primarySofter }]}
+                onPress={() => { if (!active) Alert.alert('Coming soon', 'Swahili translations are coming to the app soon.'); }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.langLabel}>{l.label}</Text>
+                  <Text style={styles.langNative}>{l.native}</Text>
+                </View>
+                {active && <Ionicons name="checkmark" size={16} color={colors.primary} />}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* Plans at a glance — mirrors the web Settings PlanRows. */}
@@ -191,13 +275,6 @@ export const SettingsScreen: React.FC = () => {
             iconBg={colors.warningSoft}
             label="Notifications" sub="Push, SMS, WhatsApp, email"
             onPress={() => router.push('/notifications' as any)}
-          />
-          <Row colors={colors} styles={styles}
-            icon={<MaterialCommunityIcons name="translate" size={18} color={colors.success} />}
-            iconBg={colors.successSoft}
-            label="Language" sub="English"
-            onPress={() => Alert.alert('Coming soon', 'Language switching is in development.')}
-            divider
           />
           <Row colors={colors} styles={styles}
             icon={<Ionicons name={scheme === 'dark' ? 'moon' : 'sunny'} size={18} color={colors.subjectComputer} />}
@@ -254,6 +331,31 @@ export const SettingsScreen: React.FC = () => {
           )}
         </View>
 
+        {/* Security — inline change-password, like the web card */}
+        <Text style={styles.sectionLabel}>SECURITY</Text>
+        <View style={[styles.menuGroup, { padding: 14 }]}>
+          <Text style={styles.fieldLabel}>CURRENT PASSWORD</Text>
+          <TextInput style={styles.fieldInput} value={pwCurrent} onChangeText={setPwCurrent}
+            secureTextEntry autoCapitalize="none" placeholder="••••••••" placeholderTextColor={colors.textTertiary} />
+          <Text style={styles.fieldLabel}>NEW PASSWORD</Text>
+          <TextInput style={styles.fieldInput} value={pwNext} onChangeText={setPwNext}
+            secureTextEntry autoCapitalize="none" placeholder="At least 8 characters" placeholderTextColor={colors.textTertiary} />
+          <Text style={styles.fieldLabel}>CONFIRM NEW PASSWORD</Text>
+          <TextInput style={styles.fieldInput} value={pwConfirm} onChangeText={setPwConfirm}
+            secureTextEntry autoCapitalize="none" placeholder="Repeat the new password" placeholderTextColor={colors.textTertiary} />
+          {pwMsg && (
+            <Text style={[styles.formMsg, { color: pwMsg.ok ? colors.success : colors.danger }]}>{pwMsg.text}</Text>
+          )}
+          <View style={styles.formActions}>
+            <TouchableOpacity style={[styles.saveBtn, (pwSaving || !pwCurrent || !pwNext) && { opacity: 0.5 }]}
+              activeOpacity={0.85} disabled={pwSaving || !pwCurrent || !pwNext} onPress={savePassword}>
+              {pwSaving ? <ActivityIndicator size="small" color="#FFF" /> : (
+                <><Ionicons name="lock-closed" size={13} color="#FFF" /><Text style={styles.saveBtnText}>Update password</Text></>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <Text style={styles.sectionLabel}>SUPPORT</Text>
         <View style={styles.menuGroup}>
           <Row colors={colors} styles={styles}
@@ -300,29 +402,6 @@ export const SettingsScreen: React.FC = () => {
         }}
       />
 
-      <EditProfileSheet
-        visible={editOpen}
-        onClose={() => setEditOpen(false)}
-        initial={{
-          firstName: parent.firstName || '',
-          lastName: parent.lastName || '',
-          email: parent.email || '',
-          phone: parent.phone || '',
-        }}
-        onSubmit={async (vals) => {
-          await updateProfile(vals);
-          await refreshProfile();
-        }}
-      />
-
-      <ChangePasswordSheet
-        visible={passwordOpen}
-        onClose={() => setPasswordOpen(false)}
-        onSubmit={async (current, next) => {
-          if (!accessToken) throw new Error('Not signed in.');
-          await changeParentPassword(accessToken, { currentPassword: current, newPassword: next });
-        }}
-      />
     </View>
   );
 };
@@ -466,146 +545,6 @@ const PlanRow: React.FC<{
 // =================================================================
 // Edit profile sheet
 // =================================================================
-const EditProfileSheet: React.FC<{
-  visible: boolean; onClose: () => void;
-  initial: { firstName: string; lastName: string; email: string; phone: string };
-  onSubmit: (vals: { firstName: string; lastName: string; email: string; phone: string }) => Promise<void>;
-}> = ({ visible, onClose, initial, onSubmit }) => {
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-
-  const [firstName, setFirstName] = useState(initial.firstName);
-  const [lastName, setLastName] = useState(initial.lastName);
-  const [email, setEmail] = useState(initial.email);
-  const [phone, setPhone] = useState(initial.phone);
-  const [submitting, setSubmitting] = useState(false);
-
-  React.useEffect(() => {
-    if (visible) {
-      setFirstName(initial.firstName);
-      setLastName(initial.lastName);
-      setEmail(initial.email);
-      setPhone(initial.phone);
-    }
-  }, [visible]);
-
-  const handleSubmit = async () => {
-    setSubmitting(true);
-    try {
-      await onSubmit({ firstName, lastName, email, phone });
-      Alert.alert('Profile updated', 'Your changes have been saved.');
-      onClose();
-    } catch (e: any) {
-      Alert.alert('Update failed', e?.message ?? 'Could not save your changes.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.sheetHeader}>
-          <Text style={styles.sheetTitle}>Edit Profile</Text>
-          <TouchableOpacity hitSlop={10} onPress={onClose}>
-            <Ionicons name="close" size={22} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-        <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-          <Field colors={colors} styles={styles} label="First Name" value={firstName} onChange={setFirstName} placeholder="First name" />
-          <Field colors={colors} styles={styles} label="Last Name" value={lastName} onChange={setLastName} placeholder="Last name" />
-          <Field colors={colors} styles={styles} label="Email" value={email} onChange={setEmail} placeholder="you@example.com" keyboardType="email-address" />
-          <Field colors={colors} styles={styles} label="Phone" value={phone} onChange={setPhone} placeholder="0712 345 678" keyboardType="phone-pad" />
-
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={handleSubmit}
-            disabled={submitting}
-            style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
-          >
-            {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Save changes</Text>}
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-};
-
-const ChangePasswordSheet: React.FC<{
-  visible: boolean; onClose: () => void;
-  onSubmit: (current: string, next: string) => Promise<void>;
-}> = ({ visible, onClose, onSubmit }) => {
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  React.useEffect(() => { if (visible) { setCurrent(''); setNext(''); setConfirm(''); } }, [visible]);
-
-  const handleSubmit = async () => {
-    if (next.length < 6) { Alert.alert('Password too short', 'Min 6 characters.'); return; }
-    if (next !== confirm) { Alert.alert('Mismatch', 'Passwords do not match.'); return; }
-    setSubmitting(true);
-    try {
-      await onSubmit(current, next);
-      Alert.alert('Password changed', 'Your password has been updated.');
-      onClose();
-    } catch (e: any) {
-      Alert.alert('Could not change password', e?.message ?? 'Check current password.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.sheetHeader}>
-          <Text style={styles.sheetTitle}>Change Password</Text>
-          <TouchableOpacity hitSlop={10} onPress={onClose}>
-            <Ionicons name="close" size={22} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-        <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
-          <Field colors={colors} styles={styles} label="Current password" value={current} onChange={setCurrent} placeholder="Current password" secureTextEntry />
-          <Field colors={colors} styles={styles} label="New password" value={next} onChange={setNext} placeholder="At least 6 characters" secureTextEntry />
-          <Field colors={colors} styles={styles} label="Confirm new password" value={confirm} onChange={setConfirm} placeholder="Re-enter new password" secureTextEntry />
-
-          <TouchableOpacity activeOpacity={0.85} onPress={handleSubmit} disabled={submitting} style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}>
-            {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryBtnText}>Update password</Text>}
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-};
-
-const Field: React.FC<{
-  label: string; value: string; onChange: (s: string) => void;
-  placeholder?: string; keyboardType?: any; secureTextEntry?: boolean;
-  colors: ColorPalette; styles: any;
-}> = ({ label, value, onChange, placeholder, keyboardType, secureTextEntry, colors, styles }) => (
-  <View style={{ marginBottom: 16 }}>
-    <Text style={styles.label}>{label}</Text>
-    <TextInput
-      style={styles.input}
-      value={value}
-      onChangeText={onChange}
-      placeholder={placeholder}
-      placeholderTextColor={colors.textTertiary}
-      keyboardType={keyboardType}
-      secureTextEntry={secureTextEntry}
-      autoCapitalize={keyboardType === 'email-address' ? 'none' : 'words'}
-    />
-  </View>
-);
-
-// =================================================================
-// Theme-aware styles factory
-// =================================================================
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.background },
@@ -661,6 +600,45 @@ function makeStyles(c: ColorPalette) {
     },
     rowLabel: { fontSize: 14, fontWeight: '800', color: c.text, letterSpacing: -0.2 },
     rowSub: { fontSize: 11.5, color: c.textSecondary, marginTop: 2, fontWeight: '500' },
+
+    // Inline profile + security forms
+    profileTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: c.border },
+    fieldLabel: { fontSize: 9.5, fontFamily: fonts.bold, color: c.textTertiary, letterSpacing: 0.8, marginTop: 10, marginBottom: 5 },
+    fieldInput: {
+      borderWidth: 1, borderColor: c.border, borderRadius: 11, backgroundColor: c.background,
+      paddingHorizontal: 12, height: 44, fontSize: 13.5, fontFamily: fonts.regular, color: c.text,
+    },
+    formMsg: { fontSize: 12, fontFamily: fonts.semibold, marginTop: 10 },
+    formActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 12 },
+    ghostBtn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 11 },
+    ghostBtnText: { fontSize: 13, fontFamily: fonts.bold, color: c.textSecondary },
+    saveBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      backgroundColor: c.primary, borderRadius: 11, paddingHorizontal: 16, paddingVertical: 10,
+    },
+    saveBtnText: { color: '#FFF', fontSize: 13, fontFamily: fonts.bold },
+
+    // Linked children
+    childRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+    childAvatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' },
+    childInitials: { fontSize: 13, fontFamily: fonts.extrabold, color: c.primary },
+    childName: { fontSize: 13.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    childMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 2 },
+    childAdm: { fontSize: 10.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 1 },
+    activeChip: { backgroundColor: c.primarySoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+    activeChipText: { fontSize: 11, fontFamily: fonts.bold, color: c.primary },
+    switchBtn: { borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
+    switchBtnText: { fontSize: 12, fontFamily: fonts.bold, color: c.textSecondary },
+
+    // Language picker
+    langRow: { flexDirection: 'row', gap: 10, marginBottom: 4 },
+    langCard: {
+      flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
+      borderWidth: 1.5, borderColor: c.border, backgroundColor: c.card,
+      borderRadius: 14, padding: 13,
+    },
+    langLabel: { fontSize: 13.5, fontFamily: fonts.bold, color: c.text },
+    langNative: { fontSize: 11, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 1 },
 
     // Plans at a glance
     planRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
