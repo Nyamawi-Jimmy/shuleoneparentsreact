@@ -1,7 +1,6 @@
-// Custom bottom tab bar — the "bubble" pattern: inactive tabs are compact
-// icons, the active tab expands into a soft-rose pill with its label. That
-// keeps all five destinations comfortably visible on narrow screens, where
-// five icon+label columns would clip.
+// Custom bottom tab bar — compact icon + label on every tab so all five
+// destinations stay readable on narrow screens. The active tab is marked by
+// a small indicator bar and the brand tint; everything else stays neutral.
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
@@ -11,11 +10,11 @@ import { fonts } from '../constants/theme';
 
 // Icon per route name (filled when active, outline otherwise).
 const ICONS: Record<string, (active: boolean, color: string) => React.ReactNode> = {
-  index: (a, c) => <Ionicons name={a ? 'home' : 'home-outline'} size={21} color={c} />,
-  learning: (a, c) => <Ionicons name={a ? 'rocket' : 'rocket-outline'} size={21} color={c} />,
-  finance: (a, c) => <MaterialCommunityIcons name={a ? 'wallet' : 'wallet-outline'} size={21} color={c} />,
-  academics: (a, c) => <Ionicons name={a ? 'school' : 'school-outline'} size={21} color={c} />,
-  communication: (a, c) => <Ionicons name={a ? 'chatbubbles' : 'chatbubbles-outline'} size={21} color={c} />,
+  index: (a, c) => <Ionicons name={a ? 'home' : 'home-outline'} size={20} color={c} />,
+  learning: (a, c) => <Ionicons name={a ? 'rocket' : 'rocket-outline'} size={20} color={c} />,
+  finance: (a, c) => <MaterialCommunityIcons name={a ? 'wallet' : 'wallet-outline'} size={20} color={c} />,
+  academics: (a, c) => <Ionicons name={a ? 'school' : 'school-outline'} size={20} color={c} />,
+  communication: (a, c) => <Ionicons name={a ? 'chatbubbles' : 'chatbubbles-outline'} size={20} color={c} />,
 };
 
 interface TabRoute { key: string; name: string; params?: object }
@@ -59,17 +58,18 @@ export const BrandTabBar: React.FC<TabBarProps> = ({ state, descriptors, navigat
             accessibilityState={active ? { selected: true } : {}}
             accessibilityLabel={label}
             onPress={onPress}
-            activeOpacity={0.75}
+            activeOpacity={0.7}
             style={styles.slot}
           >
-            <View style={[styles.pill, active && { backgroundColor: colors.primarySoft }]}>
-              {ICONS[route.name]?.(active, color) ?? <Ionicons name="ellipse-outline" size={21} color={color} />}
-              {active && (
-                <Text style={[styles.pillLabel, { color: colors.primary }]} numberOfLines={1}>
-                  {label}
-                </Text>
-              )}
-            </View>
+            <View style={[styles.indicator, active && { backgroundColor: colors.primary }]} />
+            {ICONS[route.name]?.(active, color) ?? <Ionicons name="ellipse-outline" size={20} color={color} />}
+            <Text
+              style={[styles.label, { color, fontFamily: active ? fonts.bold : fonts.medium }]}
+              numberOfLines={1}
+              allowFontScaling={false}
+            >
+              {label}
+            </Text>
           </TouchableOpacity>
         );
       })}
@@ -80,25 +80,19 @@ export const BrandTabBar: React.FC<TabBarProps> = ({ state, descriptors, navigat
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
     borderTopWidth: 1,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 26 : 12,
-    paddingHorizontal: 8,
+    paddingBottom: Platform.OS === 'ios' ? 22 : 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowRadius: 8,
     elevation: 10,
   },
-  slot: { flex: 1, alignItems: 'center' },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 999,
-    paddingHorizontal: 13,
-    paddingVertical: 8,
-    maxWidth: '100%',
+  slot: { flex: 1, alignItems: 'center', paddingTop: 7, paddingBottom: 2, minWidth: 0 },
+  indicator: {
+    width: 20, height: 3, borderRadius: 2,
+    backgroundColor: 'transparent',
+    marginBottom: 5,
   },
-  pillLabel: { fontSize: 11.5, fontFamily: fonts.bold, letterSpacing: -0.1, flexShrink: 1 },
+  label: { fontSize: 9.5, marginTop: 3, maxWidth: '96%', letterSpacing: -0.1 },
 });
