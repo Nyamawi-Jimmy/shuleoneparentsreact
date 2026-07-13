@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Image, Linking,
+  RefreshControl, Image, Linking, TextInput,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useFocusEffect, router } from 'expo-router';
-import { ParentHeader } from '../../components/ParentHeader';
+import { GradientAppBar } from '../../components/GradientAppBar';
 import { fonts } from '../../constants/theme';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
@@ -73,13 +73,22 @@ export const CommunicationScreen: React.FC = () => {
   const studentId = selectedChild?.studentId ?? null;
   const childName = selectedChild?.firstName || selectedChild?.fullName || 'your child';
 
-  // Assignments
+  // Assignments. dueCount ("needs attention" = overdue or due within 2 days) is
+  // computed at fetch time — the clock is read here, not during render, and the
+  // focus-refetch keeps it fresh enough.
+  const [dueCount, setDueCount] = useState(0);
   useFocusEffect(useCallback(() => {
-    if (!accessToken || studentId == null) { setAssignments([]); return; }
+    if (!accessToken || studentId == null) { setAssignments([]); setDueCount(0); return; }
     setAssignments(null); setAssignError(false);
     getChildAssignments(accessToken, studentId)
-      .then((rows) => setAssignments(Array.isArray(rows) ? rows : []))
-      .catch(() => { setAssignments([]); setAssignError(true); });
+      .then((raw) => {
+        const rows = Array.isArray(raw) ? raw : [];
+        setAssignments(rows);
+        const now = Date.now();
+        setDueCount(rows.filter((a) => a.status === 'OVERDUE'
+          || (a.status === 'DUE' && a.dueAt && new Date(a.dueAt).getTime() - now <= 2 * 86400000)).length);
+      })
+      .catch(() => { setAssignments([]); setDueCount(0); setAssignError(true); });
   }, [accessToken, studentId]));
 
   // Announcement read-ids
@@ -93,59 +102,73 @@ export const CommunicationScreen: React.FC = () => {
     [announcements, readIds]);
   const newCount = annList.filter((a) => a.isNew).length;
 
-  // Opening Updates marks visible-new read
-  useEffect(() => {
-    if (tab !== 'updates' || !accessToken) return;
+  // Opening Updates marks visible-new read (mirrors the web page). Runs from the
+  // tab-press handler, not an effect, so no render-phase setState is needed.
+  const sweepUnseen = useCallback(() => {
+    if (!accessToken) return;
     const unseen = annList.filter((a) => a.isNew && a.id).map((a) => a.id!) as string[];
     if (unseen.length === 0) return;
     setReadIds((prev) => new Set([...prev, ...unseen]));
     unseen.forEach((id) => markAnnouncementRead(accessToken, id).catch(() => {}));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [accessToken, annList]);
+  const openTab = (t: Tab) => {
+    setTab(t);
+    if (t === 'updates') sweepUnseen();
+  };
 
-  const assignList = assignments ?? [];
-  const dueCount = assignList.filter((a) => a.status === 'OVERDUE' || (a.status === 'DUE' && a.dueAt && new Date(a.dueAt).getTime() - Date.now() <= 2 * 86400000)).length;
   const unreadChats = contacts.reduce((s, c) => s + (c.unreadCount ?? 0), 0);
 
-  const TABS: { id: Tab; label: string; count: number }[] = [
-    { id: 'assignments', label: 'Tasks', count: dueCount },
-    { id: 'updates', label: 'Updates', count: newCount },
-    { id: 'chats', label: 'Chats', count: unreadChats },
+  // Tapping one announcement marks just that one read — covers items the
+  // tab-open sweep skips, mirroring the web page's read receipts.
+  const markOneRead = (id?: string | null) => {
+    if (!id || !accessToken || readIds.has(id)) return;
+    setReadIds((prev) => new Set([...prev, id]));
+    markAnnouncementRead(accessToken, id).catch(() => {});
+  };
+
+  const TABS: { id: Tab; label: string; icon: any; count: number }[] = [
+    { id: 'assignments', label: 'Tasks', icon: 'clipboard-outline', count: dueCount },
+    { id: 'updates', label: 'Updates', icon: 'megaphone-outline', count: newCount },
+    { id: 'chats', label: 'Chats', icon: 'chatbubbles-outline', count: unreadChats },
   ];
 
   return (
     <View style={styles.root}>
-      <ParentHeader title="Messages" showBack={false} rightIcon="none" />
+      <GradientAppBar
+        title="Messages"
+        subtitle={`${unreadChats} unread chat${unreadChats !== 1 ? 's' : ''} · ${newCount} school update${newCount !== 1 ? 's' : ''}`}
+      />
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
-      >
-        <Text style={styles.subtitle} numberOfLines={1}>
-          {unreadChats} unread chat{unreadChats !== 1 ? 's' : ''} · {newCount} school update{newCount !== 1 ? 's' : ''}
-        </Text>
-
-        <View style={styles.tabs}>
+      {/* Floating segmented control — rides over the app bar edge */}
+      <View style={styles.segmentWrap}>
+        <View style={styles.segment}>
           {TABS.map((t) => {
             const active = tab === t.id;
             return (
-              <TouchableOpacity key={t.id} style={[styles.tab, active && styles.tabActive]} activeOpacity={0.8} onPress={() => setTab(t.id)}>
-                <Text style={[styles.tabText, active && styles.tabTextActive]}>{t.label}</Text>
+              <TouchableOpacity key={t.id} style={[styles.segmentBtn, active && styles.segmentBtnActive]}
+                activeOpacity={0.8} onPress={() => openTab(t.id)}>
+                <Ionicons name={t.icon} size={14} color={active ? colors.primary : colors.textTertiary} />
+                <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{t.label}</Text>
                 {t.count > 0 && (
-                  <View style={[styles.tabBadge, { backgroundColor: active ? '#FFFFFF33' : colors.primarySofter }]}>
-                    <Text style={[styles.tabBadgeText, { color: active ? '#FFF' : colors.primary }]}>{t.count > 99 ? '99+' : t.count}</Text>
+                  <View style={styles.segmentBadge}>
+                    <Text style={styles.segmentBadgeText}>{t.count > 99 ? '99+' : t.count}</Text>
                   </View>
                 )}
               </TouchableOpacity>
             );
           })}
         </View>
+      </View>
 
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
+      >
         {tab === 'assignments' ? (
           <AssignmentsTab styles={styles} colors={colors} childName={childName} assignments={assignments} error={assignError} />
         ) : tab === 'updates' ? (
-          <UpdatesTab styles={styles} colors={colors} loading={loading} announcements={annList} />
+          <UpdatesTab styles={styles} colors={colors} loading={loading} announcements={annList} onOpen={markOneRead} />
         ) : (
           <ChatsTab styles={styles} colors={colors} contacts={contacts} />
         )}
@@ -169,13 +192,13 @@ const subjectIcon = (subject: string | null, c: ColorPalette): { name: any; colo
 const AssignmentsTab: React.FC<{ styles: any; colors: ColorPalette; childName: string; assignments: ParentAssignment[] | null; error: boolean }> =
   ({ styles, colors, childName, assignments, error }) => {
   if (assignments === null) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
-  if (error) return <View style={styles.errorBox}><Text style={styles.errorText}>Couldn't load assignments just now.</Text></View>;
+  if (error) return <View style={styles.errorBox}><Text style={styles.errorText}>Couldn’t load assignments just now.</Text></View>;
   if (assignments.length === 0) {
     return (
       <View style={styles.emptyCard}>
         <MaterialCommunityIcons name="clipboard-text-outline" size={30} color={colors.textTertiary} />
         <Text style={styles.emptyTitle}>No assignments yet</Text>
-        <Text style={styles.emptyText}>When {childName}'s teachers set homework, it'll appear here.</Text>
+        <Text style={styles.emptyText}>When {childName}’s teachers set homework, it’ll appear here.</Text>
       </View>
     );
   }
@@ -212,7 +235,7 @@ const AssignmentsTab: React.FC<{ styles: any; colors: ColorPalette; childName: s
       <View style={styles.infoNote}>
         <Ionicons name="information-circle-outline" size={15} color={colors.primary} />
         <Text style={styles.infoNoteText}>
-          Homework also appears in the class <Text style={{ color: colors.primary, fontFamily: fonts.bold }} onPress={() => router.push('/(tabs)/diary' as any)}>Diary</Text>. {childName} can do tasks from their own learning space.
+          Homework also appears in the class <Text style={{ color: colors.primary, fontFamily: fonts.bold }} onPress={() => router.push('/diary' as any)}>Diary</Text>. {childName} can do tasks from their own learning space.
         </Text>
       </View>
     </>
@@ -227,15 +250,15 @@ const annStyle = (type: string | null, c: ColorPalette): { name: any; color: str
   if (t === 'INVITATION') return { name: 'account-group', color: c.purple, label: 'Invite' };
   return { name: 'bullhorn', color: c.info, label: 'Notice' };
 };
-const UpdatesTab: React.FC<{ styles: any; colors: ColorPalette; loading: boolean; announcements: Announcement[] }> =
-  ({ styles, colors, loading, announcements }) => {
+const UpdatesTab: React.FC<{ styles: any; colors: ColorPalette; loading: boolean; announcements: Announcement[]; onOpen: (id?: string | null) => void }> =
+  ({ styles, colors, loading, announcements, onOpen }) => {
   if (loading) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
   if (announcements.length === 0) {
     return (
       <View style={styles.emptyCard}>
         <MaterialCommunityIcons name="bullhorn-outline" size={30} color={colors.textTertiary} />
         <Text style={styles.emptyTitle}>No announcements yet</Text>
-        <Text style={styles.emptyText}>When the school posts a notice or newsletter, it'll appear here.</Text>
+        <Text style={styles.emptyText}>When the school posts a notice or newsletter, it’ll appear here.</Text>
       </View>
     );
   }
@@ -244,7 +267,8 @@ const UpdatesTab: React.FC<{ styles: any; colors: ColorPalette; loading: boolean
       {announcements.map((a, i) => {
         const t = annStyle(a.type, colors);
         return (
-          <View key={a.id ?? i} style={styles.annCard}>
+          <TouchableOpacity key={a.id ?? i} style={styles.annCard} activeOpacity={0.8} onPress={() => onOpen(a.id)}>
+            <View style={[styles.annAccent, { backgroundColor: a.isNew ? colors.primary : t.color + '55' }]} />
             <View style={[styles.annIcon, { backgroundColor: t.color + '1A' }]}>
               <MaterialCommunityIcons name={t.name} size={20} color={t.color} />
             </View>
@@ -270,7 +294,7 @@ const UpdatesTab: React.FC<{ styles: any; colors: ColorPalette; loading: boolean
                 <View style={[styles.typeChip, { backgroundColor: t.color + '14' }]}><Text style={[styles.typeChipText, { color: t.color }]}>{t.label}</Text></View>
               </View>
             </View>
-          </View>
+          </TouchableOpacity>
         );
       })}
     </>
@@ -279,6 +303,15 @@ const UpdatesTab: React.FC<{ styles: any; colors: ColorPalette; loading: boolean
 
 // ── Chats ────────────────────────────────────────────────────────────────────
 const ChatsTab: React.FC<{ styles: any; colors: ColorPalette; contacts: ChatContact[] }> = ({ styles, colors, contacts }) => {
+  const [search, setSearch] = useState('');
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? contacts.filter((cnt) =>
+        String(cnt.name || '').toLowerCase().includes(q)
+        || String((cnt as any).subtitle || '').toLowerCase().includes(q)
+        || String(cnt.lastMessage || '').toLowerCase().includes(q))
+    : contacts;
+
   if (contacts.length === 0) {
     return (
       <View style={styles.emptyCard}>
@@ -289,8 +322,30 @@ const ChatsTab: React.FC<{ styles: any; colors: ColorPalette; contacts: ChatCont
     );
   }
   return (
+    <>
+      <View style={styles.searchBox}>
+        <Ionicons name="search" size={15} color={colors.textTertiary} />
+        <TextInput
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search chats…"
+          placeholderTextColor={colors.textTertiary}
+          returnKeyType="search"
+        />
+        {search.length > 0 && (
+          <TouchableOpacity hitSlop={8} onPress={() => setSearch('')}>
+            <Ionicons name="close-circle" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+        )}
+      </View>
+      {filtered.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyText}>No chats match “{search}”.</Text>
+        </View>
+      ) : (
     <View style={styles.card}>
-      {contacts.map((cnt, i) => {
+      {filtered.map((cnt, i) => {
         const unread = (cnt.unreadCount ?? 0) > 0;
         return (
           <TouchableOpacity
@@ -326,23 +381,44 @@ const ChatsTab: React.FC<{ styles: any; colors: ColorPalette; contacts: ChatCont
         );
       })}
     </View>
+      )}
+    </>
   );
 };
 
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
-    scroll: { paddingHorizontal: 16, paddingTop: 4 },
+    scroll: { paddingHorizontal: 16, paddingTop: 14 },
     center: { padding: 40, alignItems: 'center' },
-    subtitle: { fontSize: 12, fontFamily: fonts.medium, color: c.textTertiary, marginBottom: 12, marginLeft: 2 },
 
-    tabs: { flexDirection: 'row', backgroundColor: c.backgroundAlt, borderRadius: 12, padding: 4, marginBottom: 20 },
-    tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 9 },
-    tabActive: { backgroundColor: c.primary },
-    tabText: { fontSize: 13, fontFamily: fonts.bold, color: c.textSecondary },
-    tabTextActive: { color: '#FFF' },
-    tabBadge: { minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-    tabBadgeText: { fontSize: 10.5, fontFamily: fonts.bold },
+    // Floating segmented control over the app bar edge
+    segmentWrap: { paddingHorizontal: 16, marginTop: -20 },
+    segment: {
+      flexDirection: 'row', backgroundColor: c.card, borderRadius: 14, padding: 4,
+      borderWidth: 1, borderColor: c.border,
+      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.12, shadowRadius: 14, elevation: 5,
+    },
+    segmentBtn: {
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+      paddingVertical: 10, borderRadius: 11,
+    },
+    segmentBtnActive: { backgroundColor: c.primarySoft },
+    segmentText: { fontSize: 12.5, fontFamily: fonts.semibold, color: c.textSecondary },
+    segmentTextActive: { color: c.primary, fontFamily: fonts.bold },
+    segmentBadge: {
+      minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9,
+      backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center',
+    },
+    segmentBadgeText: { fontSize: 9.5, fontFamily: fonts.extrabold, color: '#FFF' },
+
+    searchBox: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      backgroundColor: c.card, borderRadius: 13, borderWidth: 1, borderColor: c.border,
+      paddingHorizontal: 12, height: 42, marginBottom: 12,
+    },
+    searchInput: { flex: 1, fontSize: 13, fontFamily: fonts.regular, color: c.text, paddingVertical: 0 },
 
     card: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, marginBottom: 16 },
     divider: { borderTopWidth: 1, borderTopColor: c.border },
@@ -363,7 +439,11 @@ function makeStyles(c: ColorPalette) {
     infoNote: { flexDirection: 'row', gap: 7, backgroundColor: c.primarySofter, borderRadius: 12, padding: 12, marginBottom: 8 },
     infoNoteText: { flex: 1, fontSize: 11.5, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 17 },
 
-    annCard: { flexDirection: 'row', gap: 12, backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 14, marginBottom: 10 },
+    annCard: {
+      flexDirection: 'row', gap: 12, backgroundColor: c.card, borderRadius: 16,
+      borderWidth: 1, borderColor: c.border, padding: 14, marginBottom: 10, overflow: 'hidden',
+    },
+    annAccent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
     annIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     annTitleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
     annTitle: { flex: 1, fontSize: 14.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
