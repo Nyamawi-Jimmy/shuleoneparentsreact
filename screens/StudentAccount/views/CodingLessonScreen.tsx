@@ -134,15 +134,16 @@ export const CodingLessonScreen: React.FC<Props> = ({ lesson, node, playful, onC
         </View>
       </LinearGradient>
 
-      {/* Section tabs */}
+      {/* Section tabs — icon and label are SEPARATE Texts: some devices
+          drop bold text that follows certain emoji in the same Text node. */}
       <View style={styles.secTabs}>
         {outcomes.length > 0 && (
-          <SecTab label="🎯 Mission" on={sec === 'mission'} onPress={() => setSec('mission')} />
+          <SecTab icon="🎯" label="Mission" on={sec === 'mission'} onPress={() => setSec('mission')} />
         )}
-        <SecTab label="🎮 Code" on={sec === 'play'} onPress={() => setSec('play')} />
-        <SecTab label={`🏆 Challenge${done ? ' ✓' : ''}`} on={sec === 'prove'} onPress={() => setSec('prove')} />
+        <SecTab icon="🎮" label="Code" on={sec === 'play'} onPress={() => setSec('play')} />
+        <SecTab icon="🏆" label={`Challenge${done ? ' ✓' : ''}`} on={sec === 'prove'} onPress={() => setSec('prove')} />
         {grade?.graded && (
-          <SecTab label="🏅 Marks" on={sec === 'mark'} onPress={() => setSec('mark')} />
+          <SecTab icon="🏅" label="Marks" on={sec === 'mark'} onPress={() => setSec('mark')} />
         )}
       </View>
 
@@ -167,7 +168,7 @@ export const CodingLessonScreen: React.FC<Props> = ({ lesson, node, playful, onC
       {/* 2) Code */}
       {sec === 'play' && (
         <View style={styles.card}>
-          <Text style={styles.secHeading}>🎮 Code</Text>
+          <View style={styles.secHeadingRow}><Text style={styles.secHeadingIcon}>🎮</Text><Text style={styles.secHeading}>Code</Text></View>
           {hasSandbox ? (
             <>
               <View style={styles.sandboxRow}>
@@ -218,7 +219,7 @@ export const CodingLessonScreen: React.FC<Props> = ({ lesson, node, playful, onC
           />
         ) : (
           <View style={styles.card}>
-            <Text style={styles.secHeading}>🏆 Challenge</Text>
+            <View style={styles.secHeadingRow}><Text style={styles.secHeadingIcon}>🏆</Text><Text style={styles.secHeading}>Challenge</Text></View>
             {lesson.assignment ? (
               <>
                 <Text style={styles.challengeTitle}>
@@ -269,9 +270,10 @@ export const CodingLessonScreen: React.FC<Props> = ({ lesson, node, playful, onC
   );
 };
 
-const SecTab: React.FC<{ label: string; on: boolean; onPress: () => void }> = ({ label, on, onPress }) => (
+const SecTab: React.FC<{ icon: string; label: string; on: boolean; onPress: () => void }> = ({ icon, label, on, onPress }) => (
   <TouchableOpacity onPress={onPress} activeOpacity={0.8}
     style={[styles.secTab, on && styles.secTabOn]}>
+    <Text style={styles.secTabIcon}>{icon}</Text>
     <Text style={[styles.secTabText, on && styles.secTabTextOn]}>{label}</Text>
   </TouchableOpacity>
 );
@@ -514,7 +516,7 @@ const LessonQuizRN: React.FC<{
     const resultFor = (qid: number) => (result.questions ?? []).find((r) => r.questionId === qid);
     return (
       <View style={styles.card}>
-        <Text style={styles.secHeading}>🏆 Challenge</Text>
+        <View style={styles.secHeadingRow}><Text style={styles.secHeadingIcon}>🏆</Text><Text style={styles.secHeading}>Challenge</Text></View>
         <View style={[styles.scoreCircle, { borderColor: result.passed ? '#15c08a' : '#ff8a3d' }]}>
           <Text style={styles.scorePct}>{result.scorePercent}%</Text>
           <Text style={styles.scorePts}>{result.scorePoints}/{result.maxPoints}</Text>
@@ -570,7 +572,7 @@ const LessonQuizRN: React.FC<{
   const outOfAttempts = quiz.maxAttempts != null && attemptsLeft <= 0;
   return (
     <View style={styles.card}>
-      <Text style={styles.secHeading}>🏆 Challenge</Text>
+      <View style={styles.secHeadingRow}><Text style={styles.secHeadingIcon}>🏆</Text><Text style={styles.secHeading}>Challenge</Text></View>
       <View style={styles.quizChips}>
         <Text style={styles.quizChip}>📝 {quiz.questions.length} questions</Text>
         <Text style={styles.quizChip}>🎯 pass {quiz.passPercent}%</Text>
@@ -767,10 +769,12 @@ const styles = StyleSheet.create({
 
   secTabs: { flexDirection: 'row', gap: 7, marginBottom: 12, flexWrap: 'wrap' },
   secTab: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
   },
   secTabOn: { backgroundColor: '#7c5cff', borderColor: '#7c5cff' },
+  secTabIcon: { fontSize: 12 },
   secTabText: { fontSize: 12, fontWeight: '800', color: '#6f679c' },
   secTabTextOn: { color: '#fff' },
 
@@ -781,7 +785,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
-  secHeading: { fontSize: 15, fontWeight: '800', color: '#2c2550', marginBottom: 12 },
+  secHeadingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  secHeadingIcon: { fontSize: 15 },
+  secHeading: { fontSize: 15, fontWeight: '800', color: '#2c2550' },
   objective: { fontSize: 13.5, fontWeight: '700', color: '#2c2550', marginBottom: 12, lineHeight: 19 },
   missionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 9 },
   missionCheck: {

@@ -177,9 +177,8 @@ export const CodeView: React.FC = () => {
               onPress={() => setSection(s.key)}
               style={[styles.sectionTab, section === s.key && { backgroundColor: tokens.accent1, borderColor: tokens.accent1 }]}
             >
-              <Text style={[styles.sectionTabText, section === s.key && { color: '#fff' }]}>
-                {s.icon} {s.label}
-              </Text>
+              <Text style={styles.sectionTabIcon}>{s.icon}</Text>
+              <Text style={[styles.sectionTabText, section === s.key && { color: '#fff' }]}>{s.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -332,9 +331,8 @@ const PlaygroundSection: React.FC<{ radius: number }> = ({ radius }) => {
             onPress={() => setKind(x.kind)}
             style={[styles.pgChip, kind === x.kind && styles.pgChipOn]}
           >
-            <Text style={[styles.pgChipText, kind === x.kind && { color: '#fff' }]}>
-              {x.icon} {x.label}
-            </Text>
+            <Text style={styles.pgChipIcon}>{x.icon}</Text>
+            <Text style={[styles.pgChipText, kind === x.kind && { color: '#fff' }]}>{x.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -475,9 +473,11 @@ const styles = StyleSheet.create({
 
   sectionTabs: { flexDirection: 'row', gap: 7, marginTop: 12, marginBottom: 14, flexWrap: 'wrap' },
   sectionTab: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
   },
+  sectionTabIcon: { fontSize: 12 },
   sectionTabText: { fontSize: 12, fontWeight: '800', color: '#6f679c' },
 
   errorRow: { backgroundColor: '#fee2e2', borderRadius: 14, padding: 12, marginBottom: 12 },
@@ -524,10 +524,12 @@ const styles = StyleSheet.create({
   pgSub: { fontSize: 12.5, color: '#6f679c', fontWeight: '600', marginTop: 3, marginBottom: 12 },
   pgPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   pgChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
   },
   pgChipOn: { backgroundColor: '#7c5cff', borderColor: '#7c5cff' },
+  pgChipIcon: { fontSize: 12 },
   pgChipText: { fontSize: 12, fontWeight: '800', color: '#2c2550' },
   pgWorkspace: {
     alignItems: 'center', padding: 24,

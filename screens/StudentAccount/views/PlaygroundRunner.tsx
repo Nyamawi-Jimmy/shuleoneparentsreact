@@ -149,7 +149,10 @@ export const PlaygroundRunner: React.FC = () => {
           <TouchableOpacity style={styles.backBtn} hitSlop={8} onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={18} color="#2c2550" />
           </TouchableOpacity>
-          <Text style={styles.headTitle} numberOfLines={1}>{k.icon} {k.label}</Text>
+          <View style={styles.headTitleRow}>
+            <Text style={styles.headIcon}>{k.icon}</Text>
+            <Text style={styles.headTitle} numberOfLines={1}>{k.label}</Text>
+          </View>
           <TouchableOpacity style={styles.extBtn} hitSlop={8} onPress={() => Linking.openURL(url)}>
             <Ionicons name="open-outline" size={16} color="#7c5cff" />
           </TouchableOpacity>
@@ -166,7 +169,10 @@ export const PlaygroundRunner: React.FC = () => {
           <Ionicons name="chevron-back" size={18} color="#2c2550" />
         </TouchableOpacity>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.headTitle} numberOfLines={1}>{k.icon} {k.label}</Text>
+          <View style={styles.headTitleRow}>
+            <Text style={styles.headIcon}>{k.icon}</Text>
+            <Text style={styles.headTitle} numberOfLines={1}>{k.label}</Text>
+          </View>
           <Text style={styles.headSub} numberOfLines={1}>{k.language}</Text>
         </View>
       </View>
@@ -246,7 +252,8 @@ const EnginePlayground: React.FC<{ kind: string; k: typeof KINDS[string] }> = ({
         {/* Editor card */}
         <View style={styles.editorCard}>
           <View style={styles.editorHead}>
-            <Text style={styles.editorHeadText}>{k.icon} Editor</Text>
+            <Text style={styles.editorHeadText}>{k.icon}</Text>
+            <Text style={styles.editorHeadText}>Editor</Text>
             <View style={{ flex: 1 }} />
             {kind === 'SQL' && (
               <TouchableOpacity style={styles.resetBtn} disabled={running} onPress={() => run(true)}>
@@ -332,9 +339,9 @@ const SqlResults: React.FC<{ out: SqlOut; extra: string[] | null }> = ({ out, ex
 // WEB — HTML/CSS/JS pane chips + LIVE preview.
 // =================================================================
 const WEB_PANES = [
-  { key: 'html', label: '🧱 HTML' },
-  { key: 'css', label: '🎨 CSS' },
-  { key: 'js', label: '⚡ JS' },
+  { key: 'html', icon: '🧱', label: 'HTML' },
+  { key: 'css', icon: '🎨', label: 'CSS' },
+  { key: 'js', icon: '⚡', label: 'JS' },
 ] as const;
 
 function composeWebDoc(html: string, css: string, js: string): string {
@@ -360,6 +367,7 @@ const WebPlayground: React.FC<{ k: typeof KINDS[string] }> = ({ k }) => {
             {WEB_PANES.map((p) => (
               <TouchableOpacity key={p.key} activeOpacity={0.8} onPress={() => setPane(p.key)}
                 style={[styles.paneChip, pane === p.key && styles.paneChipOn]}>
+                <Text style={styles.paneChipIcon}>{p.icon}</Text>
                 <Text style={[styles.paneChipText, pane === p.key && { color: '#fff' }]}>{p.label}</Text>
               </TouchableOpacity>
             ))}
@@ -509,7 +517,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
     alignItems: 'center', justifyContent: 'center',
   },
-  headTitle: { fontSize: 15.5, fontWeight: '800', color: '#2c2550' },
+  headTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headIcon: { fontSize: 15 },
+  headTitle: { fontSize: 15.5, fontWeight: '800', color: '#2c2550', flexShrink: 1 },
   headSub: { fontSize: 11, fontWeight: '700', color: '#6f679c', marginTop: 1 },
   extBtn: {
     width: 36, height: 36, borderRadius: 18,
@@ -543,10 +553,12 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   paneChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
     borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6,
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   paneChipOn: { backgroundColor: '#7c5cff' },
+  paneChipIcon: { fontSize: 11 },
   paneChipText: { color: '#c9c4ee', fontWeight: '800', fontSize: 11 },
 
   outCard: {

@@ -395,8 +395,11 @@ const GameHead: React.FC<{ icon: string; title: string; onExit: () => void; chil
         <Ionicons name="chevron-back" size={18} color="#2c2550" />
       </TouchableOpacity>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.gameHeadEyebrow}>🧠 BRAIN GAMES</Text>
-        <Text style={styles.gameHeadTitle} numberOfLines={1}>{icon} {title}</Text>
+        <Text style={styles.gameHeadEyebrow}>BRAIN GAMES</Text>
+        <View style={styles.gameHeadTitleRow}>
+          <Text style={styles.gameHeadIcon}>{icon}</Text>
+          <Text style={styles.gameHeadTitle} numberOfLines={1}>{title}</Text>
+        </View>
       </View>
       <View style={styles.gameHeadRight}>{children}</View>
     </View>
@@ -481,7 +484,9 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   gameHeadEyebrow: { fontSize: 8.5, fontWeight: '800', letterSpacing: 0.7, color: '#9b94c4' },
-  gameHeadTitle: { fontSize: 16, fontWeight: '800', color: '#2c2550' },
+  gameHeadTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  gameHeadIcon: { fontSize: 15 },
+  gameHeadTitle: { fontSize: 16, fontWeight: '800', color: '#2c2550', flexShrink: 1 },
   gameHeadRight: { flexDirection: 'row', gap: 6 },
   headChip: {
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
