@@ -1,9 +1,9 @@
-// Code Lab — real data, web parity (CodingView): identity strip with
-// progress coins derived from the live curriculum, an "in class now"
-// banner when the teacher has a lesson open, the real lesson quest list
-// (status + quiz results + objectives), the Playground tools, and a
-// progress snapshot. Interactive lesson content itself stays a classroom/
-// desktop experience for now — rows show everything about each lesson.
+// Code Lab — full web CodingView parity on live data, in the app's gamified
+// skin: identity strip with progress coins, FOUR sections (🗺️ Lessons ·
+// 🎮 Playground · 🏅 Exams · 🏆 Progress), the Today banner when the teacher
+// has a lesson open, lessons that OPEN into the quest-stage player (Mission /
+// Code / Challenge / Marks + team bar), the boss/champion node, coding exams,
+// and the gamified progress profile.
 
 import React, { useCallback, useState } from 'react';
 import {
@@ -12,17 +12,27 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
-import { useTier, pickByTier } from '../TierContext';
+import { useTier } from '../TierContext';
 import { useTokens, SHARED } from '../tokens';
 import { TopBar } from '../components/TopBar';
 import { AgeSwitcher } from '../components/AgeSwitcher';
 import { useAuth } from '../../../context/AuthContext';
 import {
-  getCodingProgress, getCodingLessons, CodingProgressRow, CodingLessonInfo,
+  getCodingProgress, getCodingLesson, CodingProgressRow, CodingLessonDetail,
 } from '../../../api/coding-student';
-import { useStudentMe } from '../../../hooks/useStudentMe';
+import { getStudentProfile } from '../../../api/student';
+import { StudentProfile } from '../../../api/student.types';
+import { CodingLessonScreen } from './CodingLessonScreen';
+import { CodingExamsSection } from './CodingExamsSection';
 
-// Playground tools — the app's built-in coding sandboxes.
+const SECTIONS = [
+  { key: 'lessons', icon: '🗺️', label: 'Lessons' },
+  { key: 'playground', icon: '🎮', label: 'Playground' },
+  { key: 'exams', icon: '🏅', label: 'Exams' },
+  { key: 'progress', icon: '🏆', label: 'Progress' },
+] as const;
+type SectionKey = typeof SECTIONS[number]['key'];
+
 const TOOLS = [
   { id: 'scratch', emoji: '🐱', name: 'Scratch', sub: 'Visual blocks', colors: ['#ff5e9c', '#ffa3c6'] as [string, string], route: '/student/code/scratch' },
   { id: 'blockly', emoji: '🧩', name: 'Blockly', sub: 'Logic puzzles', colors: ['#f4a716', '#ffd766'] as [string, string], route: '/student/code/blockly' },
@@ -35,20 +45,22 @@ export const CodeView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
   const { accessToken } = useAuth();
-  const { profile } = useStudentMe();
   const playful = tier === 'sprout' || tier === 'explorer';
 
+  const [section, setSection] = useState<SectionKey>('lessons');
   const [progress, setProgress] = useState<CodingProgressRow[] | null>(null);
-  const [lessons, setLessons] = useState<CodingLessonInfo[]>([]);
+  const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [openLesson, setOpenLesson] = useState<{ lesson: CodingLessonDetail; node: CodingProgressRow | null } | null>(null);
+  const [opening, setOpening] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (!accessToken) return;
     if (isRefresh) setRefreshing(true);
-    const [p, l] = await Promise.allSettled([
+    const [p, prof] = await Promise.allSettled([
       getCodingProgress(accessToken),
-      getCodingLessons(accessToken),
+      getStudentProfile(accessToken),
     ]);
     if (p.status === 'fulfilled' && Array.isArray(p.value)) {
       setProgress(p.value);
@@ -57,7 +69,7 @@ export const CodeView: React.FC = () => {
       setProgress((prev) => prev ?? []);
       setFailed(true);
     }
-    if (l.status === 'fulfilled' && Array.isArray(l.value)) setLessons(l.value);
+    if (prof.status === 'fulfilled') setProfile(prof.value);
     setRefreshing(false);
   }, [accessToken]);
 
@@ -66,33 +78,54 @@ export const CodeView: React.FC = () => {
   const rows = progress ?? [];
   const done = rows.filter((r) => r.quizPassed || r.status === 'COMPLETED').length;
   const pct = rows.length ? Math.round((100 * done) / rows.length) : 0;
-  const objectiveFor = (lessonId: number) =>
-    lessons.find((l) => l.id === lessonId)?.objective ?? null;
-
-  // The web's "Today" banner: the teacher has this lesson open in class.
-  const inClassNow = rows.find((r) => r.teacherOpen && r.available && r.status !== 'COMPLETED') ?? null;
-
+  // The web's Today banner: the FURTHEST teacher-opened lesson not yet completed.
+  const today = [...rows].reverse().find((r) => r.teacherOpen && !(r.quizPassed || r.status === 'COMPLETED')) ?? null;
   const firstName = profile?.firstName
     ? profile.firstName.charAt(0) + profile.firstName.slice(1).toLowerCase()
     : 'coder';
 
-  const showLessonInfo = (r: CodingProgressRow) => {
-    const obj = objectiveFor(r.lessonId);
+  const open = async (r: CodingProgressRow) => {
+    if (!accessToken || opening) return;
+    if (!r.available) {
+      Alert.alert('🔒 Locked', `“${r.title}” is locked — pass the earlier lessons first!`);
+      return;
+    }
+    setOpening(true);
+    try {
+      const lesson = await getCodingLesson(accessToken, r.lessonId);
+      setOpenLesson({ lesson, node: r });
+    } catch (e: any) {
+      Alert.alert('Oops', e?.message || 'Could not open that lesson.');
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  const openBoss = () => {
+    const allDone = rows.length > 0 && done >= rows.length;
     Alert.alert(
-      `Lesson ${r.lessonNumber}: ${r.title ?? ''}`,
-      [
-        obj ? `🎯 ${obj}` : null,
-        r.status === 'LOCKED'
-          ? '🔒 Finish the lesson before this one to unlock it.'
-          : r.quizPassed
-            ? `✅ Quiz passed${r.lastQuizPercent != null ? ` — ${r.lastQuizPercent}%` : ''}`
-            : r.lastQuizPercent != null
-              ? `📝 Best quiz so far: ${r.lastQuizPercent}% — try again in class!`
-              : '📝 The quiz is waiting — you do it in class.',
-        r.teacherOpen ? '📣 Your teacher has this lesson open right now.' : null,
-      ].filter(Boolean).join('\n\n'),
+      allDone ? '🏆 Coding Champion!' : '🏆 The Champion stage',
+      allDone
+        ? 'You cleared every stage — amazing work!'
+        : 'Finish every lesson to become the Coding Champion!',
     );
   };
+
+  // ── A lesson is open: immersive mode (only the top bar stays) ──
+  if (openLesson) {
+    return (
+      <View style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
+        <TopBar />
+        <CodingLessonScreen
+          lesson={openLesson.lesson}
+          node={openLesson.node}
+          playful={playful}
+          onClose={() => { setOpenLesson(null); load(true); }}
+          onProgressChanged={() => load(true)}
+        />
+      </View>
+    );
+  }
 
   if (progress === null) {
     return (
@@ -111,23 +144,36 @@ export const CodeView: React.FC = () => {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={tokens.accent1} />}
       >
-        {/* Identity strip — mirrors the web's slim coding brand row */}
+        {/* Identity strip — the web's slim coding brand row */}
         <View style={[styles.brandCard, { borderRadius: tokens.radius }]}>
-          {playful && <Text style={{ fontSize: 34 }}>🦄</Text>}
+          {playful && <Text style={{ fontSize: 32 }}>🦄</Text>}
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.brandTitle}>
-              {pickByTier(tier, { base: 'ShuleOne Coding', scholar: 'Coding', campus: 'Coding' })}
-            </Text>
+            <Text style={styles.brandTitle}>ShuleOne Coding</Text>
             <Text style={styles.brandSub} numberOfLines={1}>
-              {playful
-                ? `Hi ${firstName}! Ready for today’s adventure? 🌟`
-                : `Welcome back, ${firstName}.`}
+              {playful ? `Hi ${firstName}! Ready for today’s adventure? 🌟` : `Welcome back, ${firstName}.`}
             </Text>
           </View>
           <View style={styles.coins}>
             <Text style={styles.coin}>⭐ {done}</Text>
             <Text style={styles.coin}>🏅 {pct}%</Text>
+            {playful && <Text style={styles.coin}>💎 {done * 10}</Text>}
           </View>
+        </View>
+
+        {/* Section pills */}
+        <View style={styles.sectionTabs}>
+          {SECTIONS.map((s) => (
+            <TouchableOpacity
+              key={s.key}
+              activeOpacity={0.8}
+              onPress={() => setSection(s.key)}
+              style={[styles.sectionTab, section === s.key && { backgroundColor: tokens.accent1, borderColor: tokens.accent1 }]}
+            >
+              <Text style={[styles.sectionTabText, section === s.key && { color: '#fff' }]}>
+                {s.icon} {s.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         {failed && (
@@ -136,129 +182,131 @@ export const CodeView: React.FC = () => {
           </TouchableOpacity>
         )}
 
-        {/* In class now */}
-        {inClassNow && (
-          <TouchableOpacity activeOpacity={0.9} onPress={() => showLessonInfo(inClassNow)}>
-            <LinearGradient
-              colors={[SHARED.orange1, SHARED.pink1]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={[styles.todayBanner, { borderRadius: tokens.radius }]}
-            >
-              <Text style={{ fontSize: 26 }}>📣</Text>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.todayKick}>IN CLASS NOW</Text>
-                <Text style={styles.todayTitle} numberOfLines={1}>
-                  Lesson {inClassNow.lessonNumber}: {inClassNow.title}
-                </Text>
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-        )}
-
-        {/* Lesson quest list */}
-        <View style={styles.secH}>
-          <Text style={styles.secHTitle}>
-            {pickByTier(tier, { base: '🗺️ My lessons', sprout: '🗺️ My coding quest', explorer: '🗺️ My coding quest' })}
-          </Text>
-          <View style={styles.secHLine} />
-        </View>
-
-        {rows.length === 0 && !failed && (
-          <View style={styles.empty}>
-            <Text style={{ fontSize: 44 }}>🌱</Text>
-            <Text style={styles.emptyTitle}>No coding lessons yet</Text>
-            <Text style={styles.emptyText}>Your class programme will appear here.</Text>
-          </View>
-        )}
-
-        {rows.length > 0 && (
-          <View style={[styles.lessonCard, { borderRadius: tokens.radius }]}>
-            {rows.map((r, i) => {
-              const state = r.quizPassed || r.status === 'COMPLETED' ? 'done'
-                : r.available ? 'cur' : 'lock';
-              return (
-                <TouchableOpacity
-                  key={r.lessonId}
-                  activeOpacity={0.75}
-                  onPress={() => showLessonInfo(r)}
-                  style={[styles.lessonRow, i > 0 && styles.lessonRowLine]}
+        {/* ═══ 🗺️ LESSONS ═══ */}
+        {section === 'lessons' && (
+          <>
+            {today && (
+              <TouchableOpacity activeOpacity={0.9} onPress={() => open(today)}>
+                <LinearGradient
+                  colors={[SHARED.orange1, SHARED.pink1]}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={[styles.todayBanner, { borderRadius: tokens.radius }]}
                 >
-                  {state === 'done' ? (
-                    <LinearGradient colors={[SHARED.green1, '#0fae78']} style={styles.numBubble}>
-                      <Text style={styles.numBubbleText}>✓</Text>
-                    </LinearGradient>
-                  ) : state === 'cur' ? (
-                    <LinearGradient colors={[SHARED.orange1, SHARED.pink1]} style={styles.numBubble}>
-                      <Text style={styles.numBubbleText}>{r.lessonNumber}</Text>
-                    </LinearGradient>
-                  ) : (
-                    <View style={[styles.numBubble, { backgroundColor: '#d9d4ee' }]}>
-                      <Text style={[styles.numBubbleText, { color: '#8b84b3' }]}>🔒</Text>
-                    </View>
-                  )}
-
+                  <Text style={{ fontSize: 26 }}>🔔</Text>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={[styles.lessonTitle, state === 'lock' && { color: '#8b84b3' }]} numberOfLines={1}>
-                      {r.title ?? `Lesson ${r.lessonNumber}`}
-                    </Text>
-                    <Text style={styles.lessonSub} numberOfLines={1}>
-                      {state === 'done' ? 'completed ✨'
-                        : state === 'cur' ? 'ready to learn'
-                        : 'locked'}
-                      {r.teacherOpen && state !== 'done' ? ' · 📣 open in class' : ''}
+                    <Text style={styles.todayKick}>📣 TODAY’S LESSON — JOIN IN!</Text>
+                    <Text style={styles.todayTitle} numberOfLines={1}>
+                      Lesson {today.lessonNumber}: {today.title}
                     </Text>
                   </View>
+                  <Text style={styles.todayGo}>Jump in ›</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
 
-                  {r.hasQuiz && r.lastQuizPercent != null && (
-                    <View style={[
-                      styles.quizChip,
-                      { backgroundColor: r.quizPassed ? '#eafef3' : '#fff3da' },
-                    ]}>
-                      <Text style={[styles.quizChipText, { color: r.quizPassed ? '#0fae78' : '#b45309' }]}>
-                        {r.lastQuizPercent}%
-                      </Text>
-                    </View>
-                  )}
+            {rows.length === 0 && !failed ? (
+              <View style={styles.empty}>
+                <Text style={{ fontSize: 44 }}>🌱</Text>
+                <Text style={styles.emptyTitle}>No coding lessons for your grade yet</Text>
+                <Text style={styles.emptyText}>Check back soon!</Text>
+              </View>
+            ) : (
+              <View style={[styles.lessonCard, { borderRadius: tokens.radius }]}>
+                {rows.map((r, i) => {
+                  const state = r.quizPassed || r.status === 'COMPLETED' ? 'done'
+                    : r.available ? 'cur' : 'lock';
+                  return (
+                    <TouchableOpacity
+                      key={r.lessonId}
+                      activeOpacity={0.75}
+                      onPress={() => open(r)}
+                      disabled={opening}
+                      style={[styles.lessonRow, i > 0 && styles.lessonRowLine]}
+                    >
+                      {state === 'done' ? (
+                        <LinearGradient colors={[SHARED.green1, '#0fae78']} style={styles.numBubble}>
+                          <Text style={styles.numBubbleText}>✓</Text>
+                        </LinearGradient>
+                      ) : state === 'cur' ? (
+                        <LinearGradient colors={[SHARED.orange1, SHARED.pink1]} style={styles.numBubble}>
+                          <Text style={styles.numBubbleText}>{r.lessonNumber}</Text>
+                        </LinearGradient>
+                      ) : (
+                        <View style={[styles.numBubble, { backgroundColor: '#d9d4ee' }]}>
+                          <Text style={[styles.numBubbleText, { color: '#8b84b3' }]}>🔒</Text>
+                        </View>
+                      )}
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={[styles.lessonTitle, state === 'lock' && { color: '#8b84b3' }]} numberOfLines={1}>
+                          {r.title ?? `Lesson ${r.lessonNumber}`}
+                        </Text>
+                        <Text style={styles.lessonSub} numberOfLines={1}>
+                          {state === 'done' ? 'completed ✨' : state === 'cur' ? 'tap to open' : 'locked'}
+                          {r.teacherOpen && state !== 'done' ? ' · 📣 open in class' : ''}
+                        </Text>
+                      </View>
+                      {r.hasQuiz && r.lastQuizPercent != null && (
+                        <View style={[styles.quizChip, { backgroundColor: r.quizPassed ? '#eafef3' : '#fff3da' }]}>
+                          <Text style={[styles.quizChipText, { color: r.quizPassed ? '#0fae78' : '#b45309' }]}>
+                            {r.lastQuizPercent}%
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {/* Boss / champion node */}
+                <TouchableOpacity activeOpacity={0.8} onPress={openBoss}
+                  style={[styles.lessonRow, styles.lessonRowLine]}>
+                  <LinearGradient colors={['#f4a716', '#ff9d2e']} style={[styles.numBubble, { width: 42, height: 42, borderRadius: 21 }]}>
+                    <Text style={{ fontSize: 19 }}>🏆</Text>
+                  </LinearGradient>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.lessonTitle}>Coding Champion</Text>
+                    <Text style={styles.lessonSub}>
+                      {done >= rows.length && rows.length > 0 ? 'You made it! 🎉' : 'Clear every stage to claim it'}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
-              );
-            })}
-          </View>
+              </View>
+            )}
+            {opening && (
+              <View style={styles.openingRow}>
+                <ActivityIndicator color={tokens.accent1} />
+                <Text style={styles.openingText}>Opening lesson…</Text>
+              </View>
+            )}
+          </>
         )}
 
-        {/* Playground */}
-        <View style={styles.secH}>
-          <Text style={styles.secHTitle}>
-            {pickByTier(tier, { base: '🎮 Playground', sprout: '🎮 Play & Build' })}
-          </Text>
-          <View style={styles.secHLine} />
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolsRow}>
-          {TOOLS.map((t) => (
-            <TouchableOpacity key={t.id} activeOpacity={0.85} onPress={() => router.push(t.route as any)}>
-              <LinearGradient colors={t.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.toolCard, { borderRadius: tokens.radius }]}>
-                <Text style={{ fontSize: 30 }}>{t.emoji}</Text>
-                <Text style={styles.toolName}>{t.name}</Text>
-                <Text style={styles.toolSub}>{t.sub}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* Progress snapshot */}
-        {rows.length > 0 && (
+        {/* ═══ 🎮 PLAYGROUND ═══ */}
+        {section === 'playground' && (
           <>
-            <View style={styles.secH}>
-              <Text style={styles.secHTitle}>🏆 My progress</Text>
-              <View style={styles.secHLine} />
-            </View>
-            <View style={styles.statsRow}>
-              <StatBox value={done} label="Done" tint={SHARED.green1} />
-              <StatBox value={rows.filter((r) => r.available && !(r.quizPassed || r.status === 'COMPLETED')).length} label="In progress" tint={SHARED.orange1} />
-              <StatBox value={rows.filter((r) => !r.available).length} label="Locked" tint="#8b84b3" />
-              <StatBox value={`${pct}%`} label="Complete" tint={SHARED.purple1} />
+            <Text style={styles.pgSub}>Pick a tool and start building — no lesson needed.</Text>
+            <View style={styles.toolsGrid}>
+              {TOOLS.map((t) => (
+                <TouchableOpacity key={t.id} activeOpacity={0.85} style={styles.toolWrap}
+                  onPress={() => router.push(t.route as any)}>
+                  <LinearGradient colors={t.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.toolCard, { borderRadius: tokens.radius }]}>
+                    <Text style={{ fontSize: 30 }}>{t.emoji}</Text>
+                    <Text style={styles.toolName}>{t.name}</Text>
+                    <Text style={styles.toolSub}>{t.sub}</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ))}
             </View>
           </>
+        )}
+
+        {/* ═══ 🏅 EXAMS ═══ */}
+        {section === 'exams' && (
+          <CodingExamsSection studentId={profile?.studentId ?? null} />
+        )}
+
+        {/* ═══ 🏆 PROGRESS ═══ */}
+        {section === 'progress' && (
+          <ProgressSection rows={rows} onGoToLessons={() => setSection('lessons')} />
         )}
 
         <View style={{ height: 110 }} />
@@ -268,10 +316,97 @@ export const CodeView: React.FC = () => {
   );
 };
 
-const StatBox: React.FC<{ value: number | string; label: string; tint: string }> = ({ value, label, tint }) => (
-  <View style={styles.statBox}>
-    <Text style={[styles.statValue, { color: tint }]}>{value}</Text>
-    <Text style={styles.statLabel}>{label}</Text>
+// =================================================================
+// 🏆 Progress — the web ProgressTab: ring, stat chips, next-up, dots.
+// =================================================================
+const ProgressSection: React.FC<{ rows: CodingProgressRow[]; onGoToLessons: () => void }> = ({ rows, onGoToLessons }) => {
+  if (!rows.length) {
+    return (
+      <View style={styles.empty}>
+        <Text style={{ fontSize: 42 }}>🧭</Text>
+        <Text style={styles.emptyTitle}>No adventure yet</Text>
+        <Text style={styles.emptyText}>Your class isn’t mapped to a coding grade.</Text>
+      </View>
+    );
+  }
+
+  const total = rows.length;
+  const doneRows = rows.filter((r) => r.quizPassed || r.status === 'COMPLETED');
+  const done = doneRows.length;
+  const inProgress = rows.filter((r) => r.available && !(r.quizPassed || r.status === 'COMPLETED')).length;
+  const locked = rows.filter((r) => !r.available).length;
+  const pct = total ? Math.round((100 * done) / total) : 0;
+  const current = rows.find((r) => r.available && !(r.quizPassed || r.status === 'COMPLETED')) ?? null;
+  const scores = rows.map((r) => r.lastQuizPercent).filter((x): x is number => x != null);
+  const avgScore = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+
+  const headline = pct === 0 ? 'Your coding adventure awaits! 🚀'
+    : pct >= 100 ? 'Quest complete — you’re a Coding Champion! 🏆'
+    : pct >= 50 ? 'Over halfway — keep going! 🔥'
+    : 'You’re on your way! 💪';
+
+  return (
+    <View>
+      <View style={styles.cpHero}>
+        <View style={[styles.cpRing, { borderColor: pct >= 100 ? '#15c08a' : '#e91e63' }]}>
+          <Text style={styles.cpRingPct}>{pct}%</Text>
+          <Text style={styles.cpRingLbl}>complete</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.cpH}>{headline}</Text>
+          <Text style={styles.cpSub}>{done} of {total} stages cleared. {pct >= 100 ? 'Amazing work.' : 'One stage at a time.'}</Text>
+          <TouchableOpacity activeOpacity={0.85} onPress={onGoToLessons}>
+            <LinearGradient colors={['#e91e63', '#ff8fc0']} style={styles.cpCta}>
+              <Text style={styles.cpCtaText}>{current ? 'Continue the quest →' : 'Open the map →'}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.cpStats}>
+        <CpStat icon="⭐" value={done} label="Stars earned" />
+        <CpStat icon="🎯" value={inProgress} label="In progress" />
+        <CpStat icon="🔒" value={locked} label="Locked" />
+        <CpStat icon="📊" value={avgScore == null ? '—' : `${avgScore}%`} label="Avg quiz" />
+      </View>
+
+      {current && (
+        <View style={styles.cpNext}>
+          <Text style={styles.cpNextH}>🚩 Next up</Text>
+          <View style={styles.cpNextRow}>
+            <View style={styles.cpNextNum}><Text style={styles.cpNextNumText}>{current.lessonNumber}</Text></View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.cpNextTitle} numberOfLines={1}>{current.title}</Text>
+              <Text style={styles.cpNextSub}>Stage {current.lessonNumber} of {total}</Text>
+            </View>
+            <TouchableOpacity activeOpacity={0.85} onPress={onGoToLessons}>
+              <LinearGradient colors={['#7c5cff', '#a78bfa']} style={styles.cpGo}>
+                <Text style={styles.cpGoText}>Go ›</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      <View style={styles.cpTrackWrap}>
+        <Text style={styles.cpTrackH}>Your stages</Text>
+        <View style={styles.cpTrack}>
+          {rows.map((r) => {
+            const isDone = r.quizPassed || r.status === 'COMPLETED';
+            const color = isDone ? '#15c98c' : r.available ? '#ff9d2e' : '#d9d4ee';
+            return <View key={r.lessonId} style={[styles.cpDot, { backgroundColor: color }]} />;
+          })}
+        </View>
+      </View>
+    </View>
+  );
+};
+
+const CpStat: React.FC<{ icon: string; value: number | string; label: string }> = ({ icon, value, label }) => (
+  <View style={styles.cpStat}>
+    <Text style={{ fontSize: 17 }}>{icon}</Text>
+    <Text style={styles.cpStatV}>{value}</Text>
+    <Text style={styles.cpStatL}>{label}</Text>
   </View>
 );
 
@@ -282,43 +417,47 @@ const styles = StyleSheet.create({
   loadingText: { color: '#6f679c', marginTop: 14, fontWeight: '600' },
   scroll: { padding: 16 },
 
-  secH: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 16 },
-  secHTitle: { fontSize: 16.5, fontWeight: '800', color: '#2c2550' },
-  secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: '#ece8fb' },
-
   brandCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#fff', padding: 14,
+    backgroundColor: '#fff', padding: 13,
     borderWidth: 1.5, borderColor: '#ece8fb',
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1, shadowRadius: 10, elevation: 3,
   },
-  brandTitle: { fontSize: 16, fontWeight: '800', color: '#2c2550' },
+  brandTitle: { fontSize: 15.5, fontWeight: '800', color: '#2c2550' },
   brandSub: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 2 },
   coins: { gap: 4, alignItems: 'flex-end' },
   coin: {
-    fontSize: 11, fontWeight: '800', color: '#2c2550',
+    fontSize: 10.5, fontWeight: '800', color: '#2c2550',
     backgroundColor: '#f4f1ff', borderRadius: 99,
     paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden',
   },
 
-  errorRow: { backgroundColor: '#fee2e2', borderRadius: 14, padding: 12, marginTop: 12 },
+  sectionTabs: { flexDirection: 'row', gap: 7, marginTop: 12, marginBottom: 14, flexWrap: 'wrap' },
+  sectionTab: {
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
+  },
+  sectionTabText: { fontSize: 12, fontWeight: '800', color: '#6f679c' },
+
+  errorRow: { backgroundColor: '#fee2e2', borderRadius: 14, padding: 12, marginBottom: 12 },
   errorText: { color: '#b91c1c', fontWeight: '700', fontSize: 12.5 },
 
   todayBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 14, marginTop: 12,
+    padding: 14, marginBottom: 12,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.16, shadowRadius: 10, elevation: 3,
   },
-  todayKick: { color: 'rgba(255,255,255,0.9)', fontSize: 9.5, fontWeight: '800', letterSpacing: 0.8 },
-  todayTitle: { color: '#fff', fontSize: 14.5, fontWeight: '800', marginTop: 2 },
+  todayKick: { color: 'rgba(255,255,255,0.92)', fontSize: 9.5, fontWeight: '800', letterSpacing: 0.7 },
+  todayTitle: { color: '#fff', fontSize: 14, fontWeight: '800', marginTop: 2 },
+  todayGo: { color: '#fff', fontWeight: '800', fontSize: 13 },
 
   empty: { alignItems: 'center', paddingVertical: 30 },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: '#2c2550', marginTop: 8 },
-  emptyText: { fontSize: 12.5, color: '#6f679c', fontWeight: '600', marginTop: 4 },
+  emptyTitle: { fontSize: 15.5, fontWeight: '800', color: '#2c2550', marginTop: 8, textAlign: 'center' },
+  emptyText: { fontSize: 12.5, color: '#6f679c', fontWeight: '600', marginTop: 4, textAlign: 'center' },
 
   lessonCard: {
     backgroundColor: '#fff',
@@ -339,24 +478,75 @@ const styles = StyleSheet.create({
   lessonSub: { fontSize: 11, color: '#6f679c', fontWeight: '600', marginTop: 2 },
   quizChip: { borderRadius: 99, paddingHorizontal: 9, paddingVertical: 4 },
   quizChipText: { fontSize: 11.5, fontWeight: '800' },
+  openingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center', marginTop: 12 },
+  openingText: { fontSize: 12, color: '#6f679c', fontWeight: '700' },
 
-  toolsRow: { gap: 12, paddingRight: 16 },
+  pgSub: { fontSize: 12.5, color: '#6f679c', fontWeight: '600', marginBottom: 12 },
+  toolsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  toolWrap: { flexBasis: '47%', flexGrow: 1 },
   toolCard: {
-    width: 118, padding: 12, minHeight: 108,
+    padding: 14, minHeight: 112,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.16, shadowRadius: 10, elevation: 3,
   },
-  toolName: { color: '#fff', fontSize: 14, fontWeight: '800', marginTop: 8 },
-  toolSub: { color: '#fff', fontSize: 10.5, fontWeight: '600', opacity: 0.92, marginTop: 2 },
+  toolName: { color: '#fff', fontSize: 14.5, fontWeight: '800', marginTop: 8 },
+  toolSub: { color: '#fff', fontSize: 11, fontWeight: '600', opacity: 0.92, marginTop: 2 },
 
-  statsRow: { flexDirection: 'row', gap: 10 },
-  statBox: {
+  // Progress section
+  cpHero: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: '#fff', borderRadius: 20,
+    borderWidth: 1.5, borderColor: '#ece8fb',
+    padding: 16,
+    shadowColor: '#5038A0',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1, shadowRadius: 10, elevation: 3,
+  },
+  cpRing: {
+    width: 84, height: 84, borderRadius: 42, borderWidth: 8,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  cpRingPct: { fontSize: 17, fontWeight: '800', color: '#2c2550' },
+  cpRingLbl: { fontSize: 9, fontWeight: '700', color: '#6f679c' },
+  cpH: { fontSize: 14.5, fontWeight: '800', color: '#2c2550', lineHeight: 20 },
+  cpSub: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 3 },
+  cpCta: { borderRadius: 999, paddingVertical: 9, paddingHorizontal: 14, alignSelf: 'flex-start', marginTop: 9 },
+  cpCtaText: { color: '#fff', fontWeight: '800', fontSize: 12 },
+
+  cpStats: { flexDirection: 'row', gap: 9, marginTop: 12 },
+  cpStat: {
     flex: 1, alignItems: 'center',
     backgroundColor: '#fff', borderRadius: 16,
     borderWidth: 1.5, borderColor: '#ece8fb',
-    paddingVertical: 12,
+    paddingVertical: 11,
   },
-  statValue: { fontSize: 18, fontWeight: '800' },
-  statLabel: { fontSize: 10, color: '#6f679c', fontWeight: '700', marginTop: 2 },
+  cpStatV: { fontSize: 16, fontWeight: '800', color: '#2c2550', marginTop: 2 },
+  cpStatL: { fontSize: 9.5, color: '#6f679c', fontWeight: '700', marginTop: 1 },
+
+  cpNext: {
+    backgroundColor: '#fff', borderRadius: 18,
+    borderWidth: 1.5, borderColor: '#ece8fb',
+    padding: 14, marginTop: 12,
+  },
+  cpNextH: { fontSize: 12, fontWeight: '800', color: '#6f679c', marginBottom: 9 },
+  cpNextRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  cpNextNum: {
+    width: 38, height: 38, borderRadius: 19, backgroundColor: '#efeaff',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  cpNextNumText: { fontSize: 15, fontWeight: '800', color: '#7c5cff' },
+  cpNextTitle: { fontSize: 13.5, fontWeight: '800', color: '#2c2550' },
+  cpNextSub: { fontSize: 11, color: '#6f679c', fontWeight: '600', marginTop: 1 },
+  cpGo: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
+  cpGoText: { color: '#fff', fontWeight: '800', fontSize: 12.5 },
+
+  cpTrackWrap: {
+    backgroundColor: '#fff', borderRadius: 18,
+    borderWidth: 1.5, borderColor: '#ece8fb',
+    padding: 14, marginTop: 12,
+  },
+  cpTrackH: { fontSize: 12, fontWeight: '800', color: '#6f679c', marginBottom: 10 },
+  cpTrack: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  cpDot: { width: 16, height: 16, borderRadius: 8 },
 });
