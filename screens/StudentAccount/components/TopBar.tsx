@@ -11,17 +11,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTier, TIER_META } from '../TierContext';
 import { useTokens } from '../tokens';
-import { mockPlayHome, mockAvatarEmoji } from '../mockData';
+import { mockAvatarEmoji } from '../mockData';
 
 /**
- * Two-row student top bar - gives every element enough room to breathe.
+ * Student top bar — one tidy row, mirroring the web Topbar:
  *
- *  Row 1:  [ShuleOne · STUDENT]              [bell]  [avatar]
- *  Row 2:  [class chip - full text, no clip]      [streak]  [stars]
+ *   [ShuleOne  STUDENT  class-chip] ······ [🔥n] [⭐n] [🔔] [avatar]
  *
- * Pills are hidden on scholar/campus (adult tiers) per the design.
- * Status bar inset handled via useSafeAreaInsets so the phone's clock,
- * battery, and signal indicators stay fully visible above the bar.
+ * The playful streak/star pills are hidden on scholar/campus (the web's
+ * `clean` mode). The class chip shrinks with an ellipsis on small screens
+ * so the row never wraps or scatters.
  */
 interface TopBarProps {
   /** Real class chip, e.g. "GRADE2 · B" — falls back to the tier's sample band. */
@@ -47,193 +46,147 @@ export const TopBar: React.FC<TopBarProps> = ({ chip, streak, stars, onAvatarPre
 
   return (
       <View style={[styles.wrap, { paddingTop: topPad + 10 }]}>
-        {/* Row 1: brand + actions */}
-        <View style={styles.row1}>
-          <View style={styles.brandRow}>
-            <Text style={styles.brand}>ShuleOne</Text>
-            <LinearGradient
-                colors={[tokens.accent1, tokens.accent2]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.tag}
-            >
-              <Text style={styles.tagText}>STUDENT</Text>
-            </LinearGradient>
-          </View>
-
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.bell} hitSlop={6} onPress={onBellPress}>
-              <Text style={{ fontSize: 18 }}>🔔</Text>
-              <View style={styles.bellDot} />
-            </TouchableOpacity>
-
-            <TouchableOpacity activeOpacity={0.8} onPress={onAvatarPress} disabled={!onAvatarPress}>
-              <LinearGradient
-                  colors={['#3aa0ff', '#7c5cff']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.me}
-              >
-                <Text style={{ fontSize: 22 }}>{mockAvatarEmoji}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
+        {/* Brand + account tag + class chip */}
+        <Text style={styles.brand}>ShuleOne</Text>
+        <LinearGradient
+            colors={[tokens.accent1, tokens.accent2]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.tag}
+        >
+          <Text style={styles.tagText}>STUDENT</Text>
+        </LinearGradient>
+        <View style={styles.chip}>
+          <Text style={styles.chipText} numberOfLines={1}>
+            {chip ?? TIER_META[tier].bandLabel}
+          </Text>
         </View>
 
-        {/* Row 2: class chip + streak/star pills */}
-        <View style={styles.row2}>
-          <View style={styles.chip}>
-            <Text style={styles.chipText}>{chip ?? TIER_META[tier].bandLabel}</Text>
-          </View>
+        <View style={{ flex: 1 }} />
 
-          {!isAdult && (
-              <View style={styles.pillsRow}>
-                <View style={styles.pill}>
-                  <Text style={styles.pillEm}>🔥</Text>
-                  <Text style={[styles.pillNum, { color: '#ff6a3d' }]}>
-                    {streak ?? mockPlayHome.streak}
-                  </Text>
-                </View>
-                <View style={styles.pill}>
-                  <Text style={styles.pillEm}>⭐</Text>
-                  <Text style={[styles.pillNum, { color: '#f59e0b' }]}>
-                    {stars ?? mockPlayHome.stars}
-                  </Text>
-                </View>
+        {/* Streak / stars pills (younger tiers only) */}
+        {!isAdult && (
+            <>
+              <View style={styles.pill}>
+                <Text style={styles.pillEm}>🔥</Text>
+                <Text style={[styles.pillNum, { color: '#ff6a3d' }]}>{streak ?? 0}</Text>
               </View>
-          )}
-        </View>
+              <View style={styles.pill}>
+                <Text style={styles.pillEm}>⭐</Text>
+                <Text style={[styles.pillNum, { color: '#f59e0b' }]}>{compact(stars ?? 0)}</Text>
+              </View>
+            </>
+        )}
+
+        <TouchableOpacity style={styles.bell} hitSlop={6} onPress={onBellPress}>
+          <Text style={{ fontSize: 15 }}>🔔</Text>
+          <View style={styles.bellDot} />
+        </TouchableOpacity>
+
+        <TouchableOpacity activeOpacity={0.8} onPress={onAvatarPress} disabled={!onAvatarPress}>
+          <LinearGradient
+              colors={['#3aa0ff', '#7c5cff']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.me}
+          >
+            <Text style={{ fontSize: 18 }}>{mockAvatarEmoji}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
       </View>
   );
 };
 
+/** 1240 → "1.2k" so the stars pill never stretches the row. */
+function compact(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n);
+}
+
 const styles = StyleSheet.create({
   wrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
     paddingHorizontal: 16,
-    paddingBottom: 14,
-  },
-
-  row1: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+    paddingBottom: 12,
   },
   brand: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '800',
     color: '#2c2550',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   tag: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 999,
   },
   tagText: {
     color: '#fff',
     fontWeight: '800',
-    fontSize: 10,
+    fontSize: 8.5,
     letterSpacing: 0.8,
-  },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  bell: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#5038A0',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.14,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  bellDot: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: '#ff5e9c',
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  me: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
-    shadowColor: '#5038A0',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-
-  row2: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    gap: 10,
   },
   chip: {
     flexShrink: 1,
     backgroundColor: '#fff',
     borderWidth: 1.5,
     borderColor: '#ece8fb',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 999,
-    shadowColor: '#5038A0',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
   },
   chipText: {
-    fontSize: 12,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#6f679c',
-  },
-  pillsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
   },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    paddingHorizontal: 11,
-    paddingVertical: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     borderRadius: 999,
-    gap: 5,
-    shadowColor: '#5038A0',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 2,
+    gap: 3,
+    borderWidth: 1.5,
+    borderColor: '#ece8fb',
   },
   pillEm: {
-    fontSize: 14,
+    fontSize: 11,
   },
   pillNum: {
     fontWeight: '800',
-    fontSize: 13,
+    fontSize: 11.5,
+  },
+  bell: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#ece8fb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bellDot: {
+    position: 'absolute',
+    top: 6,
+    right: 7,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#ff5e9c',
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  me: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
 });

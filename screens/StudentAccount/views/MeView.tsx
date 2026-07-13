@@ -19,7 +19,6 @@ import { Mascot } from '../components/Mascot';
 import { useStudentMe } from '../../../hooks/useStudentMe';
 import { masteryPct } from '../../../api/learner-me';
 import { dueAssignments, liveNowClasses } from '../../../api/student.types';
-import { xpInCurrentLevel, XP_PER_LEVEL } from '../../../api/gamification.types';
 
 // Per-tier vocabulary — mirrors the web's VOCAB map so the same feature
 // reads age-appropriately everywhere.
@@ -63,7 +62,6 @@ export const MeView: React.FC = () => {
   const streak = game.streak?.current ?? 0;
   const level = game.level ?? 1;
   const totalXp = game.totalXp ?? 0;
-  const xpNow = xpInCurrentLevel(game);
   const goalTarget = game.streak?.dailyGoal ?? null;
   const goalDone = game.streak?.todayCount ?? 0;
 
@@ -144,39 +142,20 @@ export const MeView: React.FC = () => {
             </View>
           )}
           <View style={{ flex: 1 }}>
-            <Text style={styles.greetTitle}>Hi {firstName}! 👋</Text>
+            <View style={styles.greetTop}>
+              <Text style={styles.greetTitle}>Hi {firstName}! 👋</Text>
+              <View style={[styles.lvlChip, { backgroundColor: SHARED.ring }]}>
+                <Text style={[styles.lvlChipText, { color: tokens.accent1 }]}>💎 Lvl {level}</Text>
+              </View>
+            </View>
             <Text style={styles.greetSub}>
+              {[classChip, tierName(tier)].filter(Boolean).join(' · ')}
               {due.length > 0
-                ? `You have ${due.length} task${due.length === 1 ? '' : 's'} to do${due[0]?.title ? ` — next: ${due[0].title}` : ''}`
-                : `Ready? ${v.tagline}`}
+                ? ` — ${due.length} to do${due[0]?.title ? `, next: ${due[0].title}` : ''}`
+                : ` — ${v.tagline}`}
             </Text>
           </View>
         </View>
-
-        {/* ── Level & XP pane ─────────────────────────────────── */}
-        <LinearGradient
-          colors={[tokens.accent1, tokens.accent2]}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={[styles.statPane, { borderRadius: tokens.radius }]}
-        >
-          <View style={styles.ring}>
-            <View style={styles.ringInner}>
-              <Text style={styles.ringNum}>{level}</Text>
-              <Text style={styles.ringLbl}>LEVEL</Text>
-            </View>
-          </View>
-          <View style={{ flex: 1, marginLeft: 16 }}>
-            <Text style={styles.rankTitle}>
-              {pickByTier(tier, { base: 'Super Learner', scholar: 'Your progress', campus: 'Your progress' })}
-            </Text>
-            <View style={styles.xpBar}>
-              <View style={[styles.xpFill, { width: `${Math.max(2, (xpNow / XP_PER_LEVEL) * 100)}%` }]} />
-            </View>
-            <Text style={styles.xpText}>
-              {xpNow} / {XP_PER_LEVEL} XP — {XP_PER_LEVEL - xpNow} more to Level {level + 1}! 🚀
-            </Text>
-          </View>
-        </LinearGradient>
 
         {/* ── Free-month ribbon ───────────────────────────────── */}
         {access?.trialActive && !access.paid && (
@@ -361,6 +340,10 @@ export const MeView: React.FC = () => {
   );
 };
 
+function tierName(t: Tier): string {
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
 function fmtDue(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
@@ -392,32 +375,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', overflow: 'hidden',
     ...SHADOWS.card,
   },
-  greetTitle: { fontSize: 22, fontWeight: '800', color: SHARED.ink, letterSpacing: -0.3 },
+  greetTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  greetTitle: { flexShrink: 1, fontSize: 22, fontWeight: '800', color: SHARED.ink, letterSpacing: -0.3 },
   greetSub: { color: SHARED.inkSoft, fontWeight: '600', marginTop: 6, fontSize: 13, lineHeight: 18 },
-
-  statPane: {
-    flexDirection: 'row', alignItems: 'center', padding: 18, marginBottom: 12,
-    overflow: 'hidden', ...SHADOWS.card,
-  },
-  ring: {
-    width: 78, height: 78, borderRadius: 39,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  ringInner: {
-    width: 60, height: 60, borderRadius: 30,
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  ringNum: { color: '#fff', fontWeight: '800', fontSize: 22 },
-  ringLbl: { color: '#fff', fontSize: 9, opacity: 0.85, fontWeight: '700', marginTop: -2 },
-  rankTitle: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  xpBar: {
-    height: 10, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.28)',
-    marginTop: 8, overflow: 'hidden',
-  },
-  xpFill: { height: '100%', borderRadius: 99, backgroundColor: '#ffd766' },
-  xpText: { color: '#fff', fontWeight: '600', fontSize: 11, marginTop: 6, opacity: 0.95 },
+  lvlChip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  lvlChipText: { fontWeight: '800', fontSize: 11.5 },
 
   trialRow: {
     flexDirection: 'row', alignItems: 'center', gap: 9,
