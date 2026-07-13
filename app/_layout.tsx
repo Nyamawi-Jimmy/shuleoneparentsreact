@@ -14,6 +14,7 @@ import { AuthProvider } from '../context/AuthContext';
 import { SelectedChildProvider } from '../context/SelectedChildContext';
 import { ParentProfileProvider } from '../context/ParentProfileContext';
 import { ThemeProvider, useTheme } from '../theme/ThemeContext';
+import { LanguageProvider } from '../context/LanguageContext';
 import { usePushRegistration } from '../hooks/usePushRegistration';
 
 export const unstable_settings = {
@@ -44,6 +45,7 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
+        <LanguageProvider>
         <AuthProvider>
           <ParentProfileProvider>
             <SelectedChildProvider>
@@ -51,6 +53,7 @@ export default function RootLayout() {
             </SelectedChildProvider>
           </ParentProfileProvider>
         </AuthProvider>
+        </LanguageProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

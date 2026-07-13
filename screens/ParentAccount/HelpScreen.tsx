@@ -55,29 +55,22 @@ export const HelpScreen: React.FC = () => {
     <View style={styles.root}>
       <GradientAppBar title="Help & Support" subtitle="FAQs, or reach us by phone, WhatsApp or email" showBack />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Contact tiles */}
+        {/* Contact — dialer-style round actions */}
         <View style={styles.contactRow}>
-          <TouchableOpacity style={styles.contactTile} activeOpacity={0.8} onPress={() => Linking.openURL(`tel:${PHONE}`)}>
-            <View style={[styles.contactIcon, { backgroundColor: '#2563EB1F' }]}>
-              <Ionicons name="call" size={18} color="#2563EB" />
-            </View>
-            <Text style={styles.contactTitle}>Call us</Text>
-            <Text style={styles.contactSub}>{PHONE_DISPLAY}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.contactTile} activeOpacity={0.8} onPress={() => Linking.openURL(WHATSAPP)}>
-            <View style={[styles.contactIcon, { backgroundColor: '#25D3661F' }]}>
-              <Ionicons name="logo-whatsapp" size={18} color="#1FA855" />
-            </View>
-            <Text style={styles.contactTitle}>WhatsApp</Text>
-            <Text style={styles.contactSub}>Replies in ~5 min</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.contactTile} activeOpacity={0.8} onPress={() => Linking.openURL(`mailto:${EMAIL}`)}>
-            <View style={[styles.contactIcon, { backgroundColor: colors.primary + '1F' }]}>
-              <Ionicons name="mail" size={18} color={colors.primary} />
-            </View>
-            <Text style={styles.contactTitle}>Email</Text>
-            <Text style={styles.contactSub}>Within 24 hours</Text>
-          </TouchableOpacity>
+          {[
+            { icon: 'call', tint: '#2563EB', label: 'Call', sub: PHONE_DISPLAY, url: `tel:${PHONE}` },
+            { icon: 'logo-whatsapp', tint: '#1FA855', label: 'WhatsApp', sub: '~5 min reply', url: WHATSAPP },
+            { icon: 'mail', tint: colors.primary, label: 'Email', sub: '24h reply', url: `mailto:${EMAIL}` },
+          ].map((a) => (
+            <TouchableOpacity key={a.label} style={styles.contactAction} activeOpacity={0.8}
+              onPress={() => Linking.openURL(a.url)}>
+              <View style={[styles.contactCircle, { backgroundColor: a.tint }]}>
+                <Ionicons name={a.icon as any} size={21} color="#FFF" />
+              </View>
+              <Text style={styles.contactTitle}>{a.label}</Text>
+              <Text style={styles.contactSub}>{a.sub}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
 
         {/* Topics */}
@@ -118,21 +111,22 @@ export const HelpScreen: React.FC = () => {
         {faqs.length === 0 ? (
           <View style={styles.card}><Text style={styles.faqEmpty}>Nothing matches “{query}”.</Text></View>
         ) : (
-          <View style={styles.card}>
-            {faqs.map((f, i) => {
-              const open = openIdx === i;
-              return (
-                <View key={f.q} style={i > 0 && styles.divider}>
-                  <TouchableOpacity style={styles.faqHead} activeOpacity={0.7}
-                    onPress={() => setOpenIdx(open ? null : i)}>
-                    <Text style={[styles.faqQ, open && { color: colors.primary }]}>{f.q}</Text>
-                    <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={15} color={colors.textTertiary} />
-                  </TouchableOpacity>
-                  {open && <Text style={styles.faqA}>{f.a}</Text>}
-                </View>
-              );
-            })}
-          </View>
+          faqs.map((f, i) => {
+            const open = openIdx === i;
+            return (
+              <View key={f.q} style={[styles.faqCard, open && { borderColor: colors.primary + '55' }]}>
+                <TouchableOpacity style={styles.faqHead} activeOpacity={0.7}
+                  onPress={() => setOpenIdx(open ? null : i)}>
+                  <View style={[styles.faqBullet, open && { backgroundColor: colors.primary }]}>
+                    <Text style={[styles.faqBulletText, open && { color: '#FFF' }]}>Q</Text>
+                  </View>
+                  <Text style={[styles.faqQ, open && { color: colors.primary }]}>{f.q}</Text>
+                  <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={15} color={colors.textTertiary} />
+                </TouchableOpacity>
+                {open && <Text style={styles.faqA}>{f.a}</Text>}
+              </View>
+            );
+          })
         )}
 
         {/* Still stuck */}
@@ -160,10 +154,12 @@ function makeStyles(c: ColorPalette) {
     root: { flex: 1, backgroundColor: c.background },
     scroll: { paddingHorizontal: 16, paddingTop: 14 },
 
-    contactRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-    contactTile: {
-      flex: 1, alignItems: 'center', backgroundColor: c.card,
-      borderRadius: 16, borderWidth: 1, borderColor: c.border, paddingVertical: 14,
+    contactRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 22, paddingHorizontal: 8 },
+    contactAction: { alignItems: 'center', minWidth: 84 },
+    contactCircle: {
+      width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center',
+      shadowColor: '#0F172A', shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15, shadowRadius: 8, elevation: 4,
     },
     contactIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     contactTitle: { fontSize: 12, fontFamily: fonts.bold, color: c.text, marginTop: 8 },
@@ -184,9 +180,18 @@ function makeStyles(c: ColorPalette) {
       paddingHorizontal: 12, height: 42, marginBottom: 12,
     },
     searchInput: { flex: 1, fontSize: 13, fontFamily: fonts.regular, color: c.text, paddingVertical: 0 },
-    faqHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 13 },
+    faqCard: {
+      backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border,
+      paddingHorizontal: 13, marginBottom: 8,
+    },
+    faqBullet: {
+      width: 22, height: 22, borderRadius: 8, backgroundColor: c.primarySoft,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    faqBulletText: { fontSize: 10.5, fontFamily: fonts.extrabold, color: c.primary },
+    faqHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
     faqQ: { flex: 1, fontSize: 13, fontFamily: fonts.bold, color: c.text, lineHeight: 18 },
-    faqA: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 19, paddingBottom: 13 },
+    faqA: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 19, paddingBottom: 12, paddingLeft: 32 },
     faqEmpty: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, paddingVertical: 16, textAlign: 'center' },
 
     hotlineCard: {

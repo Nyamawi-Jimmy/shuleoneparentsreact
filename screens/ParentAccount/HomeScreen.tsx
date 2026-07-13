@@ -29,6 +29,7 @@ import { moneyToNumber } from '../../api/fees.types';
 import { ParentHomeAction, ParentHomeSignal } from '../../api/home';
 import { useAuth } from '../../context/AuthContext';
 import { CodingClassReport, getChildCodingReports } from '../../api/guardian';
+import { useLanguage } from '../../context/LanguageContext';
 
 const formatKsh = (n: number): string => `KSh ${n.toLocaleString('en-KE')}`;
 
@@ -53,24 +54,24 @@ const PRIORITY: Record<string, { tintKey: keyof ColorPalette; label: string }> =
   WHENEVER: { tintKey: 'info', label: '' },
 };
 
-function greetingWord(): string {
+function greetingKey(): string {
   const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  return 'Good evening';
+  if (h < 12) return 'home.greetingMorning';
+  if (h < 17) return 'home.greetingAfternoon';
+  return 'home.greetingEvening';
 }
 
 // Quick access — everything that isn't a bottom tab, one tap away (More is gone).
-interface QuickItem { label: string; route: string; icon: React.ReactNode; tint: string }
+interface QuickItem { key: string; route: string; icon: React.ReactNode; tint: string }
 const quickItems = (c: ColorPalette): QuickItem[] => [
-  { label: 'Coding',     route: '/coding',                    tint: '#059669', icon: <MaterialCommunityIcons name="code-tags" size={21} color="#059669" /> },
-  { label: 'Transport',  route: '/transport',                 tint: '#2563EB', icon: <MaterialCommunityIcons name="bus-school" size={21} color="#2563EB" /> },
-  { label: 'Attendance', route: '/academics?tab=attendance',  tint: '#0891B2', icon: <Ionicons name="checkmark-done-outline" size={21} color="#0891B2" /> },
-  { label: 'Diary',      route: '/diary',                     tint: '#DB2777', icon: <Ionicons name="book-outline" size={21} color="#DB2777" /> },
-  { label: 'Live',       route: '/live-classes',              tint: '#E11D48', icon: <Ionicons name="videocam-outline" size={21} color="#E11D48" /> },
-  { label: 'Calendar',   route: '/calendar',                  tint: '#7C3AED', icon: <Ionicons name="calendar-outline" size={21} color="#7C3AED" /> },
-  { label: 'Documents',  route: '/documents',                 tint: '#D97706', icon: <Ionicons name="folder-open-outline" size={21} color="#D97706" /> },
-  { label: 'Settings',   route: '/settings',                  tint: '#64748B', icon: <Ionicons name="settings-outline" size={21} color="#64748B" /> },
+  { key: 'nav.coding',     route: '/coding',                    tint: '#059669', icon: <MaterialCommunityIcons name="code-tags" size={21} color="#059669" /> },
+  { key: 'nav.bus',        route: '/transport',                 tint: '#2563EB', icon: <MaterialCommunityIcons name="bus-school" size={21} color="#2563EB" /> },
+  { key: 'nav.attendance', route: '/academics?tab=attendance',  tint: '#0891B2', icon: <Ionicons name="checkmark-done-outline" size={21} color="#0891B2" /> },
+  { key: 'nav.diary',      route: '/diary',                     tint: '#DB2777', icon: <Ionicons name="book-outline" size={21} color="#DB2777" /> },
+  { key: 'nav.live',       route: '/live-classes',              tint: '#E11D48', icon: <Ionicons name="videocam-outline" size={21} color="#E11D48" /> },
+  { key: 'nav.calendar',   route: '/calendar',                  tint: '#7C3AED', icon: <Ionicons name="calendar-outline" size={21} color="#7C3AED" /> },
+  { key: 'nav.documents',  route: '/documents',                 tint: '#D97706', icon: <Ionicons name="folder-open-outline" size={21} color="#D97706" /> },
+  { key: 'nav.settings',   route: '/settings',                  tint: '#64748B', icon: <Ionicons name="settings-outline" size={21} color="#64748B" /> },
 ];
 
 export const HomeScreen: React.FC = () => {
@@ -78,6 +79,7 @@ export const HomeScreen: React.FC = () => {
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const { parent } = useParentProfile();
+  const { t } = useLanguage();
   const { selectedChild: child, children } = useSelectedChild();
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
@@ -137,7 +139,7 @@ export const HomeScreen: React.FC = () => {
               )}
             </TouchableOpacity>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.greeting} numberOfLines={1}>{greetingWord()}, {parentName}</Text>
+              <Text style={styles.greeting} numberOfLines={1}>{t(greetingKey(), { name: parentName })}</Text>
               <Text style={styles.greetingSub} numberOfLines={1}>{statusLine}</Text>
             </View>
             <TouchableOpacity style={styles.bellBtn} activeOpacity={0.7} onPress={() => router.push('/notifications' as any)}>
@@ -178,7 +180,7 @@ export const HomeScreen: React.FC = () => {
           {/* ── Status cards — the day's numbers, riding over the header ──── */}
           <View style={styles.statGrid}>
             <StatCard
-              styles={styles} colors={colors} label="Fees"
+              styles={styles} colors={colors} label={t('home.fees')}
               gradient={['#10B981', '#059669']}
               icon={<MaterialCommunityIcons name="wallet-outline" size={17} color="#FFF" />}
               chip={feesBalance == null ? null : feesBalance > 0
@@ -188,7 +190,7 @@ export const HomeScreen: React.FC = () => {
               onPress={() => router.push('/finance' as any)}
             />
             <StatCard
-              styles={styles} colors={colors} label="Attendance"
+              styles={styles} colors={colors} label={t('home.attendance')}
               gradient={['#6366F1', '#4F46E5']}
               icon={<Ionicons name="checkmark-done-outline" size={17} color="#FFF" />}
               ring={attRate != null ? Math.max(0, Math.min(100, attRate)) : null}
@@ -196,7 +198,7 @@ export const HomeScreen: React.FC = () => {
               onPress={() => router.push('/academics?tab=attendance' as any)}
             />
             <StatCard
-              styles={styles} colors={colors} label="School bus"
+              styles={styles} colors={colors} label={t('home.bus')}
               gradient={['#3B82F6', '#2563EB']}
               icon={<MaterialCommunityIcons name="bus-school" size={17} color="#FFF" />}
               chip={{ text: 'Live', tint: '#2563EB', dot: true }}
@@ -204,7 +206,7 @@ export const HomeScreen: React.FC = () => {
               onPress={() => router.push('/transport' as any)}
             />
             <StatCard
-              styles={styles} colors={colors} label="Updates"
+              styles={styles} colors={colors} label={t('home.updates')}
               gradient={['#8B5CF6', '#7C3AED']}
               icon={<Ionicons name="megaphone-outline" size={17} color="#FFF" />}
               chip={newSignals > 0 ? { text: `${newSignals} new`, tint: '#D97706' } : null}
@@ -215,13 +217,13 @@ export const HomeScreen: React.FC = () => {
           </View>
 
           {/* ── Quick access ──────────────────────────────────────────────── */}
-          <SectionHeader styles={styles} colors={colors} title="Quick access" />
+          <SectionHeader styles={styles} colors={colors} title={t('home.quickAccess')} />
           <View style={styles.quickCard}>
             {quickItems(colors).map((q) => (
-              <TouchableOpacity key={q.label} style={styles.quickItem} activeOpacity={0.7}
+              <TouchableOpacity key={q.key} style={styles.quickItem} activeOpacity={0.7}
                 onPress={() => router.push(q.route as any)}>
                 <View style={[styles.quickIcon, { backgroundColor: q.tint + '14' }]}>{q.icon}</View>
-                <Text style={styles.quickLabel} numberOfLines={1}>{q.label}</Text>
+                <Text style={styles.quickLabel} numberOfLines={1}>{t(q.key)}</Text>
               </TouchableOpacity>
             ))}
           </View>

@@ -2,10 +2,12 @@ import { Tabs } from 'expo-router';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 import { useTheme } from '../../theme/ThemeContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { fonts } from '../../constants/theme';
 
 export default function TabLayout() {
   const { colors } = useTheme();
+  const { t } = useLanguage();
 
   return (
     <Tabs
@@ -39,7 +41,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Today',
+          title: t('nav.home'),
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
           ),
@@ -48,7 +50,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="learning"
         options={{
-          title: 'Learning',
+          title: t('nav.learning'),
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? 'rocket' : 'rocket-outline'} size={size} color={color} />
           ),
@@ -57,7 +59,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="finance"
         options={{
-          title: 'Fees',
+          title: t('nav.fees'),
           tabBarIcon: ({ color, size, focused }) => (
             <MaterialCommunityIcons name={focused ? 'wallet' : 'wallet-outline'} size={size} color={color} />
           ),
@@ -66,7 +68,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="academics"
         options={{
-          title: 'Academics',
+          title: t('nav.academics'),
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? 'school' : 'school-outline'} size={size} color={color} />
           ),
@@ -75,7 +77,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="communication"
         options={{
-          title: 'Messages',
+          title: t('nav.messages'),
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={size} color={color} />
           ),
