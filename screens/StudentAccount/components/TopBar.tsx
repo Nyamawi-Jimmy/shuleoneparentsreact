@@ -9,29 +9,28 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useTier, TIER_META } from '../TierContext';
+import { useTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { mockAvatarEmoji } from '../mockData';
 
 /**
- * Student top bar — one tidy row, mirroring the web Topbar:
+ * Student top bar — one tidy row:
  *
- *   [ShuleOne  STUDENT  class-chip] ······ [🔥n] [⭐n] [🔔] [avatar]
+ *   [ShuleOne  STUDENT] ·············· [🔥n] [⭐n] [🔔] [avatar]
  *
- * The playful streak/star pills are hidden on scholar/campus (the web's
- * `clean` mode). The class chip shrinks with an ellipsis on small screens
- * so the row never wraps or scatters.
+ * The class/stream lives on the greeting card (like the web's header
+ * subtitle), NOT here — a phone-width row can't fit it without crushing
+ * everything else. Streak/star pills are hidden on scholar/campus (the
+ * web's `clean` mode).
  */
 interface TopBarProps {
-  /** Real class chip, e.g. "GRADE2 · B" — falls back to the tier's sample band. */
-  chip?: string;
   streak?: number | null;
   stars?: number | null;
   onAvatarPress?: () => void;
   onBellPress?: () => void;
 }
 
-export const TopBar: React.FC<TopBarProps> = ({ chip, streak, stars, onAvatarPress, onBellPress }) => {
+export const TopBar: React.FC<TopBarProps> = ({ streak, stars, onAvatarPress, onBellPress }) => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
   const insets = useSafeAreaInsets();
@@ -46,7 +45,7 @@ export const TopBar: React.FC<TopBarProps> = ({ chip, streak, stars, onAvatarPre
 
   return (
       <View style={[styles.wrap, { paddingTop: topPad + 10 }]}>
-        {/* Brand + account tag + class chip */}
+        {/* Brand + account tag */}
         <Text style={styles.brand}>ShuleOne</Text>
         <LinearGradient
             colors={[tokens.accent1, tokens.accent2]}
@@ -56,11 +55,6 @@ export const TopBar: React.FC<TopBarProps> = ({ chip, streak, stars, onAvatarPre
         >
           <Text style={styles.tagText}>STUDENT</Text>
         </LinearGradient>
-        <View style={styles.chip}>
-          <Text style={styles.chipText} numberOfLines={1}>
-            {chip ?? TIER_META[tier].bandLabel}
-          </Text>
-        </View>
 
         <View style={{ flex: 1 }} />
 
@@ -79,7 +73,7 @@ export const TopBar: React.FC<TopBarProps> = ({ chip, streak, stars, onAvatarPre
         )}
 
         <TouchableOpacity style={styles.bell} hitSlop={6} onPress={onBellPress}>
-          <Text style={{ fontSize: 15 }}>🔔</Text>
+          <Text style={{ fontSize: 16 }}>🔔</Text>
           <View style={styles.bellDot} />
         </TouchableOpacity>
 
@@ -90,7 +84,7 @@ export const TopBar: React.FC<TopBarProps> = ({ chip, streak, stars, onAvatarPre
               end={{ x: 1, y: 1 }}
               style={styles.me}
           >
-            <Text style={{ fontSize: 18 }}>{mockAvatarEmoji}</Text>
+            <Text style={{ fontSize: 20 }}>{mockAvatarEmoji}</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -111,58 +105,44 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   brand: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
     color: '#2c2550',
     letterSpacing: 0.2,
   },
   tag: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 999,
   },
   tagText: {
     color: '#fff',
     fontWeight: '800',
-    fontSize: 8.5,
+    fontSize: 9.5,
     letterSpacing: 0.8,
-  },
-  chip: {
-    flexShrink: 1,
-    backgroundColor: '#fff',
-    borderWidth: 1.5,
-    borderColor: '#ece8fb',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  chipText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#6f679c',
   },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 999,
-    gap: 3,
+    gap: 4,
     borderWidth: 1.5,
     borderColor: '#ece8fb',
   },
   pillEm: {
-    fontSize: 11,
+    fontSize: 13,
   },
   pillNum: {
     fontWeight: '800',
-    fontSize: 11.5,
+    fontSize: 13,
   },
   bell: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#fff',
     borderWidth: 1.5,
     borderColor: '#ece8fb',
@@ -171,19 +151,19 @@ const styles = StyleSheet.create({
   },
   bellDot: {
     position: 'absolute',
-    top: 6,
-    right: 7,
-    width: 7,
-    height: 7,
+    top: 7,
+    right: 8,
+    width: 8,
+    height: 8,
     borderRadius: 4,
     backgroundColor: '#ff5e9c',
     borderWidth: 1.5,
     borderColor: '#fff',
   },
   me: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,

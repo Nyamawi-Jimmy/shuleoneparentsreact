@@ -99,7 +99,6 @@ export const MeView: React.FC = () => {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
       <TopBar
-        chip={classChip}
         streak={streak}
         stars={totalXp}
         onAvatarPress={() => router.push('/(student-tabs)/me' as any)}
