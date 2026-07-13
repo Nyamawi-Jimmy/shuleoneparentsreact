@@ -135,6 +135,7 @@ export const CommunicationScreen: React.FC = () => {
   return (
     <View style={styles.root}>
       <GradientAppBar
+        large overlap
         title="Messages"
         subtitle={`${unreadChats} unread chat${unreadChats !== 1 ? 's' : ''} · ${newCount} school update${newCount !== 1 ? 's' : ''}`}
       />

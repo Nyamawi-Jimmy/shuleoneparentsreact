@@ -113,6 +113,7 @@ export const TransportScreen: React.FC = () => {
   return (
     <View style={styles.root}>
       <GradientAppBar
+        overlap
         title="Transport"
         subtitle={child?.onTransport ? [child.routeName, child.vehiclePlate].filter(Boolean).join(' · ') : 'School bus & live tracking'}
         showBack

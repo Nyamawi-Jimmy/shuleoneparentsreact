@@ -101,7 +101,7 @@ export const FinanceScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
-      <GradientAppBar title="Fees" subtitle={subtitle} showBack={false} />
+      <GradientAppBar large title="Fees" subtitle={subtitle} showBack={false} />
 
       <ScrollView
         contentContainerStyle={styles.scroll}

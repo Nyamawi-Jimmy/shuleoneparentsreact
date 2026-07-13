@@ -1,7 +1,11 @@
 // Reusable brand app bar — flat, slim and quiet: a single solid band of the
 // brand color, a bold title with an optional one-line subtitle, an optional
-// round back button, and a right-side action slot. No gradient, no drop
-// shadow — the rounded bottom edge alone separates it from the content.
+// round back button, and a right-side action slot.
+//
+//  - `large`   top-level tab pages: bigger title, a little more presence.
+//  - `overlap` pages that float a card/segment over the bar's bottom edge:
+//              adds breathing room below the text so the floating element
+//              never covers the title or subtitle.
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
@@ -14,15 +18,23 @@ interface Props {
   title: string;
   subtitle?: string;
   showBack?: boolean;
+  /** Top-level tab page: larger title. */
+  large?: boolean;
+  /** Content below floats over the bar's edge: pad the bottom so text stays clear. */
+  overlap?: boolean;
   /** Optional element rendered on the right (e.g. an icon button). */
   right?: React.ReactNode;
 }
 
-export const GradientAppBar: React.FC<Props> = ({ title, subtitle, showBack = false, right }) => {
+export const GradientAppBar: React.FC<Props> = ({ title, subtitle, showBack = false, large = false, overlap = false, right }) => {
   const { colors } = useTheme();
 
   return (
-    <View style={[styles.bar, { backgroundColor: colors.primary }]}>
+    <View style={[
+      styles.bar,
+      { backgroundColor: colors.primary },
+      overlap && styles.barOverlap,
+    ]}>
       <View style={styles.row}>
         {showBack && (
           <TouchableOpacity style={styles.backBtn} activeOpacity={0.7} hitSlop={10} onPress={() => router.back()}>
@@ -30,8 +42,8 @@ export const GradientAppBar: React.FC<Props> = ({ title, subtitle, showBack = fa
           </TouchableOpacity>
         )}
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.title} numberOfLines={1}>{title}</Text>
-          {!!subtitle && <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>}
+          <Text style={[styles.title, large && styles.titleLarge]} numberOfLines={1}>{title}</Text>
+          {!!subtitle && <Text style={[styles.subtitle, large && styles.subtitleLarge]} numberOfLines={1}>{subtitle}</Text>}
         </View>
         {right}
       </View>
@@ -47,6 +59,8 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
+  // Room for a floating card/segment below without covering the text.
+  barOverlap: { paddingBottom: 38 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   backBtn: {
     width: 34, height: 34, borderRadius: 17,
@@ -54,5 +68,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   title: { color: '#FFF', fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.3 },
+  titleLarge: { fontSize: 20, letterSpacing: -0.5 },
   subtitle: { color: 'rgba(255,255,255,0.8)', fontSize: 11.5, fontFamily: fonts.regular, marginTop: 1 },
+  subtitleLarge: { fontSize: 12.5, marginTop: 2 },
 });

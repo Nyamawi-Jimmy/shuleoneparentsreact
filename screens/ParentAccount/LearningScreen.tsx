@@ -142,7 +142,7 @@ export const LearningScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
-      <GradientAppBar title="Learning" subtitle={`${firstName}’s progress & practice`} />
+      <GradientAppBar large title="Learning" subtitle={`${firstName}’s progress & practice`} />
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>

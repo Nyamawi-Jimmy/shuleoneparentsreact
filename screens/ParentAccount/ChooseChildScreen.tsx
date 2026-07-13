@@ -1,21 +1,22 @@
+// Choose child — the post-login child picker, in the app's design language:
+// flat brand header with a floating child list riding over its edge, initials
+// avatars (no stock photos), and quiet sign-out.
+
 import React, { useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  ActivityIndicator, StatusBar,
+  ActivityIndicator, Platform, StatusBar,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSelectedChild } from '../../context/SelectedChildContext';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
-
-const PLACEHOLDER =
-  'https://images.unsplash.com/photo-1612531048118-826c64158142?w=200&h=200&fit=crop&crop=face';
+import { fonts } from '../../constants/theme';
 
 export const ChooseChildScreen: React.FC = () => {
-  const { colors, scheme } = useTheme();
+  const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const { children, selectChild, loading } = useSelectedChild();
@@ -36,23 +37,18 @@ export const ChooseChildScreen: React.FC = () => {
 
   const handleSignOut = async () => {
     await signOut();
-    router.replace('/chooser' as any);
+    router.replace('/login' as any);
   };
 
   return (
     <View style={styles.safe}>
       <StatusBar barStyle="light-content" />
 
-      <LinearGradient
-        colors={['#FB7185', '#E11D48']}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <Text style={styles.headerTitle}>Welcome!</Text>
-        <Text style={styles.headerSubtitle}>
-          Choose which child you'd like to view today
-        </Text>
-      </LinearGradient>
+      {/* Flat brand header — same language as the app bars */}
+      <View style={[styles.header, { backgroundColor: colors.primary }]}>
+        <Text style={styles.headerTitle}>Who are we checking on?</Text>
+        <Text style={styles.headerSubtitle}>Pick a child — you can switch any time from Today.</Text>
+      </View>
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {loading && (
@@ -63,9 +59,9 @@ export const ChooseChildScreen: React.FC = () => {
         )}
 
         {!loading && children.length === 0 && (
-          <View style={styles.center}>
+          <View style={styles.emptyCard}>
             <View style={styles.emptyCircle}>
-              <Ionicons name="people-outline" size={28} color={colors.textTertiary} />
+              <Ionicons name="people-outline" size={26} color={colors.textTertiary} />
             </View>
             <Text style={styles.emptyTitle}>No children linked</Text>
             <Text style={styles.emptyText}>
@@ -77,31 +73,35 @@ export const ChooseChildScreen: React.FC = () => {
         {!loading && children.length > 1 && (
           <View style={styles.childList}>
             {children.map((child) => {
-              const photoUri = (child as any).photoUrl || PLACEHOLDER;
-              const className = child.className || (child as any).grade || '—';
+              const photoUri = (child as any).photoUrl as string | undefined;
+              const className = child.classLabel || child.className || '—';
               const schoolName = child.schoolName || '';
               return (
                 <TouchableOpacity
                   key={child.studentId}
-                  activeOpacity={0.85}
+                  activeOpacity={0.8}
                   onPress={() => handleChildPress(child.studentId)}
                   style={styles.childCard}
                 >
-                  <View style={styles.avatarRing}>
-                    <Image source={{ uri: photoUri }} style={styles.avatarImg} />
+                  <View style={styles.avatar}>
+                    {photoUri ? (
+                      <Image source={{ uri: photoUri }} style={styles.avatarImg} />
+                    ) : (
+                      <Text style={styles.avatarInitials}>{child.initials}</Text>
+                    )}
                   </View>
-                  <View style={{ flex: 1, marginLeft: 14 }}>
-                    <Text style={styles.childName}>{child.fullName}</Text>
-                    <Text style={styles.childMeta}>{className}</Text>
+                  <View style={{ flex: 1, minWidth: 0, marginLeft: 13 }}>
+                    <Text style={styles.childName} numberOfLines={1}>{child.fullName}</Text>
+                    <Text style={styles.childMeta} numberOfLines={1}>{className}</Text>
                     {!!schoolName && (
                       <View style={styles.schoolRow}>
-                        <Ionicons name="location" size={12} color={colors.textTertiary} />
-                        <Text style={styles.childSchool}>{schoolName}</Text>
+                        <Ionicons name="location-outline" size={11} color={colors.textTertiary} />
+                        <Text style={styles.childSchool} numberOfLines={1}>{schoolName}</Text>
                       </View>
                     )}
                   </View>
                   <View style={styles.chevronCircle}>
-                    <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+                    <Ionicons name="chevron-forward" size={16} color={colors.primary} />
                   </View>
                 </TouchableOpacity>
               );
@@ -111,6 +111,7 @@ export const ChooseChildScreen: React.FC = () => {
 
         {!loading && (
           <TouchableOpacity onPress={handleSignOut} activeOpacity={0.7} style={styles.signOutBtn}>
+            <Ionicons name="log-out-outline" size={15} color={colors.danger} />
             <Text style={styles.signOutText}>Sign out</Text>
           </TouchableOpacity>
         )}
@@ -124,63 +125,66 @@ function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.background },
     header: {
-      paddingTop: 60, paddingBottom: 32, paddingHorizontal: 24,
+      paddingTop: Platform.OS === 'ios' ? 64 : 48,
+      paddingBottom: 40, paddingHorizontal: 20,
+      borderBottomLeftRadius: 20, borderBottomRightRadius: 20,
     },
-    headerTitle: {
-      color: '#FFFFFF', fontSize: 28, fontWeight: '900', letterSpacing: -0.6,
-    },
-    headerSubtitle: {
-      color: '#FFFFFF', fontSize: 14, opacity: 0.95,
-      marginTop: 6, fontWeight: '500', lineHeight: 19,
-    },
-    scroll: { paddingHorizontal: 18, paddingTop: 18 },
+    headerTitle: { color: '#FFF', fontSize: 21, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
+    headerSubtitle: { color: 'rgba(255,255,255,0.85)', fontSize: 12.5, fontFamily: fonts.regular, marginTop: 5, lineHeight: 18 },
 
-    center: { alignItems: 'center', paddingVertical: 60 },
-    loadingText: { color: c.textSecondary, fontSize: 13, marginTop: 12, fontWeight: '500' },
+    // List floats over the header edge
+    scroll: { paddingHorizontal: 16, marginTop: -22, paddingBottom: 24 },
+
+    center: { alignItems: 'center', paddingVertical: 60, backgroundColor: c.background, borderRadius: 18 },
+    loadingText: { color: c.textSecondary, fontSize: 13, fontFamily: fonts.medium, marginTop: 12 },
+
+    emptyCard: {
+      backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.border,
+      alignItems: 'center', padding: 32,
+    },
     emptyCircle: {
-      width: 56, height: 56, borderRadius: 28,
-      backgroundColor: c.card,
-      alignItems: 'center', justifyContent: 'center',
-      marginBottom: 12,
-      borderWidth: 1, borderColor: c.border,
+      width: 54, height: 54, borderRadius: 27,
+      backgroundColor: c.backgroundAlt,
+      alignItems: 'center', justifyContent: 'center', marginBottom: 12,
     },
-    emptyTitle: { fontSize: 17, fontWeight: '800', color: c.text },
+    emptyTitle: { fontSize: 16, fontFamily: fonts.bold, color: c.text },
     emptyText: {
-      fontSize: 12.5, color: c.textSecondary, marginTop: 6,
-      textAlign: 'center', lineHeight: 17, paddingHorizontal: 30,
+      fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 6,
+      textAlign: 'center', lineHeight: 18, paddingHorizontal: 16,
     },
 
-    childList: { gap: 12, paddingBottom: 8 },
+    childList: { gap: 10 },
     childCard: {
       flexDirection: 'row', alignItems: 'center',
       backgroundColor: c.card, borderRadius: 18,
-      padding: 14,
+      padding: 13,
       borderWidth: 1, borderColor: c.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: c.scheme === 'dark' ? 0.3 : 0.04,
-      shadowRadius: 6, elevation: 2,
+      shadowColor: '#0F172A',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: c.scheme === 'dark' ? 0.3 : 0.06,
+      shadowRadius: 8, elevation: 3,
     },
-    avatarRing: {
-      width: 58, height: 58, borderRadius: 29,
-      borderWidth: 2, borderColor: c.primarySoft,
-      overflow: 'hidden',
+    avatar: {
+      width: 52, height: 52, borderRadius: 26,
+      backgroundColor: c.primarySoft, overflow: 'hidden',
+      alignItems: 'center', justifyContent: 'center',
     },
     avatarImg: { width: '100%', height: '100%' },
-    childName: {
-      fontSize: 16, fontWeight: '800',
-      color: c.text, letterSpacing: -0.2,
-    },
-    childMeta: { fontSize: 12.5, color: c.textSecondary, marginTop: 2, fontWeight: '500' },
-    schoolRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 3 },
-    childSchool: { fontSize: 11.5, color: c.textTertiary, fontWeight: '500' },
+    avatarInitials: { fontSize: 16, fontFamily: fonts.extrabold, color: c.primary },
+    childName: { fontSize: 15, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    childMeta: { fontSize: 12, fontFamily: fonts.medium, color: c.textSecondary, marginTop: 2 },
+    schoolRow: { flexDirection: 'row', alignItems: 'center', marginTop: 3, gap: 3 },
+    childSchool: { flex: 1, fontSize: 11, fontFamily: fonts.regular, color: c.textTertiary },
     chevronCircle: {
-      width: 32, height: 32, borderRadius: 16,
+      width: 30, height: 30, borderRadius: 15,
       backgroundColor: c.primarySoft,
       alignItems: 'center', justifyContent: 'center',
     },
 
-    signOutBtn: { alignItems: 'center', paddingVertical: 24, marginTop: 12 },
-    signOutText: { color: c.danger, fontSize: 13.5, fontWeight: '700' },
+    signOutBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      paddingVertical: 22, marginTop: 8,
+    },
+    signOutText: { color: c.danger, fontSize: 13, fontFamily: fonts.bold },
   });
 }

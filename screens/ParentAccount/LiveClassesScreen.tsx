@@ -46,7 +46,7 @@ export const LiveClassesScreen: React.FC = () => {
 
   return (
     <View style={styles.safe}>
-      <GradientAppBar title="Live Classes" subtitle={`${selectedChild.firstName || selectedChild.fullName}’s online lessons`} showBack />
+      <GradientAppBar overlap title="Live Classes" subtitle={`${selectedChild.firstName || selectedChild.fullName}’s online lessons`} showBack />
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}

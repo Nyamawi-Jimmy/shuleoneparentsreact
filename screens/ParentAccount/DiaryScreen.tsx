@@ -127,6 +127,7 @@ export const DiaryScreen: React.FC = () => {
     return (
       <View style={styles.root}>
         <GradientAppBar
+          overlap
           title={openSession.weekLabel || 'Diary week'}
           subtitle={[openSession.classLabel, openSession.teacherName].filter(Boolean).join(' · ')}
           right={
@@ -153,7 +154,7 @@ export const DiaryScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
-      <GradientAppBar title="Class Diary" subtitle={`${childName}’s week-by-week diary`} showBack />
+      <GradientAppBar overlap title="Class Diary" subtitle={`${childName}’s week-by-week diary`} showBack />
       <SessionList
         styles={styles}
         colors={colors}

@@ -78,7 +78,7 @@ export const AcademicsScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
-      <GradientAppBar title="Academics" subtitle={`${childName}’s results & attendance`} />
+      <GradientAppBar large overlap title="Academics" subtitle={`${childName}’s results & attendance`} />
 
       {/* Floating segmented control — rides over the app bar edge */}
       <View style={styles.segmentWrap}>
