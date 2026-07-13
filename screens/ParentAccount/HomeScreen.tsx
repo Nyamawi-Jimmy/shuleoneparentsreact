@@ -28,6 +28,7 @@ import { moneyToNumber } from '../../api/fees.types';
 import { ParentHomeAction, ParentHomeSignal } from '../../api/home';
 import { useAuth } from '../../context/AuthContext';
 import { CodingClassReport, getChildCodingReports } from '../../api/guardian';
+import { getUnreadCount } from '../../api/notifications';
 
 const formatKsh = (n: number): string => `KSh ${n.toLocaleString('en-KE')}`;
 
@@ -78,7 +79,20 @@ export const HomeScreen: React.FC = () => {
 
   const { parent } = useParentProfile();
   const { selectedChild: child, children } = useSelectedChild();
+  const { accessToken } = useAuth();
   const [switcherOpen, setSwitcherOpen] = useState(false);
+
+  // Real unread-notification count for the bell badge (same endpoint the
+  // Notifications screen uses), refreshed every time Today regains focus.
+  const [unread, setUnread] = useState(0);
+  useFocusEffect(useCallback(() => {
+    if (!accessToken) { setUnread(0); return; }
+    let stop = false;
+    getUnreadCount(accessToken)
+      .then((r) => { if (!stop) setUnread(typeof r === 'number' ? r : Number(r?.count ?? 0)); })
+      .catch(() => { if (!stop) setUnread(0); });
+    return () => { stop = true; };
+  }, [accessToken]));
 
   const { data: home, loading: homeLoading, refreshing, error: homeError, refresh } = useParentHome();
   const { summary: feesSummary } = useChildFees();
@@ -93,11 +107,15 @@ export const HomeScreen: React.FC = () => {
   const signals: ParentHomeSignal[] = Array.isArray(home?.signals) ? home!.signals : [];
   const newSignals = signals.filter((s) => s.isNew).length;
 
-  // At a glance — real where available, honest neutral otherwise.
+  // Fees analysis — real figures from the statement summary.
   const feesBalance = feesSummary ? moneyToNumber(feesSummary.balance) : null;
-  const feesValue = feesBalance == null ? '—' : feesBalance > 0 ? formatKsh(feesBalance) : 'Up to date';
-  const feesTone = feesBalance != null && feesBalance > 0 ? colors.danger : colors.success;
-  const feesFoot = feesBalance == null ? 'Tap to view' : feesBalance > 0 ? 'Balance due · tap to pay' : 'All settled this term';
+  const feesBf = feesSummary ? moneyToNumber(feesSummary.broughtForward) : null;
+  const feesBilled = feesSummary ? moneyToNumber(feesSummary.termBilling) : null;
+  const feesPaid = feesSummary ? moneyToNumber(feesSummary.paid) : null;
+  const feesCharged = feesBf != null && feesBilled != null ? feesBf + feesBilled : null;
+  const feesPct = feesCharged != null && feesCharged > 0 && feesPaid != null
+    ? Math.max(0, Math.min(100, Math.round((feesPaid / feesCharged) * 100)))
+    : null;
 
   const attDays = attendanceSummary?.days ?? [];
   const attLatest = attDays.length
@@ -140,9 +158,16 @@ export const HomeScreen: React.FC = () => {
               <Text style={styles.greeting} numberOfLines={1}>{greetingWord()}, {parentName}</Text>
               <Text style={styles.greetingSub} numberOfLines={1}>{statusLine}</Text>
             </View>
-            <TouchableOpacity style={styles.bellBtn} activeOpacity={0.7} onPress={() => router.push('/notifications' as any)}>
+            <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7} onPress={() => router.push('/settings' as any)}>
+              <Ionicons name="settings-outline" size={19} color="#FFF" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconBtn} activeOpacity={0.7} onPress={() => router.push('/notifications' as any)}>
               <Ionicons name="notifications-outline" size={20} color="#FFF" />
-              {newSignals > 0 && <View style={styles.bellDot} />}
+              {unread > 0 && (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>{unread > 9 ? '9+' : unread}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -175,7 +200,54 @@ export const HomeScreen: React.FC = () => {
         </LinearGradient>
 
         <View style={styles.body}>
-          {/* ── Quick access — elevated card overlapping the header ───────── */}
+          {/* ── Fees analysis — the money picture first, overlapping the header ── */}
+          <TouchableOpacity activeOpacity={0.85} onPress={() => router.push('/finance' as any)}>
+            <LinearGradient colors={feesBalance != null && feesBalance > 0 ? ['#0F766E', '#065F46'] : ['#059669', '#047857']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.feesCard}>
+              <View style={styles.feesTopRow}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.feesKicker}>SCHOOL FEES · {childFirst.toUpperCase()}</Text>
+                  <Text style={styles.feesBalance} numberOfLines={1}>
+                    {feesBalance == null ? '—' : feesBalance > 0 ? formatKsh(feesBalance) : 'Up to date'}
+                  </Text>
+                  <Text style={styles.feesBalanceNote}>
+                    {feesBalance == null ? 'Fee balance unavailable — tap to open Fees'
+                      : feesBalance > 0 ? 'Outstanding balance' : 'Nothing owed this term'}
+                  </Text>
+                </View>
+                {feesBalance != null && feesBalance > 0 && (
+                  <View style={styles.feesPayBtn}>
+                    <Text style={styles.feesPayBtnText}>Pay now</Text>
+                    <Ionicons name="arrow-forward" size={13} color="#065F46" />
+                  </View>
+                )}
+              </View>
+
+              {feesPct != null && (
+                <>
+                  <View style={styles.feesPctRow}>
+                    <Text style={styles.feesPctLabel}>Paid so far</Text>
+                    <Text style={styles.feesPctValue}>{feesPct}%</Text>
+                  </View>
+                  <View style={styles.feesTrack}>
+                    <View style={[styles.feesFill, { width: `${feesPct}%` }]} />
+                  </View>
+                </>
+              )}
+
+              {feesCharged != null && (
+                <View style={styles.feesStatsRow}>
+                  <FeesMini styles={styles} label="Billed" value={formatKsh(feesCharged)} />
+                  <View style={styles.feesMiniDivider} />
+                  <FeesMini styles={styles} label="Paid" value={feesPaid != null ? formatKsh(feesPaid) : '—'} />
+                  <View style={styles.feesMiniDivider} />
+                  <FeesMini styles={styles} label="B/Forward" value={feesBf != null ? formatKsh(feesBf) : '—'} />
+                </View>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+
+          {/* ── Quick access ──────────────────────────────────────────────── */}
           <View style={styles.quickCard}>
             {quickItems(colors).map((q) => (
               <TouchableOpacity key={q.label} style={styles.quickItem} activeOpacity={0.7}
@@ -189,12 +261,6 @@ export const HomeScreen: React.FC = () => {
           {/* ── At a glance ────────────────────────────────────────────────── */}
           <SectionHeader styles={styles} colors={colors} title={`${childFirst}’s day at a glance`} />
           <View style={styles.statGrid}>
-            <StatCard
-              styles={styles} tint="#10B981" label="Fees"
-              icon={<MaterialCommunityIcons name="wallet-outline" size={17} color="#10B981" />}
-              value={feesValue} valueColor={feesTone} foot={feesFoot}
-              onPress={() => router.push('/finance' as any)}
-            />
             <StatCard
               styles={styles} tint="#6366F1" label="Attendance"
               icon={<Ionicons name="checkmark-done-outline" size={17} color="#6366F1" />}
@@ -380,6 +446,14 @@ function timeLabel(ms?: number | null): string {
   return d.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
 }
 
+/** One mini stat inside the fees analysis card. */
+const FeesMini: React.FC<{ styles: any; label: string; value: string }> = ({ styles, label, value }) => (
+  <View style={{ flex: 1, minWidth: 0 }}>
+    <Text style={styles.feesMiniLabel}>{label}</Text>
+    <Text style={styles.feesMiniValue} numberOfLines={1}>{value}</Text>
+  </View>
+);
+
 /** One "At a glance" card: tinted icon tile, small-caps label, value, footnote. */
 const StatCard: React.FC<{
   styles: any; tint: string; label: string; icon: React.ReactNode;
@@ -458,16 +532,19 @@ function makeStyles(c: ColorPalette) {
     avatarText: { color: '#FFF', fontSize: 15, fontFamily: fonts.extrabold },
     greeting: { color: '#FFF', fontSize: 17.5, fontFamily: fonts.extrabold, letterSpacing: -0.4 },
     greetingSub: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: fonts.medium, marginTop: 2 },
-    bellBtn: {
+    iconBtn: {
       width: 40, height: 40, borderRadius: 20,
       backgroundColor: 'rgba(255,255,255,0.16)',
       borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
       alignItems: 'center', justifyContent: 'center',
     },
-    bellDot: {
-      position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4,
-      backgroundColor: '#FBBF24', borderWidth: 1.5, borderColor: '#5B4FE0',
+    bellBadge: {
+      position: 'absolute', top: -3, right: -3,
+      minWidth: 17, height: 17, borderRadius: 9, paddingHorizontal: 4,
+      backgroundColor: '#F59E0B', borderWidth: 1.5, borderColor: '#5B4FE0',
+      alignItems: 'center', justifyContent: 'center',
     },
+    bellBadgeText: { color: '#FFF', fontSize: 9.5, fontFamily: fonts.extrabold },
 
     childCard: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -493,12 +570,42 @@ function makeStyles(c: ColorPalette) {
     // Body
     body: { paddingHorizontal: 16 },
 
+    // Fees analysis — the first card, riding up over the header edge.
+    feesCard: {
+      borderRadius: 22, padding: 18,
+      marginTop: -28, marginBottom: 14,
+      shadowColor: '#065F46', shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.28, shadowRadius: 20, elevation: 8,
+    },
+    feesTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+    feesKicker: { color: 'rgba(255,255,255,0.8)', fontSize: 10, fontFamily: fonts.bold, letterSpacing: 1 },
+    feesBalance: { color: '#FFF', fontSize: 26, fontFamily: fonts.extrabold, letterSpacing: -0.6, marginTop: 4 },
+    feesBalanceNote: { color: 'rgba(255,255,255,0.85)', fontSize: 11.5, fontFamily: fonts.regular, marginTop: 2 },
+    feesPayBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 13, paddingVertical: 9,
+    },
+    feesPayBtnText: { color: '#065F46', fontSize: 12.5, fontFamily: fonts.extrabold },
+    feesPctRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, marginBottom: 5 },
+    feesPctLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontFamily: fonts.medium },
+    feesPctValue: { color: '#FFF', fontSize: 11, fontFamily: fonts.extrabold },
+    feesTrack: { height: 7, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.22)', overflow: 'hidden' },
+    feesFill: { height: '100%', borderRadius: 999, backgroundColor: '#FFF' },
+    feesStatsRow: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 14,
+      paddingHorizontal: 14, paddingVertical: 11, marginTop: 14,
+    },
+    feesMiniDivider: { width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,0.2)' },
+    feesMiniLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 9.5, fontFamily: fonts.bold, letterSpacing: 0.6, textTransform: 'uppercase' },
+    feesMiniValue: { color: '#FFF', fontSize: 13, fontFamily: fonts.extrabold, marginTop: 2, letterSpacing: -0.2 },
+
     quickCard: {
       flexDirection: 'row', flexWrap: 'wrap',
       backgroundColor: c.card, borderRadius: 20,
       borderWidth: 1, borderColor: c.border,
       paddingVertical: 14, paddingHorizontal: 6,
-      marginTop: -28, marginBottom: 24,
+      marginBottom: 24,
       shadowColor: '#312E81', shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.12, shadowRadius: 18, elevation: 6,
     },
