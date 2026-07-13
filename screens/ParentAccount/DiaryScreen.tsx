@@ -1,3 +1,13 @@
+// Class Diary — mobile-first redesign (distinct from the web's diary tab):
+//   List   — rose app bar with a floating Weeks / To-sign / Comments stat card
+//            riding over it, searchable week cards with a gradient week badge
+//            and sign-progress bar.
+//   Detail — the week's own app bar (title = week label, "All weeks" pill),
+//            a calendar-style day strip (active day = gradient pill, status
+//            dots for signed/unsigned), the day's learning plan as a numbered
+//            list, teacher comments as chat bubbles with the teacher's avatar,
+//            and the parent's response bubble / sign form with gradient CTA.
+
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
@@ -5,8 +15,8 @@ import {
 } from 'react-native';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, router } from 'expo-router';
-import { ParentHeader } from '../../components/ParentHeader';
+import { useFocusEffect } from 'expo-router';
+import { GradientAppBar } from '../../components/GradientAppBar';
 import { fonts } from '../../constants/theme';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
@@ -18,12 +28,12 @@ import { DiarySession, DiaryDailyEntry, DiaryWeeklyEntry } from '../../api/diary
 import { ApiError } from '../../config/api';
 
 const DAY_LABELS = [
-  { short: 'MON', full: 'Monday' },
-  { short: 'TUE', full: 'Tuesday' },
-  { short: 'WED', full: 'Wednesday' },
-  { short: 'THU', full: 'Thursday' },
-  { short: 'FRI', full: 'Friday' },
-  { short: 'WK', full: 'Weekly' },
+  { short: 'Mon', full: 'Monday' },
+  { short: 'Tue', full: 'Tuesday' },
+  { short: 'Wed', full: 'Wednesday' },
+  { short: 'Thu', full: 'Thursday' },
+  { short: 'Fri', full: 'Friday' },
+  { short: 'Week', full: 'Weekly' },
 ];
 
 const fmtDate = (s?: string | null, opts?: Intl.DateTimeFormatOptions): string => {
@@ -56,6 +66,7 @@ export const DiaryScreen: React.FC = () => {
   const [openId, setOpenId] = useState<number | null>(null);
 
   const studentId = selectedChild?.studentId ?? null;
+  const childName = selectedChild?.firstName || selectedChild?.fullName || 'your child';
 
   const load = useCallback(async (isRefresh = false) => {
     if (!accessToken || studentId == null) { setLoading(false); return; }
@@ -76,7 +87,7 @@ export const DiaryScreen: React.FC = () => {
   if (!selectedChild) {
     return (
       <View style={styles.root}>
-        <ParentHeader title="Class Diary" showBack rightIcon="none" />
+        <GradientAppBar title="Class Diary" showBack />
         <View style={styles.center}>
           <View style={styles.emptyIcon}><Ionicons name="person-add-outline" size={26} color={colors.textSecondary} /></View>
           <Text style={styles.emptyTitle}>No child selected</Text>
@@ -86,14 +97,19 @@ export const DiaryScreen: React.FC = () => {
     );
   }
 
-  return (
-    <View style={styles.root}>
-      <ParentHeader
-        title="Class Diary"
-        showBack
-        rightIcon="none"
-      />
-      {openSession ? (
+  if (openSession) {
+    return (
+      <View style={styles.root}>
+        <GradientAppBar
+          title={openSession.weekLabel || 'Diary week'}
+          subtitle={[openSession.classLabel, openSession.teacherName].filter(Boolean).join(' · ')}
+          right={
+            <TouchableOpacity style={styles.appBarAction} activeOpacity={0.7} onPress={() => setOpenId(null)}>
+              <Ionicons name="chevron-back" size={14} color="#FFF" />
+              <Text style={styles.appBarActionText}>All weeks</Text>
+            </TouchableOpacity>
+          }
+        />
         <SessionDetail
           key={openSession.id}
           styles={styles}
@@ -102,24 +118,28 @@ export const DiaryScreen: React.FC = () => {
           studentId={selectedChild.studentId}
           parentName={(parent as any)?.name || (parent as any)?.fullName || ''}
           accessToken={accessToken!}
-          onBack={() => setOpenId(null)}
           onSigned={() => load(true)}
         />
-      ) : (
-        <SessionList
-          styles={styles}
-          colors={colors}
-          sessions={sessions}
-          loading={loading}
-          refreshing={refreshing}
-          error={error}
-          query={query}
-          setQuery={setQuery}
-          childName={selectedChild.firstName || selectedChild.fullName || 'your child'}
-          onOpen={setOpenId}
-          onRefresh={() => load(true)}
-        />
-      )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.root}>
+      <GradientAppBar title="Class Diary" subtitle={`${childName}’s week-by-week diary`} showBack />
+      <SessionList
+        styles={styles}
+        colors={colors}
+        sessions={sessions}
+        loading={loading}
+        refreshing={refreshing}
+        error={error}
+        query={query}
+        setQuery={setQuery}
+        childName={childName}
+        onOpen={setOpenId}
+        onRefresh={() => load(true)}
+      />
     </View>
   );
 };
@@ -155,20 +175,20 @@ const SessionList: React.FC<{
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
     >
-      {error && <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View>}
-
-      {/* Stats strip */}
-      <View style={styles.statsRow}>
-        <Stat styles={styles} value={String(sessions.length)} label="Weeks" sub="published" color={colors.primary} />
+      {/* Floating stats — rides over the app bar edge */}
+      <View style={styles.statsCard}>
+        <Stat styles={styles} value={String(sessions.length)} label="Weeks" sub="published" color={colors.text} />
         <View style={styles.statDivider} />
-        <Stat styles={styles} value={String(totalUnsigned)} label="To sign" sub="your responses" color={totalUnsigned > 0 ? colors.warning : colors.success} />
+        <Stat styles={styles} value={String(totalUnsigned)} label="To sign" sub="your responses" color={totalUnsigned > 0 ? colors.primary : colors.success} />
         <View style={styles.statDivider} />
         <Stat styles={styles} value={String(totalComments)} label="Comments" sub="from teachers" color={colors.text} />
       </View>
 
+      {error && <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View>}
+
       {/* Search */}
       <View style={styles.searchBox}>
-        <Feather name="search" size={16} color={colors.textTertiary} />
+        <Feather name="search" size={15} color={colors.textTertiary} />
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -178,7 +198,7 @@ const SessionList: React.FC<{
         />
         {query.length > 0 && (
           <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
-            <Ionicons name="close-circle" size={17} color={colors.textTertiary} />
+            <Ionicons name="close-circle" size={16} color={colors.textTertiary} />
           </TouchableOpacity>
         )}
       </View>
@@ -189,7 +209,7 @@ const SessionList: React.FC<{
           <MaterialCommunityIcons name="notebook-outline" size={30} color={colors.textTertiary} />
           <Text style={styles.emptyTitle}>{query ? 'No matches' : 'No diary weeks yet'}</Text>
           <Text style={styles.emptyText}>
-            {query ? `Nothing matches "${query}".` : `Teachers haven't published any diary weeks for ${childName} yet.`}
+            {query ? `Nothing matches “${query}”.` : `Teachers haven’t published any diary weeks for ${childName} yet.`}
           </Text>
         </View>
       ) : (
@@ -206,8 +226,7 @@ const SessionList: React.FC<{
 
           return (
             <TouchableOpacity key={s.id} style={styles.weekCard} activeOpacity={0.85} onPress={() => onOpen(s.id)}>
-              <LinearGradient colors={[colors.primary, colors.purple]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.weekBadge}>
-                <MaterialCommunityIcons name="notebook" size={14} color="#FFF" style={{ opacity: 0.85 }} />
+              <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.weekBadge}>
                 <Text style={styles.weekBadgeKicker}>WEEK</Text>
                 <Text style={styles.weekBadgeNo}>{weekNo}</Text>
               </LinearGradient>
@@ -217,9 +236,9 @@ const SessionList: React.FC<{
                   <Text style={styles.weekTitle} numberOfLines={1}>{s.weekLabel}</Text>
                   {totalSignable > 0 && (
                     pending > 0 ? (
-                      <View style={[styles.miniChip, { backgroundColor: colors.warning + '1A' }]}>
-                        <Feather name="edit-2" size={10} color={colors.warning} />
-                        <Text style={[styles.miniChipText, { color: colors.warning }]}>{pending} to sign</Text>
+                      <View style={[styles.miniChip, { backgroundColor: colors.primarySoft }]}>
+                        <Feather name="edit-2" size={10} color={colors.primary} />
+                        <Text style={[styles.miniChipText, { color: colors.primary }]}>{pending} to sign</Text>
                       </View>
                     ) : (
                       <View style={[styles.miniChip, { backgroundColor: colors.successSoft }]}>
@@ -230,9 +249,9 @@ const SessionList: React.FC<{
                   )}
                 </View>
                 <Text style={styles.weekMeta} numberOfLines={1}>
-                  {s.classLabel}{s.weekStart ? `  •  ${fmtDate(s.weekStart, { day: 'numeric', month: 'short' })}` : ''}{s.teacherName ? `  •  ${s.teacherName}` : ''}
+                  {s.classLabel}{s.weekStart ? `  ·  ${fmtDate(s.weekStart, { day: 'numeric', month: 'short' })}` : ''}{s.teacherName ? `  ·  ${s.teacherName}` : ''}
                 </Text>
-                {!!s.notes && <Text style={styles.weekNotes} numberOfLines={1}>"{s.notes}"</Text>}
+                {!!s.notes && <Text style={styles.weekNotes} numberOfLines={1}>“{s.notes}”</Text>}
                 {totalSignable > 0 && (
                   <View style={styles.progressRow}>
                     <View style={styles.progressTrack}>
@@ -250,13 +269,13 @@ const SessionList: React.FC<{
 
       {/* Helper */}
       <View style={styles.helperCard}>
-        <View style={[styles.helperIcon, { backgroundColor: colors.purple + '1A' }]}>
-          <Ionicons name="sparkles" size={16} color={colors.purple} />
+        <View style={[styles.helperIcon, { backgroundColor: colors.primarySoft }]}>
+          <Ionicons name="sparkles" size={16} color={colors.primary} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.helperTitle}>How the Class Diary works</Text>
           <Text style={styles.helperText}>
-            Each week your child's teacher publishes a diary covering Mon–Fri lessons plus a weekly summary.
+            Each week your child’s teacher publishes a diary covering Mon–Fri lessons plus a weekly summary.
             Open any week to see the lesson plan and daily comments — then sign right from the app.
           </Text>
         </View>
@@ -269,8 +288,8 @@ const SessionList: React.FC<{
 // ── Detail ───────────────────────────────────────────────────────────────────
 const SessionDetail: React.FC<{
   styles: any; colors: ColorPalette; session: DiarySession; studentId: number;
-  parentName: string; accessToken: string; onBack: () => void; onSigned: () => void;
-}> = ({ styles, colors, session, studentId, parentName, accessToken, onBack, onSigned }) => {
+  parentName: string; accessToken: string; onSigned: () => void;
+}> = ({ styles, colors, session, studentId, parentName, accessToken, onSigned }) => {
   const [activeDay, setActiveDay] = useState(0);   // 0..4 days, 5 = weekly
   const [overrides, setOverrides] = useState<Record<string, Override>>({});
   const [comment, setComment] = useState('');
@@ -324,25 +343,8 @@ const SessionDetail: React.FC<{
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <TouchableOpacity style={styles.backChip} onPress={onBack} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={15} color={colors.primary} />
-          <Text style={styles.backChipText}>All weeks</Text>
-        </TouchableOpacity>
-
-        {/* Teacher header */}
-        <View style={styles.teacherCard}>
-          <View style={[styles.teacherAvatar, { backgroundColor: colors.primarySofter }]}>
-            <Text style={styles.teacherInitials}>{session.teacherInitials || '?'}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.teacherName}>{session.teacherName || 'Class teacher'}</Text>
-            <Text style={styles.teacherSub}>{session.classLabel} · {session.weekLabel}</Text>
-            {!!session.notes && <Text style={styles.teacherNotes}>"{session.notes}"</Text>}
-          </View>
-        </View>
-
-        {/* Day tabs */}
-        <View style={styles.dayTabs}>
+        {/* Day strip — calendar-style, floats over the app bar edge */}
+        <View style={styles.dayStrip}>
           {DAY_LABELS.map((d, idx) => {
             const isActive = activeDay === idx;
             const e: any = idx < 5
@@ -351,15 +353,41 @@ const SessionDetail: React.FC<{
             const hasContent = !!e?.teacherComment;
             const signed = !!e?.parentSignedAt;
             const dd = idx < 5 ? dayDate(session.weekStart, idx) : null;
+            const inner = (
+              <>
+                <Text style={[styles.dayShort, isActive && { color: 'rgba(255,255,255,0.9)' }]}>{d.short}</Text>
+                <Text style={[styles.dayNum, isActive && { color: '#FFF' }]}>
+                  {dd ? dd.getDate() : '∑'}
+                </Text>
+                <View style={[
+                  styles.dayDot,
+                  hasContent
+                    ? { backgroundColor: isActive ? '#FFF' : signed ? colors.success : colors.primary }
+                    : { backgroundColor: 'transparent' },
+                ]} />
+              </>
+            );
             return (
-              <TouchableOpacity key={idx} style={[styles.dayTab, isActive && { backgroundColor: colors.primarySofter }]} activeOpacity={0.7} onPress={() => { setActiveDay(idx); setComment(''); setSignErr(null); }}>
-                <Text style={[styles.dayTabShort, { color: idx === 5 ? colors.purple : colors.textSecondary }, isActive && { color: colors.primary }]}>{d.short}</Text>
-                {dd ? <Text style={[styles.dayTabDate, isActive && { color: colors.text }]}>{dd.getDate()}</Text> : <Text style={[styles.dayTabDate, isActive && { color: colors.text }]}>·</Text>}
-                {hasContent && <View style={[styles.dayDot, { backgroundColor: signed ? colors.success : colors.warning }]} />}
+              <TouchableOpacity key={idx} style={{ flex: 1 }} activeOpacity={0.75}
+                onPress={() => { setActiveDay(idx); setComment(''); setSignErr(null); }}>
+                {isActive ? (
+                  <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.dayPill}>
+                    {inner}
+                  </LinearGradient>
+                ) : (
+                  <View style={styles.dayPill}>{inner}</View>
+                )}
               </TouchableOpacity>
             );
           })}
         </View>
+
+        {!!session.notes && (
+          <View style={styles.notesRow}>
+            <Ionicons name="information-circle-outline" size={14} color={colors.primary} />
+            <Text style={styles.notesText} numberOfLines={2}>“{session.notes}”</Text>
+          </View>
+        )}
 
         {/* Learning plan (days only) */}
         {!isWeekly && (
@@ -371,7 +399,7 @@ const SessionDetail: React.FC<{
               <View style={styles.planCard}>
                 {planForDay.map((r, i) => (
                   <View key={r.rowIndex ?? i} style={[styles.planRow, i > 0 && styles.divider]}>
-                    <Text style={styles.planNum}>{i + 1}</Text>
+                    <View style={styles.planNumWrap}><Text style={styles.planNum}>{i + 1}</Text></View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.planSubject}>{r.subject || '—'}</Text>
                       <Text style={styles.planMeta}>
@@ -386,87 +414,92 @@ const SessionDetail: React.FC<{
           </>
         )}
 
-        {/* Teacher comment */}
-        <Text style={styles.sectionTitle}>{isWeekly ? 'Weekly comment' : `${DAY_LABELS[activeDay].full} comment`} from teacher</Text>
+        {/* Teacher comment — chat-bubble with the teacher's avatar */}
+        <Text style={styles.sectionTitle}>{isWeekly ? 'Weekly comment' : `${DAY_LABELS[activeDay].full}’s comment`}</Text>
         {hasTeacher ? (
-          <View style={[styles.commentCard, { borderColor: colors.primary + '33', backgroundColor: colors.primarySofter }]}>
-            <Text style={styles.commentText}>{active.teacherComment}</Text>
-            {!!active.teacherSign && (
-              <View style={[styles.signLine, { borderTopColor: colors.primary + '22' }]}>
-                <MaterialCommunityIcons name="draw-pen" size={14} color={colors.primary} />
-                <Text style={styles.signBy}>Signed by </Text>
-                <Text style={styles.signName}>{active.teacherSign}</Text>
-              </View>
-            )}
+          <View style={styles.bubbleRow}>
+            <View style={styles.teacherAvatar}>
+              <Text style={styles.teacherInitials}>{session.teacherInitials || '?'}</Text>
+            </View>
+            <View style={styles.teacherBubble}>
+              <Text style={styles.bubbleAuthor}>{session.teacherName || 'Class teacher'}</Text>
+              <Text style={styles.bubbleText}>{active.teacherComment}</Text>
+              {!!active.teacherSign && (
+                <View style={styles.bubbleSignRow}>
+                  <MaterialCommunityIcons name="draw-pen" size={12} color={colors.textTertiary} />
+                  <Text style={styles.bubbleSignText}>Signed · {active.teacherSign}</Text>
+                </View>
+              )}
+            </View>
           </View>
         ) : (
-          <View style={styles.subtleBox}><Text style={styles.subtleText}>Teacher hasn't commented for {isWeekly ? 'this week' : 'this day'} yet.</Text></View>
+          <View style={styles.subtleBox}>
+            <Text style={styles.subtleText}>Teacher hasn’t commented for {isWeekly ? 'this week' : 'this day'} yet.</Text>
+          </View>
         )}
 
         {/* Parent response */}
         {hasTeacher && (
-          <>
-            <Text style={styles.sectionTitle}>Your response</Text>
-            {parentSigned ? (
-              <View style={[styles.commentCard, { borderColor: colors.success + '33', backgroundColor: colors.successSoft }]}>
-                {!!active.parentComment && <Text style={styles.commentText}>{active.parentComment}</Text>}
-                <View style={[styles.signLine, { borderTopColor: colors.success + '33', marginTop: active.parentComment ? 12 : 0, paddingTop: active.parentComment ? 12 : 0 }]}>
-                  <Ionicons name="checkmark-circle" size={14} color={colors.success} />
-                  <Text style={styles.signBy}>Signed by </Text>
-                  <Text style={styles.signName}>{active.parentSign}</Text>
-                  <Text style={styles.signDate}>{active.parentSignedAt ? `  ·  ${fmtDate(active.parentSignedAt, { day: 'numeric', month: 'short' })}` : ''}</Text>
+          parentSigned ? (
+            <View style={[styles.bubbleRow, { justifyContent: 'flex-end' }]}>
+              <View style={styles.parentBubble}>
+                {!!active.parentComment && <Text style={[styles.bubbleText, { color: '#FFF' }]}>{active.parentComment}</Text>}
+                <View style={[styles.bubbleSignRow, !active.parentComment && { marginTop: 0 }]}>
+                  <Ionicons name="checkmark-done" size={13} color="rgba(255,255,255,0.85)" />
+                  <Text style={[styles.bubbleSignText, { color: 'rgba(255,255,255,0.85)' }]}>
+                    Signed · {active.parentSign}{active.parentSignedAt ? ` · ${fmtDate(active.parentSignedAt, { day: 'numeric', month: 'short' })}` : ''}
+                  </Text>
                 </View>
               </View>
-            ) : (
-              <View style={styles.signForm}>
+            </View>
+          ) : (
+            <View style={styles.signForm}>
+              <Text style={styles.signFormTitle}>Your response</Text>
+              <TextInput
+                value={comment}
+                onChangeText={setComment}
+                placeholder={isWeekly ? 'Add a note about the week (optional)…' : 'Add a note for the teacher (optional)…'}
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                maxLength={2000}
+                style={styles.textArea}
+              />
+              <View style={styles.signInputRow}>
+                <MaterialCommunityIcons name="draw-pen" size={16} color={colors.textTertiary} />
                 <TextInput
-                  value={comment}
-                  onChangeText={setComment}
-                  placeholder={isWeekly ? 'Add a note about the week (optional)…' : 'Add a note for the teacher (optional)…'}
+                  value={signName}
+                  onChangeText={setSignName}
+                  placeholder="Your name (signature)"
                   placeholderTextColor={colors.textTertiary}
-                  multiline
-                  maxLength={2000}
-                  style={styles.textArea}
+                  maxLength={120}
+                  style={styles.signInput}
                 />
-                <View style={styles.signInputRow}>
-                  <MaterialCommunityIcons name="draw-pen" size={16} color={colors.textTertiary} />
-                  <TextInput
-                    value={signName}
-                    onChangeText={setSignName}
-                    placeholder="Your name (signature)"
-                    placeholderTextColor={colors.textTertiary}
-                    maxLength={120}
-                    style={styles.signInput}
-                  />
-                </View>
-                {signErr && <Text style={styles.signErrText}>{signErr}</Text>}
-                <TouchableOpacity
-                  style={[styles.signBtn, (!signName.trim() || busy) && { opacity: 0.5 }]}
-                  activeOpacity={0.85}
-                  disabled={!signName.trim() || busy}
-                  onPress={submit}
-                >
+              </View>
+              {signErr && <Text style={styles.signErrText}>{signErr}</Text>}
+              <TouchableOpacity activeOpacity={0.85} disabled={!signName.trim() || busy} onPress={submit}>
+                <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={[styles.signBtn, (!signName.trim() || busy) && { opacity: 0.5 }]}>
                   {busy ? <ActivityIndicator size="small" color="#FFF" /> : (
                     <>
                       <Ionicons name="checkmark" size={17} color="#FFF" />
                       <Text style={styles.signBtnText}>{isWeekly ? 'Sign the week' : 'Save & sign'}</Text>
                     </>
                   )}
-                </TouchableOpacity>
-                <Text style={styles.signHint}>Your signature and note are saved to the class diary and visible to the teacher.</Text>
-              </View>
-            )}
-          </>
+                </LinearGradient>
+              </TouchableOpacity>
+              <Text style={styles.signHint}>Your signature and note are saved to the class diary and visible to the teacher.</Text>
+            </View>
+          )
         )}
 
         {/* Day nav */}
         <View style={styles.navRow}>
-          <TouchableOpacity disabled={activeDay === 0} style={styles.navBtn} onPress={() => setActiveDay(Math.max(0, activeDay - 1))}>
+          <TouchableOpacity disabled={activeDay === 0} style={styles.navBtn} onPress={() => { setActiveDay(Math.max(0, activeDay - 1)); setComment(''); setSignErr(null); }}>
             <Ionicons name="chevron-back" size={16} color={activeDay === 0 ? colors.textTertiary : colors.primary} />
             <Text style={[styles.navText, activeDay === 0 && { color: colors.textTertiary }]}>Prev</Text>
           </TouchableOpacity>
           <Text style={styles.navCenter}>{isWeekly ? 'Weekly summary' : `Day ${activeDay + 1} of 5`}</Text>
-          <TouchableOpacity disabled={activeDay === 5} style={styles.navBtn} onPress={() => setActiveDay(Math.min(5, activeDay + 1))}>
+          <TouchableOpacity disabled={activeDay === 5} style={styles.navBtn} onPress={() => { setActiveDay(Math.min(5, activeDay + 1)); setComment(''); setSignErr(null); }}>
             <Text style={[styles.navText, activeDay === 5 && { color: colors.textTertiary }]}>Next</Text>
             <Ionicons name="chevron-forward" size={16} color={activeDay === 5 ? colors.textTertiary : colors.primary} />
           </TouchableOpacity>
@@ -488,26 +521,48 @@ const Stat: React.FC<{ styles: any; value: string; label: string; sub: string; c
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
-    scroll: { paddingHorizontal: 16, paddingTop: 8 },
+    scroll: { paddingHorizontal: 16 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
+
+    appBarAction: {
+      flexDirection: 'row', alignItems: 'center', gap: 2,
+      backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+      borderRadius: 999, paddingLeft: 8, paddingRight: 12, paddingVertical: 7,
+    },
+    appBarActionText: { color: '#FFF', fontSize: 12, fontFamily: fonts.bold },
 
     errorBox: { backgroundColor: c.dangerSoft, borderRadius: 12, padding: 12, marginBottom: 14 },
     errorText: { fontSize: 12.5, fontFamily: fonts.medium, color: c.danger },
 
-    statsRow: { flexDirection: 'row', backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, paddingVertical: 14, marginBottom: 14 },
+    // Floating stats card over the app bar edge
+    statsCard: {
+      flexDirection: 'row', backgroundColor: c.card, borderRadius: 18,
+      borderWidth: 1, borderColor: c.border, paddingVertical: 14,
+      marginTop: -20, marginBottom: 14,
+      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.12, shadowRadius: 14, elevation: 5,
+    },
     stat: { flex: 1, alignItems: 'center' },
-    statValue: { fontSize: 22, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
+    statValue: { fontSize: 21, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
     statLabel: { fontSize: 11.5, fontFamily: fonts.bold, color: c.textSecondary, marginTop: 2 },
     statSub: { fontSize: 10, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 1 },
     statDivider: { width: 1, backgroundColor: c.border, marginVertical: 4 },
 
-    searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.card, borderRadius: 12, borderWidth: 1, borderColor: c.border, paddingHorizontal: 12, height: 44, marginBottom: 16 },
-    searchInput: { flex: 1, fontSize: 14, fontFamily: fonts.regular, color: c.text, paddingVertical: 0 },
+    searchBox: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      backgroundColor: c.card, borderRadius: 13, borderWidth: 1, borderColor: c.border,
+      paddingHorizontal: 12, height: 42, marginBottom: 14,
+    },
+    searchInput: { flex: 1, fontSize: 13.5, fontFamily: fonts.regular, color: c.text, paddingVertical: 0 },
 
-    weekCard: { flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 13, marginBottom: 10 },
-    weekBadge: { width: 56, height: 56, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-    weekBadgeKicker: { fontSize: 8, fontFamily: fonts.bold, color: '#FFF', letterSpacing: 1, opacity: 0.9, marginTop: 1 },
-    weekBadgeNo: { fontSize: 18, fontFamily: fonts.extrabold, color: '#FFF', lineHeight: 20 },
+    weekCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 13,
+      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+      padding: 13, marginBottom: 10,
+    },
+    weekBadge: { width: 54, height: 54, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+    weekBadgeKicker: { fontSize: 8, fontFamily: fonts.bold, color: 'rgba(255,255,255,0.85)', letterSpacing: 1 },
+    weekBadgeNo: { fontSize: 19, fontFamily: fonts.extrabold, color: '#FFF', lineHeight: 22 },
     weekTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
     weekTitle: { fontSize: 14.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2, flexShrink: 1 },
     miniChip: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
@@ -524,32 +579,36 @@ function makeStyles(c: ColorPalette) {
     emptyTitle: { fontSize: 15.5, fontFamily: fonts.bold, color: c.text, marginTop: 12 },
     emptyText: { fontSize: 13, fontFamily: fonts.regular, color: c.textSecondary, textAlign: 'center', marginTop: 5, lineHeight: 19 },
 
-    helperCard: { flexDirection: 'row', gap: 12, backgroundColor: c.purple + '0D', borderRadius: 16, borderWidth: 1, borderColor: c.purple + '26', padding: 14, marginTop: 6 },
+    helperCard: {
+      flexDirection: 'row', gap: 12, backgroundColor: c.primarySofter,
+      borderRadius: 16, borderWidth: 1, borderColor: c.primary + '26', padding: 14, marginTop: 6,
+    },
     helperIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     helperTitle: { fontSize: 13.5, fontFamily: fonts.bold, color: c.text },
     helperText: { fontSize: 12, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 4, lineHeight: 18 },
 
-    backChip: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginBottom: 14 },
-    backChipText: { fontSize: 13, fontFamily: fonts.bold, color: c.primary },
+    // Day strip — floats over the app bar edge
+    dayStrip: {
+      flexDirection: 'row', gap: 4,
+      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+      padding: 5, marginTop: -20, marginBottom: 14,
+      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.12, shadowRadius: 14, elevation: 5,
+    },
+    dayPill: { alignItems: 'center', paddingVertical: 8, borderRadius: 12 },
+    dayShort: { fontSize: 10, fontFamily: fonts.bold, color: c.textTertiary, letterSpacing: 0.3 },
+    dayNum: { fontSize: 14.5, fontFamily: fonts.extrabold, color: c.textSecondary, marginTop: 2 },
+    dayDot: { width: 5, height: 5, borderRadius: 3, marginTop: 4 },
 
-    teacherCard: { flexDirection: 'row', gap: 12, backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 14, marginBottom: 16 },
-    teacherAvatar: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
-    teacherInitials: { fontSize: 15, fontFamily: fonts.extrabold, color: c.primary },
-    teacherName: { fontSize: 14.5, fontFamily: fonts.bold, color: c.text },
-    teacherSub: { fontSize: 12, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 2 },
-    teacherNotes: { fontSize: 12, fontFamily: fonts.regular, fontStyle: 'italic', color: c.textSecondary, marginTop: 6 },
-
-    dayTabs: { flexDirection: 'row', backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, padding: 4, marginBottom: 18 },
-    dayTab: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 10, position: 'relative' },
-    dayTabShort: { fontSize: 10.5, fontFamily: fonts.bold, letterSpacing: 0.5 },
-    dayTabDate: { fontSize: 13, fontFamily: fonts.bold, color: c.textTertiary, marginTop: 3 },
-    dayDot: { position: 'absolute', top: 5, right: '30%', width: 6, height: 6, borderRadius: 3 },
+    notesRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 14, paddingHorizontal: 2 },
+    notesText: { flex: 1, fontSize: 12, fontFamily: fonts.regular, fontStyle: 'italic', color: c.textSecondary, lineHeight: 17 },
 
     sectionTitle: { fontSize: 14.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3, marginBottom: 10 },
 
     planCard: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, marginBottom: 20 },
     planRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11 },
-    planNum: { width: 22, height: 22, borderRadius: 11, backgroundColor: c.backgroundAlt, textAlign: 'center', lineHeight: 22, fontSize: 11, fontFamily: fonts.bold, color: c.textSecondary },
+    planNumWrap: { width: 24, height: 24, borderRadius: 12, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' },
+    planNum: { fontSize: 11, fontFamily: fonts.extrabold, color: c.primary },
     planSubject: { fontSize: 13.5, fontFamily: fonts.bold, color: c.text },
     planMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 2 },
     divider: { borderTopWidth: 1, borderTopColor: c.border },
@@ -557,19 +616,33 @@ function makeStyles(c: ColorPalette) {
     subtleBox: { backgroundColor: c.backgroundAlt, borderRadius: 12, padding: 16, marginBottom: 20, alignItems: 'center' },
     subtleText: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, textAlign: 'center' },
 
-    commentCard: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 20 },
-    commentText: { fontSize: 13.5, fontFamily: fonts.regular, color: c.text, lineHeight: 20 },
-    signLine: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 12, paddingTop: 12, borderTopWidth: 1 },
-    signBy: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textSecondary },
-    signName: { fontSize: 11.5, fontFamily: fonts.bold, color: c.text },
-    signDate: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary },
+    // Chat bubbles
+    bubbleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginBottom: 20 },
+    teacherAvatar: {
+      width: 34, height: 34, borderRadius: 17, backgroundColor: c.primarySoft,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    teacherInitials: { fontSize: 12, fontFamily: fonts.extrabold, color: c.primary },
+    teacherBubble: {
+      flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      borderRadius: 18, borderBottomLeftRadius: 6, padding: 13,
+    },
+    parentBubble: {
+      maxWidth: '85%', backgroundColor: c.primary,
+      borderRadius: 18, borderBottomRightRadius: 6, padding: 13,
+    },
+    bubbleAuthor: { fontSize: 11, fontFamily: fonts.bold, color: c.primary, marginBottom: 4 },
+    bubbleText: { fontSize: 13.5, fontFamily: fonts.regular, color: c.text, lineHeight: 20 },
+    bubbleSignRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 9 },
+    bubbleSignText: { fontSize: 10.5, fontFamily: fonts.semibold, color: c.textTertiary },
 
-    signForm: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, padding: 14, marginBottom: 20 },
-    textArea: { minHeight: 74, borderRadius: 10, borderWidth: 1, borderColor: c.border, backgroundColor: c.background, padding: 12, fontSize: 13.5, fontFamily: fonts.regular, color: c.text, textAlignVertical: 'top' },
-    signInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, borderWidth: 1, borderColor: c.border, backgroundColor: c.background, paddingHorizontal: 12, height: 46, marginTop: 10 },
+    signForm: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 14, marginBottom: 20 },
+    signFormTitle: { fontSize: 13.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.2, marginBottom: 10 },
+    textArea: { minHeight: 74, borderRadius: 12, borderWidth: 1, borderColor: c.border, backgroundColor: c.background, padding: 12, fontSize: 13.5, fontFamily: fonts.regular, color: c.text, textAlignVertical: 'top' },
+    signInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, borderWidth: 1, borderColor: c.border, backgroundColor: c.background, paddingHorizontal: 12, height: 46, marginTop: 10 },
     signInput: { flex: 1, fontSize: 13.5, fontFamily: fonts.medium, color: c.text, paddingVertical: 0 },
     signErrText: { fontSize: 12, fontFamily: fonts.medium, color: c.danger, marginTop: 8 },
-    signBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, backgroundColor: c.primary, borderRadius: 12, paddingVertical: 13, marginTop: 12 },
+    signBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 12, paddingVertical: 13, marginTop: 12 },
     signBtnText: { color: '#FFF', fontSize: 14, fontFamily: fonts.bold },
     signHint: { fontSize: 11, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 10, lineHeight: 16 },
 
