@@ -93,28 +93,28 @@ export const LoginScreen: React.FC = () => {
           {candidates ? (
             <>
               {/* Step 2 — choose the account behind these details */}
-              <View style={styles.stepRow}>
-                <TouchableOpacity style={styles.stepBack} hitSlop={10} activeOpacity={0.7}
-                  onPress={() => { setCandidates(null); setError(''); }}>
-                  <Ionicons name="arrow-back" size={16} color={colors.textSecondary} />
-                </TouchableOpacity>
-                <View style={styles.stepDots}>
-                  <View style={[styles.stepDot, { backgroundColor: colors.border }]} />
-                  <View style={[styles.stepDot, styles.stepDotWide, { backgroundColor: colors.primary }]} />
-                </View>
+              <View style={styles.stepDots}>
+                <View style={[styles.stepDot, { backgroundColor: colors.border }]} />
+                <View style={[styles.stepDot, styles.stepDotWide, { backgroundColor: colors.primary }]} />
               </View>
 
-              <Text style={styles.title}>Choose your account</Text>
-              <Text style={styles.subtitle}>
-                <Text style={styles.identChip}>{identifier.trim()}</Text> is linked to {candidates.length} accounts — pick the one to open.
+              <Text style={[styles.title, styles.centered]}>Choose your account</Text>
+              <View style={styles.identRow}>
+                <View style={styles.identPill}>
+                  <Ionicons name="person-circle-outline" size={14} color={colors.textSecondary} />
+                  <Text style={styles.identPillText} numberOfLines={1}>{identifier.trim()}</Text>
+                </View>
+              </View>
+              <Text style={[styles.subtitle, styles.centered]}>
+                These details are linked to {candidates.length} accounts — pick the one to open.
               </Text>
 
-              {candidates.map((c) => {
+              {candidates.map((c, idx) => {
                 const m = typeMeta(c.userType);
                 const isBusy = choosing === String(c.accountId);
                 return (
                   <TouchableOpacity key={`${c.userType}-${c.accountId}`}
-                    style={[styles.accountCard, isBusy && { borderColor: m.tint }]}
+                    style={[styles.accountCard, idx === 0 && { marginTop: 6 }, isBusy && { borderColor: m.tint }]}
                     activeOpacity={0.85} disabled={choosing != null}
                     onPress={() => attempt(c.userType, c.accountId)}>
                     <LinearGradient colors={m.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.accountBadge}>
@@ -222,7 +222,12 @@ export const LoginScreen: React.FC = () => {
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
-    scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 26, paddingVertical: 48 },
+    scroll: {
+      flexGrow: 1, justifyContent: 'center',
+      paddingHorizontal: 26,
+      paddingTop: Platform.OS === 'ios' ? 96 : 84,
+      paddingBottom: 48,
+    },
 
     brand: { alignItems: 'center', marginBottom: 30 },
     logoSquircle: {
@@ -257,25 +262,26 @@ function makeStyles(c: ColorPalette) {
     link: { textAlign: 'center', fontSize: 12.5, fontFamily: fonts.bold, color: c.primary, marginTop: 16 },
 
     // Step 2 — account picker
-    stepRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-    stepBack: {
-      width: 34, height: 34, borderRadius: 17,
-      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    stepDots: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    centered: { textAlign: 'center' },
+    stepDots: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginBottom: 20 },
     stepDot: { width: 7, height: 7, borderRadius: 4 },
-    stepDotWide: { width: 20 },
-    identChip: { fontFamily: fonts.bold, color: c.text },
+    stepDotWide: { width: 22 },
+    identRow: { alignItems: 'center', marginTop: 10, marginBottom: 8 },
+    identPill: {
+      flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '90%',
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      borderRadius: 999, paddingHorizontal: 13, paddingVertical: 7,
+    },
+    identPillText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.text },
     accountCard: {
-      flexDirection: 'row', alignItems: 'center', gap: 13,
-      backgroundColor: c.card, borderWidth: 1.5, borderColor: c.border, borderRadius: 18,
-      padding: 14, marginBottom: 11,
+      flexDirection: 'row', alignItems: 'center', gap: 14,
+      backgroundColor: c.card, borderWidth: 1.5, borderColor: c.border, borderRadius: 20,
+      paddingHorizontal: 15, paddingVertical: 17, marginBottom: 12,
       shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 },
       shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
     },
     accountBadge: {
-      width: 46, height: 46, borderRadius: 15,
+      width: 50, height: 50, borderRadius: 16,
       alignItems: 'center', justifyContent: 'center',
       shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 },
       shadowOpacity: 0.18, shadowRadius: 6, elevation: 3,
