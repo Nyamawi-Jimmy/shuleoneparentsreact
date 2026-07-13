@@ -76,8 +76,8 @@ export const DocumentsScreen: React.FC = () => {
           <View style={styles.card}>
             {statements.map((s, i) => (
               <View key={s.id} style={[styles.docRow, i > 0 && styles.divider]}>
-                <View style={[styles.docIcon, { backgroundColor: colors.primarySoft }]}>
-                  <Ionicons name="document-text-outline" size={19} color={colors.primary} />
+                <View style={[styles.docIcon, { backgroundColor: colors.infoSoft }]}>
+                  <Ionicons name="document-text-outline" size={19} color={colors.info} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.docTitle}>{s.title}</Text>
@@ -156,7 +156,7 @@ function makeStyles(c: ColorPalette) {
     docIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     docTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
     docDesc: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
-    dlBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderColor: c.primary + '55', backgroundColor: c.primarySofter, borderRadius: 11, paddingHorizontal: 11, paddingVertical: 7, minWidth: 92, justifyContent: 'center' },
+    dlBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: c.border, borderRadius: 11, paddingHorizontal: 11, paddingVertical: 7, minWidth: 92, justifyContent: 'center' },
     dlBtnText: { fontSize: 12, fontFamily: fonts.bold, color: c.primary },
 
     noteBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.backgroundAlt, borderRadius: 12, padding: 14, marginBottom: 24 },

@@ -86,7 +86,8 @@ export const LearningScreen: React.FC = () => {
     const push = (name?: string | null) => { const n = (name || '').trim(); if (n && !seen.has(n)) { seen.add(n); order.push(n); } };
     quests.forEach((q) => push(q.subject));
     subjects.forEach((s) => push(s.subject));
-    return order.map((name) => {
+    const ACCENTS = [colors.info, colors.success, colors.warning, colors.purple, colors.danger, colors.primary];
+    return order.map((name, i) => {
       const g = groups.get(name);
       const academic = subjects.find((s) => (s.subject || '').trim() === name);
       const hasQuest = !!g && g.total > 0;
@@ -98,7 +99,7 @@ export const LearningScreen: React.FC = () => {
           ? Math.round((g!.done / g!.total) * 100)
           : Math.max(0, Math.min(100, num(academic?.avgScorePct))),
         metric: hasQuest ? ('complete' as const) : ('score' as const),
-        accent: colors.primary,
+        accent: ACCENTS[i % ACCENTS.length],
         coding: isCoding(name),
       };
     });
@@ -239,10 +240,10 @@ export const LearningScreen: React.FC = () => {
                 <Text style={styles.snapshotHeadText}>Level {num(report!.level) || 1} · {num(report!.totalXp)} XP</Text>
               </View>
               <View style={styles.statGrid}>
-                <StatTile styles={styles} colors={colors} icon="ribbon" tint={colors.primary} value={report!.avgScorePct != null ? `${num(report!.avgScorePct)}%` : '—'} label="Average score" />
-                <StatTile styles={styles} colors={colors} icon="star" tint={colors.primary} value={`${num(report!.masteryCount)}`} label="Skills mastered" />
-                <StatTile styles={styles} colors={colors} icon="flame" tint={colors.primary} value={`${num(report!.currentStreak)}`} label="Day streak" />
-                <StatTile styles={styles} colors={colors} icon="time" tint={colors.primary} value={fmtMinutes(report!.minutesInvested)} label="Time invested" />
+                <StatTile styles={styles} colors={colors} icon="ribbon" tint={colors.purple} value={report!.avgScorePct != null ? `${num(report!.avgScorePct)}%` : '—'} label="Average score" />
+                <StatTile styles={styles} colors={colors} icon="star" tint={colors.warning} value={`${num(report!.masteryCount)}`} label="Skills mastered" />
+                <StatTile styles={styles} colors={colors} icon="flame" tint={colors.danger} value={`${num(report!.currentStreak)}`} label="Day streak" />
+                <StatTile styles={styles} colors={colors} icon="time" tint={colors.info} value={fmtMinutes(report!.minutesInvested)} label="Time invested" />
               </View>
             </>
           )}
@@ -290,8 +291,8 @@ export const LearningScreen: React.FC = () => {
                 {!hasCodingQuest && hasCoding && (
                   <TouchableOpacity style={styles.subjectCard} activeOpacity={0.7} onPress={() => router.push('/coding' as any)}>
                     <View style={styles.subjectCardHead}>
-                      <View style={[styles.subjectIcon, { backgroundColor: colors.primary + '1F' }]}>
-                        <MaterialCommunityIcons name="code-tags" size={18} color={colors.primary} />
+                      <View style={[styles.subjectIcon, { backgroundColor: '#10B9811F' }]}>
+                        <MaterialCommunityIcons name="code-tags" size={18} color="#059669" />
                       </View>
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.subjectName}>Coding & Robotics</Text>
@@ -354,8 +355,8 @@ export const LearningScreen: React.FC = () => {
           {/* Why this focus (Premium + weakest) */}
           {subscribed && weakest && (
             <View style={styles.whyCard}>
-              <View style={[styles.whyIcon, { backgroundColor: colors.primary + '1A' }]}>
-                <Ionicons name="bulb" size={17} color={colors.primary} />
+              <View style={[styles.whyIcon, { backgroundColor: colors.purple + '1A' }]}>
+                <Ionicons name="bulb" size={17} color={colors.purple} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.whyTitle}>Why this focus</Text>
@@ -408,7 +409,7 @@ const SubjectQuestsView: React.FC<{
         {rows.map((q) => {
           const pct = q.totalStages > 0 ? Math.round(((q.completedStages || 0) / q.totalStages) * 100) : 0;
           const done = q.status === 'COMPLETED';
-          const accent = colors.primary;
+          const accent = q.accentColor || colors.primary;
           return (
             <View key={String(q.id ?? q.key)} style={styles.questRowCard}>
               <View style={styles.questRowHead}>
@@ -483,7 +484,7 @@ const InsightsCard: React.FC<{ styles: any; colors: ColorPalette; insights: Chil
     if (insights?.content) {
       return (
         <View style={styles.insightCard}>
-          <View style={styles.insightHead}><MaterialCommunityIcons name="lightbulb-on-outline" size={17} color={colors.primary} /><Text style={styles.insightHeadText}>AI insights</Text></View>
+          <View style={styles.insightHead}><MaterialCommunityIcons name="lightbulb-on-outline" size={17} color={colors.purple} /><Text style={styles.insightHeadText}>AI insights</Text></View>
           <Text style={styles.insightSummary}>{insights.content}</Text>
         </View>
       );
@@ -496,7 +497,7 @@ const InsightsCard: React.FC<{ styles: any; colors: ColorPalette; insights: Chil
     <View style={styles.insightCard}>
       <View style={styles.insightHeadRow}>
         <View style={styles.insightHead}>
-          <View style={[styles.insightBadge, { backgroundColor: colors.primary + '1A' }]}><MaterialCommunityIcons name="lightbulb-on" size={15} color={colors.primary} /></View>
+          <View style={[styles.insightBadge, { backgroundColor: colors.purple + '1A' }]}><MaterialCommunityIcons name="lightbulb-on" size={15} color={colors.purple} /></View>
           <Text style={styles.insightHeadText}>AI insights</Text>
         </View>
         <TouchableOpacity onPress={onRefresh} disabled={refreshing} hitSlop={8}>
@@ -510,7 +511,7 @@ const InsightsCard: React.FC<{ styles: any; colors: ColorPalette; insights: Chil
           <Text style={styles.insightGroupLabel}>STRENGTHS</Text>
           {strengths.map((s, i) => (
             <View key={i} style={styles.insightItem}>
-              <Ionicons name="checkmark-circle" size={14} color={colors.primary} style={{ marginTop: 1 }} />
+              <Ionicons name="checkmark-circle" size={14} color={colors.success} style={{ marginTop: 1 }} />
               <Text style={styles.insightItemText}>{s.area ? <Text style={{ fontFamily: fonts.bold, color: colors.text }}>{s.area}. </Text> : null}{s.note}</Text>
             </View>
           ))}
@@ -521,7 +522,7 @@ const InsightsCard: React.FC<{ styles: any; colors: ColorPalette; insights: Chil
           <Text style={styles.insightGroupLabel}>FOCUS AREAS</Text>
           {focusAreas.map((f, i) => (
             <View key={i} style={styles.insightItem}>
-              <Ionicons name="locate" size={14} color={colors.primary} style={{ marginTop: 1 }} />
+              <Ionicons name="locate" size={14} color={colors.warning} style={{ marginTop: 1 }} />
               <Text style={styles.insightItemText}>{f.area ? <Text style={{ fontFamily: fonts.bold, color: colors.text }}>{f.area}. </Text> : null}{f.note}</Text>
             </View>
           ))}
@@ -529,7 +530,7 @@ const InsightsCard: React.FC<{ styles: any; colors: ColorPalette; insights: Chil
       )}
       {!!insights.nextStep && (
         <View style={styles.nextStep}>
-          <Ionicons name="bulb" size={14} color={colors.primary} style={{ marginTop: 1 }} />
+          <Ionicons name="bulb" size={14} color={colors.purple} style={{ marginTop: 1 }} />
           <Text style={styles.insightItemText}><Text style={{ fontFamily: fonts.bold, color: colors.text }}>Next step. </Text>{insights.nextStep}</Text>
         </View>
       )}
@@ -575,7 +576,7 @@ const CoachPanel: React.FC<{ styles: any; colors: ColorPalette; studentId: numbe
   return (
     <View style={styles.coachCard}>
       <TouchableOpacity style={styles.coachHead} activeOpacity={0.7} onPress={toggle}>
-        <View style={[styles.insightBadge, { backgroundColor: colors.primary + '1A' }]}><Ionicons name="chatbubbles" size={15} color={colors.primary} /></View>
+        <View style={[styles.insightBadge, { backgroundColor: colors.purple + '1A' }]}><Ionicons name="chatbubbles" size={15} color={colors.purple} /></View>
         <Text style={styles.coachHeadText}>Ask about {childName}</Text>
         <Text style={styles.coachToggle}>{open ? 'Hide' : 'Open'}</Text>
       </TouchableOpacity>
@@ -736,10 +737,10 @@ function makeStyles(c: ColorPalette) {
     activityIcon: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
     activityTitle: { fontSize: 13.5, fontFamily: fonts.semibold, color: c.text },
     activityMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
-    activityStars: { fontSize: 12, color: c.primary },
+    activityStars: { fontSize: 12, color: c.warning },
     activityScore: { fontSize: 13, fontFamily: fonts.bold, color: c.textSecondary },
 
-    whyCard: { flexDirection: 'row', gap: 12, backgroundColor: c.primary + '0D', borderRadius: 16, borderWidth: 1, borderColor: c.primary + '26', padding: 14, marginBottom: 22 },
+    whyCard: { flexDirection: 'row', gap: 12, backgroundColor: c.purple + '0D', borderRadius: 16, borderWidth: 1, borderColor: c.purple + '26', padding: 14, marginBottom: 22 },
     whyIcon: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
     whyTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text, marginBottom: 4 },
     whyBody: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 19 },

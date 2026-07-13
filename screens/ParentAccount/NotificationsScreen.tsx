@@ -4,6 +4,7 @@ import {
   ActivityIndicator, RefreshControl, Switch, Alert,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { ParentHeader } from '../../components/ParentHeader';
 import { colors, spacing, radius, typography, shadows } from '../../constants/theme';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -61,6 +62,21 @@ export const NotificationsScreen: React.FC = () => {
   );
 };
 
+// Map a notification's web deep link (or its category) to an app route.
+function toMobileRoute(link?: string | null, category?: string | null): string | null {
+  const p = `${link || ''} ${category || ''}`.toLowerCase();
+  if (/fee|finance|payment/.test(p)) return '/finance';
+  if (/attendance/.test(p)) return '/academics?tab=attendance';
+  if (/academic|exam|result/.test(p)) return '/academics';
+  if (/transport|bus/.test(p)) return '/transport';
+  if (/diary/.test(p)) return '/diary';
+  if (/coding|robot/.test(p)) return '/coding';
+  if (/learn|progress/.test(p)) return '/learning';
+  if (/communication|announce|message|notice/.test(p)) return '/communication';
+  if (/calendar|event|live/.test(p)) return '/calendar';
+  return null;
+}
+
 // =================================================================
 // Inbox tab
 // =================================================================
@@ -113,15 +129,20 @@ const InboxView: React.FC = () => {
           <View style={styles.emptyIconCircle}>
             <Ionicons name="notifications-outline" size={28} color={colors.textSecondary} />
           </View>
-          <Text style={styles.emptyTitle}>You're all caught up</Text>
+          <Text style={styles.emptyTitle}>You’re all caught up</Text>
           <Text style={styles.emptyText}>
             No notifications to show right now.
           </Text>
         </View>
       )}
 
-      {items.map((n) => (
-        <NotificationCard key={n.id ?? Math.random()} item={n} onPress={() => n.id && markRead(n.id)} />
+      {items.map((n, idx) => (
+        <NotificationCard key={n.id ?? `n-${idx}`} item={n} onPress={() => {
+          if (n.id) markRead(n.id);
+          // Follow the notification's deep link, like the web bell does.
+          const route = toMobileRoute(n.link, n.category);
+          if (route) router.push(route as any);
+        }} />
       ))}
 
       <View style={{ height: spacing.xxxl }} />

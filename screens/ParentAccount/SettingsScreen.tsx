@@ -1,28 +1,76 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
   Modal, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { GradientAppBar } from '../../components/GradientAppBar';
 import { useAuth } from '../../context/AuthContext';
 import { useParentProfile } from '../../context/ParentProfileContext';
 import { useSelectedChild } from '../../context/SelectedChildContext';
 import { useTheme, ThemeMode } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
+import { listDevices, signOutDevice, DeviceSession } from '../../api/auth';
+import { changeParentPassword } from '../../api/parent';
+import { getBillingStatus } from '../../api/billing';
+import { BillingStatus } from '../../api/billing.types';
+import { fonts } from '../../constants/theme';
+
+const fmtSeen = (iso?: string | null) => {
+  if (!iso) return 'Unknown';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return 'Unknown';
+  const mins = Math.round((Date.now() - d.getTime()) / 60000);
+  if (mins < 2) return 'Active now';
+  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1440) return `${Math.round(mins / 60)}h ago`;
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+};
+
+const subActive = (s?: string | null) => ['ACTIVE', 'SUBSCRIBED', 'TRIAL', 'TRIALING'].includes(String(s || '').toUpperCase());
 
 export const SettingsScreen: React.FC = () => {
   const { colors, mode, scheme, setMode } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const { signOut, user } = useAuth();
-  const { parent, refresh: refreshProfile, updateProfile, changePassword } = useParentProfile();
-  const { children } = useSelectedChild();
+  const { signOut, user, accessToken } = useAuth();
+  const { parent, refresh: refreshProfile, update: updateProfile } = useParentProfile();
+  const { children, selectedChild } = useSelectedChild();
 
   const [editOpen, setEditOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+
+  // Plans at a glance + active devices — same data the web Settings page shows.
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
+  const [devices, setDevices] = useState<DeviceSession[] | null>(null);
+  const [devicesBusy, setDevicesBusy] = useState<string | null>(null);
+
+  const loadExtras = useCallback(() => {
+    if (!accessToken) return;
+    getBillingStatus(accessToken).then(setBilling).catch(() => setBilling(null));
+    listDevices(accessToken).then((d) => setDevices(Array.isArray(d) ? d : [])).catch(() => setDevices([]));
+  }, [accessToken]);
+  useFocusEffect(useCallback(() => { loadExtras(); }, [loadExtras]));
+
+  const revokeDevice = async (id: string) => {
+    if (!accessToken || devicesBusy) return;
+    setDevicesBusy(id);
+    try {
+      await signOutDevice(accessToken, id);
+      setDevices((rows) => (rows ?? []).filter((d) => d.id !== id));
+    } catch {
+      Alert.alert('Could not sign out', 'That device could not be signed out right now.');
+    } finally { setDevicesBusy(null); }
+  };
+
+  // Entitlements, mirroring the web PlanRows.
+  const childSub = billing?.childStatuses?.find((c: any) => c.studentId === selectedChild?.studentId) as any;
+  const premiumActive = subActive(billing?.family?.status as any) || subActive(childSub?.status) || subActive(billing?.status as any);
+  const hasCodingPlan = !!selectedChild && (selectedChild.codingSchool || selectedChild.codingOnly);
+  const renews = (billing?.family as any)?.currentPeriodEnd || childSub?.currentPeriodEnd || childSub?.entitlementExpiresAt || null;
+  const renewsLabel = renews ? new Date(renews).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
 
   const handleSignOut = () => {
     Alert.alert(
@@ -107,6 +155,35 @@ export const SettingsScreen: React.FC = () => {
           />
         </View>
 
+        {/* Plans at a glance — mirrors the web Settings PlanRows. */}
+        <Text style={styles.sectionLabel}>YOUR PLANS</Text>
+        <View style={styles.menuGroup}>
+          <PlanRow colors={colors} styles={styles}
+            icon={<Ionicons name="sparkles" size={18} color={colors.purple} />} iconBg={colors.purpleLight}
+            title="AI Learning" active={premiumActive}
+            desc={premiumActive
+              ? (renewsLabel ? `Premium · renews ${renewsLabel}` : 'Premium · active')
+              : 'Personalized practice, AI tutor & learning insights'}
+          />
+          <PlanRow colors={colors} styles={styles} divider
+            icon={<MaterialCommunityIcons name="code-tags" size={18} color={colors.success} />} iconBg={colors.successSoft}
+            title="Coding & Robotics" active={hasCodingPlan}
+            badge={hasCodingPlan ? (selectedChild?.codingSchool ? 'Included by school' : 'Premium') : undefined}
+            desc={hasCodingPlan
+              ? (selectedChild?.codingSchool ? 'Provided by the school' : 'Included with Premium')
+              : 'Interactive coding lessons, robotics projects & challenges'}
+          />
+          <PlanRow colors={colors} styles={styles} divider
+            icon={<MaterialCommunityIcons name="bus-school" size={18} color={colors.info} />} iconBg={colors.infoSoft}
+            title="Live bus tracking" active={premiumActive}
+            desc={premiumActive ? 'Real-time bus location & arrival alerts' : 'Track the bus live and get arrival alerts'}
+          />
+          <TouchableOpacity style={styles.manageLink} activeOpacity={0.7} onPress={() => router.push('/subscriptions' as any)}>
+            <Text style={styles.manageLinkText}>Manage plans</Text>
+            <Feather name="chevron-right" size={14} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionLabel}>PREFERENCES</Text>
         <View style={styles.menuGroup}>
           <Row colors={colors} styles={styles}
@@ -130,6 +207,51 @@ export const SettingsScreen: React.FC = () => {
             onPress={() => setAppearanceOpen(true)}
             divider
           />
+        </View>
+
+        {/* Active devices — mirrors the web Settings device list. */}
+        <Text style={styles.sectionLabel}>ACTIVE DEVICES</Text>
+        <View style={styles.menuGroup}>
+          {devices === null ? (
+            <View style={styles.deviceEmpty}><ActivityIndicator size="small" color={colors.primary} /></View>
+          ) : devices.length === 0 ? (
+            <View style={styles.deviceEmpty}>
+              <Text style={styles.deviceEmptyText}>No active devices recorded yet — new logins will appear here.</Text>
+            </View>
+          ) : (
+            devices.map((d, i) => {
+              const iconName = d.deviceType === 'desktop' ? 'desktop-outline' : d.deviceType === 'tablet' ? 'tablet-portrait-outline' : 'phone-portrait-outline';
+              return (
+                <View key={d.id ?? i} style={[styles.deviceRow, i > 0 && styles.deviceDivider]}>
+                  <View style={styles.deviceIcon}>
+                    <Ionicons name={iconName as any} size={17} color={colors.textSecondary} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={styles.deviceNameRow}>
+                      <Text style={styles.deviceName} numberOfLines={1}>
+                        {d.deviceName || `${d.browser || 'App'} on ${d.os || 'device'}`}
+                      </Text>
+                      {d.current && (
+                        <View style={styles.deviceChip}><Text style={styles.deviceChipText}>This device</Text></View>
+                      )}
+                    </View>
+                    <Text style={styles.deviceMeta} numberOfLines={1}>
+                      {d.ipAddress || 'Unknown network'} · {fmtSeen(d.lastSeenAt)}
+                    </Text>
+                  </View>
+                  {!d.current && (
+                    devicesBusy === d.id
+                      ? <ActivityIndicator size="small" color={colors.danger} />
+                      : (
+                        <TouchableOpacity hitSlop={8} onPress={() => d.id && revokeDevice(d.id)}>
+                          <Text style={styles.deviceSignOut}>Sign out</Text>
+                        </TouchableOpacity>
+                      )
+                  )}
+                </View>
+              );
+            })
+          )}
         </View>
 
         <Text style={styles.sectionLabel}>SUPPORT</Text>
@@ -197,7 +319,8 @@ export const SettingsScreen: React.FC = () => {
         visible={passwordOpen}
         onClose={() => setPasswordOpen(false)}
         onSubmit={async (current, next) => {
-          await changePassword({ currentPassword: current, newPassword: next });
+          if (!accessToken) throw new Error('Not signed in.');
+          await changeParentPassword(accessToken, { currentPassword: current, newPassword: next });
         }}
       />
     </View>
@@ -234,7 +357,7 @@ const AppearanceSheet: React.FC<{
 
         <View style={{ padding: 20 }}>
           <Text style={styles.sheetIntro}>
-            Choose how ShuleOne looks. "System" follows your phone's setting.
+            Choose how ShuleOne looks. “System” follows your phone’s setting.
           </Text>
 
           {options.map((opt) => {
@@ -309,6 +432,35 @@ const Row: React.FC<RowProps> = ({ icon, iconBg, label, sub, onPress, divider, d
     </View>
     {!disabled && <Feather name="chevron-right" size={16} color={colors.textTertiary} />}
   </TouchableOpacity>
+);
+
+// =================================================================
+// Plan status row — the web Settings PlanRow, mobile-sized.
+// =================================================================
+const PlanRow: React.FC<{
+  colors: ColorPalette; styles: any; icon: React.ReactNode; iconBg: string;
+  title: string; desc: string; active: boolean; badge?: string; divider?: boolean;
+}> = ({ colors, styles, icon, iconBg, title, desc, active, badge, divider }) => (
+  <View style={[styles.planRow, divider && styles.deviceDivider]}>
+    <View style={[styles.planIcon, { backgroundColor: iconBg }]}>{icon}</View>
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <View style={styles.planTitleRow}>
+        <Text style={styles.planTitle}>{title}</Text>
+        {!!badge && <View style={styles.planBadge}><Text style={styles.planBadgeText}>{badge}</Text></View>}
+      </View>
+      <Text style={styles.planDesc} numberOfLines={2}>{desc}</Text>
+    </View>
+    {active ? (
+      <View style={[styles.planState, { backgroundColor: colors.successSoft }]}>
+        <Ionicons name="checkmark" size={11} color={colors.success} />
+        <Text style={[styles.planStateText, { color: colors.success }]}>Active</Text>
+      </View>
+    ) : (
+      <View style={[styles.planState, { backgroundColor: colors.backgroundAlt }]}>
+        <Text style={[styles.planStateText, { color: colors.textTertiary }]}>Off</Text>
+      </View>
+    )}
+  </View>
 );
 
 // =================================================================
@@ -509,6 +661,38 @@ function makeStyles(c: ColorPalette) {
     },
     rowLabel: { fontSize: 14, fontWeight: '800', color: c.text, letterSpacing: -0.2 },
     rowSub: { fontSize: 11.5, color: c.textSecondary, marginTop: 2, fontWeight: '500' },
+
+    // Plans at a glance
+    planRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+    planIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    planTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' },
+    planTitle: { fontSize: 13.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    planBadge: { backgroundColor: c.backgroundAlt, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 },
+    planBadgeText: { fontSize: 9.5, fontFamily: fonts.bold, color: c.textSecondary },
+    planDesc: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
+    planState: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+    planStateText: { fontSize: 10.5, fontFamily: fonts.bold },
+    manageLink: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3,
+      paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.border,
+    },
+    manageLinkText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.primary },
+
+    // Active devices
+    deviceRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+    deviceDivider: { borderTopWidth: 1, borderTopColor: c.border },
+    deviceIcon: {
+      width: 36, height: 36, borderRadius: 10, backgroundColor: c.backgroundAlt,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    deviceNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' },
+    deviceName: { fontSize: 13.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2, flexShrink: 1 },
+    deviceChip: { backgroundColor: c.successSoft, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 },
+    deviceChipText: { fontSize: 9.5, fontFamily: fonts.bold, color: c.success },
+    deviceMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
+    deviceSignOut: { fontSize: 12, fontFamily: fonts.bold, color: c.danger },
+    deviceEmpty: { padding: 18, alignItems: 'center' },
+    deviceEmptyText: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, textAlign: 'center', lineHeight: 18 },
 
     signOutCard: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

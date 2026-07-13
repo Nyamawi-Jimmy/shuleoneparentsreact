@@ -90,3 +90,32 @@ export function resetPassword(identifier: string, code: string, newPassword: str
     body: { identifier, code, newPassword },
   });
 }
+
+// =================================================================
+// Active devices (session management) — mirrors the web Settings page.
+//   GET    /api/auth/devices              → DeviceSession[]
+//   DELETE /api/auth/devices/{sessionId}  → { ok }
+// =================================================================
+
+/** One signed-in session, as reported by the backend session registry. */
+export interface DeviceSession {
+  id: string | null;
+  deviceName?: string | null;
+  deviceType?: string | null;   // mobile | desktop | tablet
+  browser?: string | null;
+  os?: string | null;
+  ipAddress?: string | null;
+  lastSeenAt?: string | null;
+  current?: boolean;
+  [key: string]: any;
+}
+
+export function listDevices(accessToken: string) {
+  return apiFetch<DeviceSession[]>('/api/auth/devices', { accessToken });
+}
+
+export function signOutDevice(accessToken: string, sessionId: string) {
+  return apiFetch<{ ok: boolean }>(`/api/auth/devices/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE', accessToken,
+  });
+}

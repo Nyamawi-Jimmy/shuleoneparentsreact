@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform, Alert,
+  RefreshControl, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Linking,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ParentHeader } from '../../components/ParentHeader';
+import { GradientAppBar } from '../../components/GradientAppBar';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { useAuth } from '../../context/AuthContext';
@@ -13,6 +13,7 @@ import { useSelectedChild } from '../../context/SelectedChildContext';
 import { useBilling, useBillingPaymentPoller } from '../../hooks/useBilling';
 import {
   startTrial, mpesaCheckoutChild, mpesaCheckoutFamily, cancelChildSubscription, resumeChildSubscription,
+  paystackCheckoutChild, paystackCheckoutFamily,
 } from '../../api/billing';
 import { ChildSubscriptionStatus, isSubscribed, BillingPayment } from '../../api/billing.types';
 import { moneyToNumber, formatMoney, normalizeKenyanPhone } from '../../api/fees.types';
@@ -30,8 +31,8 @@ export const SubscriptionsScreen: React.FC = () => {
   const [checkoutPlan, setCheckoutPlan] = useState<Plan>('individual');
   const [checkoutStudentId, setCheckoutStudentId] = useState<number | null>(null);
 
-  const pricePerChild = moneyToNumber(status?.pricePerChild) || 499;
-  const pricePerFamily = moneyToNumber(status?.pricePerFamily) || 1499;
+  const pricePerChild = moneyToNumber(status?.pricePerChild ?? null) || 499;
+  const pricePerFamily = moneyToNumber(status?.pricePerFamily ?? null) || 1499;
 
   const openCheckout = (plan: Plan, studentId?: number) => {
     setCheckoutPlan(plan);
@@ -41,7 +42,7 @@ export const SubscriptionsScreen: React.FC = () => {
 
   return (
     <View style={styles.safe}>
-      <ParentHeader title="Learn+ Subscriptions" showBack />
+      <GradientAppBar title="Plans & subscriptions" subtitle="AI Learning, Coding & live bus tracking" showBack />
 
       <ScrollView
         contentContainerStyle={styles.scroll}
@@ -148,7 +149,7 @@ export const SubscriptionsScreen: React.FC = () => {
                           {h.reference && ` • ${h.reference}`}
                         </Text>
                       </View>
-                      <Text style={styles.historyAmount}>{formatMoney(h.amount, h.currency ?? 'KSh')}</Text>
+                      <Text style={styles.historyAmount}>{formatMoney(h.amount ?? null, h.currency ?? 'KSh')}</Text>
                     </View>
                   ))}
                 </View>
@@ -309,6 +310,29 @@ const CheckoutSheet: React.FC<{
     finally { setSubmitting(false); }
   };
 
+  // Card payment (Paystack) — the browser handles the card form, exactly like
+  // the web page; we then poll the payment until the backend confirms it.
+  const [cardBusy, setCardBusy] = useState(false);
+  const handleCard = async () => {
+    if (!accessToken || cardBusy) return;
+    setCardBusy(true);
+    try {
+      const p = plan === 'family'
+        ? await paystackCheckoutFamily(accessToken, { numLearners })
+        : studentId != null
+          ? await paystackCheckoutChild(accessToken, studentId, {})
+          : null;
+      const url = (p?.raw as any)?.redirectUrl || (p?.raw as any)?.authorizationUrl;
+      if (p && url) {
+        setPayment(p);
+        Linking.openURL(String(url));
+      } else {
+        Alert.alert('Card payment unavailable', 'Use M-Pesa, or add your email in Settings first.');
+      }
+    } catch (e: any) { Alert.alert('Card checkout failed', e?.message ?? String(e)); }
+    finally { setCardBusy(false); }
+  };
+
   const amount = plan === 'family' ? priceFamily : priceIndividual;
 
   return (
@@ -346,6 +370,12 @@ const CheckoutSheet: React.FC<{
                 style={[styles.subscribeBtn, submitting && { opacity: 0.6 }]}>
                 <Ionicons name="phone-portrait-outline" size={15} color="#fff" />
                 <Text style={styles.subscribeBtnText}>{submitting ? 'Sending STK…' : 'Send STK Push'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.8} onPress={handleCard} disabled={cardBusy}
+                style={[styles.cardBtn, cardBusy && { opacity: 0.6 }]}>
+                {cardBusy
+                  ? <ActivityIndicator size="small" color={colors.text} />
+                  : <><Ionicons name="card-outline" size={15} color={colors.text} /><Text style={styles.cardBtnText}>Pay with card instead</Text></>}
               </TouchableOpacity>
             </>
           ) : (
@@ -427,6 +457,12 @@ function makeStyles(c: ColorPalette) {
     linkBtn: { paddingVertical: 4, paddingHorizontal: 8 },
     linkBtnText: { color: c.danger, fontWeight: '700', fontSize: 12.5 },
 
+    cardBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      borderWidth: 1, borderColor: c.border,
+      paddingVertical: 11, borderRadius: 12, marginTop: 10,
+    },
+    cardBtnText: { color: c.text, fontSize: 13, fontWeight: '700' },
     subscribeBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
       backgroundColor: c.primary,
