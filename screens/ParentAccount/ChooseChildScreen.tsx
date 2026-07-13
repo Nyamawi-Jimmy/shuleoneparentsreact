@@ -50,7 +50,7 @@ export const ChooseChildScreen: React.FC = () => {
         <Text style={styles.headerSubtitle}>Pick a child — you can switch any time from Today.</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollBody} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {loading && (
           <View style={styles.center}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -132,8 +132,10 @@ function makeStyles(c: ColorPalette) {
     headerTitle: { color: '#FFF', fontSize: 21, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
     headerSubtitle: { color: 'rgba(255,255,255,0.85)', fontSize: 12.5, fontFamily: fonts.regular, marginTop: 5, lineHeight: 18 },
 
-    // List floats over the header edge
-    scroll: { paddingHorizontal: 16, marginTop: -22, paddingBottom: 24 },
+    // The whole scroll viewport rides over the header edge — a negative margin
+    // inside contentContainer would get clipped by the ScrollView instead.
+    scrollBody: { marginTop: -22 },
+    scroll: { paddingHorizontal: 16, paddingBottom: 24 },
 
     center: { alignItems: 'center', paddingVertical: 60, backgroundColor: c.background, borderRadius: 18 },
     loadingText: { color: c.textSecondary, fontSize: 13, fontFamily: fonts.medium, marginTop: 12 },

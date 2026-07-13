@@ -48,6 +48,7 @@ export const LiveClassesScreen: React.FC = () => {
     <View style={styles.safe}>
       <GradientAppBar overlap title="Live Classes" subtitle={`${selectedChild.firstName || selectedChild.fullName}’s online lessons`} showBack />
       <ScrollView
+        style={styles.scrollBody}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
@@ -166,6 +167,9 @@ function formatWhen(startsOn: string | null, endsOn: string | null): string {
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.background },
+    // Viewport rides over the app bar band; a negative margin on the first
+    // scroll child would be clipped by the ScrollView instead.
+    scrollBody: { marginTop: -20 },
     scroll: { paddingHorizontal: 16 },
     center: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 30 },
     loadingText: { fontSize: 11.5, color: c.textSecondary, marginTop: 8, fontWeight: '500' },
@@ -185,7 +189,7 @@ function makeStyles(c: ColorPalette) {
     retryInline: { color: c.danger, fontWeight: '800', fontSize: 13 },
     childCard: {
       flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, padding: 13, borderRadius: 18,
-      borderWidth: 1, borderColor: c.border, marginTop: -20, marginBottom: 16,
+      borderWidth: 1, borderColor: c.border, marginBottom: 16,
       shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.12, shadowRadius: 14, elevation: 5,
     },

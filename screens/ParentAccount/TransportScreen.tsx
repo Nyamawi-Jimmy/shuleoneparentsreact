@@ -123,6 +123,7 @@ export const TransportScreen: React.FC = () => {
       />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
+          style={styles.scrollBody}
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -333,6 +334,9 @@ export const TransportScreen: React.FC = () => {
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
+    // Viewport rides over the app bar band; a negative margin on the first
+    // scroll child would be clipped by the ScrollView instead.
+    scrollBody: { marginTop: -22 },
     scroll: { paddingHorizontal: 16 },
     center: { padding: 44, alignItems: 'center' },
 
@@ -345,7 +349,7 @@ function makeStyles(c: ColorPalette) {
     // Route card — neutral surface riding over the app bar edge, blue accents
     hero: {
       backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.border,
-      padding: 16, marginTop: -22, marginBottom: 12,
+      padding: 16, marginBottom: 12,
       shadowColor: '#0F172A', shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.1, shadowRadius: 14, elevation: 5,
     },

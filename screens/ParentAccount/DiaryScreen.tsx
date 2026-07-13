@@ -199,6 +199,7 @@ const SessionList: React.FC<{
 
   return (
     <ScrollView
+      style={styles.scrollBody}
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
@@ -417,7 +418,7 @@ const SessionDetail: React.FC<{
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView style={styles.scrollBody} contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {/* Day strip — calendar-style, floats over the app bar edge */}
         <View style={styles.dayStrip}>
           {DAY_LABELS.map((d, idx) => {
@@ -613,6 +614,9 @@ const Stat: React.FC<{ styles: any; value: string; label: string; sub: string; c
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
+    // Viewport rides over the app bar band; a negative margin on the first
+    // scroll child would be clipped by the ScrollView instead.
+    scrollBody: { marginTop: -20 },
     scroll: { paddingHorizontal: 16 },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
 
@@ -629,7 +633,7 @@ function makeStyles(c: ColorPalette) {
     // Hero — gradient CTA card riding over the app bar edge
     heroCard: {
       borderRadius: 22, padding: 16,
-      marginTop: -20, marginBottom: 16,
+      marginBottom: 16,
       shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.25, shadowRadius: 18, elevation: 7,
     },
@@ -708,7 +712,7 @@ function makeStyles(c: ColorPalette) {
     dayStrip: {
       flexDirection: 'row', gap: 4,
       backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
-      padding: 5, marginTop: -20, marginBottom: 14,
+      padding: 5, marginBottom: 14,
       shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.12, shadowRadius: 14, elevation: 5,
     },
