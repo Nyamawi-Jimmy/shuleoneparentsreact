@@ -4,8 +4,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { TierProvider } from '../../screens/StudentAccount/TierContext';
 import { LessonProgressProvider } from '../../screens/StudentAccount/LessonProgressContext';
+import { useStudentBadges } from '../../hooks/useStudentBadges';
 
 export default function StudentTabsLayout() {
+  // Live badge counts like the web sidebar: due tasks + classes live now.
+  const { due, live } = useStudentBadges();
+
   return (
     <SafeAreaProvider>
       <TierProvider>
@@ -24,6 +28,16 @@ export default function StudentTabsLayout() {
                 backgroundColor: '#fff',
               },
               tabBarLabelStyle: { fontSize: 10.5, fontWeight: '700' },
+              tabBarBadgeStyle: {
+                backgroundColor: '#ff5e9c',
+                color: '#fff',
+                fontSize: 10,
+                fontWeight: '800',
+                minWidth: 17,
+                height: 17,
+                lineHeight: 15,
+                borderRadius: 9,
+              },
             }}
           >
             {/* Web parity: Me · Quests · Games · Code Lab · Tasks · Events */}
@@ -60,6 +74,7 @@ export default function StudentTabsLayout() {
               options={{
                 title: 'Tasks',
                 tabBarIcon: ({ color, size }) => <Ionicons name="clipboard" size={size} color={color} />,
+                tabBarBadge: due > 0 ? due : undefined,
               }}
             />
             <Tabs.Screen
@@ -67,6 +82,7 @@ export default function StudentTabsLayout() {
               options={{
                 title: 'Events',
                 tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} />,
+                tabBarBadge: live > 0 ? live : undefined,
               }}
             />
             {/* Avatar/profile — merged into Me (header avatar), not a tab. */}
