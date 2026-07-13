@@ -91,7 +91,15 @@ screen, redesigned for mobile with the indigo/Inter design system (`fonts` from
 → Communication → Academics + Attendance → Transport/Calendar/Documents/Settings.
 
 - [x] **Today (Home)** — greeting hero, status tiles, needs-attention, upcoming, recent activity.
-- [x] **Learning** — level/XP/streak hero, subject bars, AI insight, recent activity.
+- [x] **Learning (`LearningScreen`)** — reworked to match web exactly: **Premium-gated hero**
+      (subscribed → weakest-subject focus area + Streak/Best; free → Unlock-Premium upsell +
+      plan chip), structured **AI insights** (headline/summary/strengths/focus-areas/next-step +
+      refresh, `LearningInsightDto`), **AI coach** panel (collapsible chat → `askChildCoach`/
+      `getChildCoachHistory`), snapshot (Level·XP + Average/Mastered/Streak/Time tiles),
+      **By subject grouped from `getChildQuests`** (real completion % + latest lesson + accent,
+      NOT report scores), recent activity, why-this-focus. Premium signal derived from insights
+      `state !== 'LOCKED'`. Added `getChildQuests` / `askChildCoach` / `getChildCoachHistory` to
+      `api/guardian.ts` and extended `useChildLearning`.
 - [x] **More** — full grouped menu (For your child / Messages / Account).
 - [x] **Child switcher** — professional bottom sheet (`ChildSwitcherModal`).
 - [x] **Fees (`FinanceScreen`)** — segmented **Overview / Statement / Payments** tabs:
