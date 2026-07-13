@@ -1,4 +1,6 @@
 import React from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets } from '../studentTheme';
 import {
   View,
   Text,
@@ -41,6 +43,7 @@ export const TopBar: React.FC<TopBarProps> = ({ streak, stars, onAvatarPress, on
   const { tier } = useTier();
   const tokens = useTokens(tier);
   const insets = useSafeAreaInsets();
+  useTheme(); // subscribe — styles/C proxies resolve the active scheme
   const { accessToken } = useAuth();
   const isAdult = tier === 'scholar' || tier === 'campus';
 
@@ -123,7 +126,7 @@ function compact(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n);
 }
 
-const styles = StyleSheet.create({
+const makeSheet = (S: StudentColors) => StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -134,7 +137,7 @@ const styles = StyleSheet.create({
   brand: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#2c2550',
+    color: S.ink,
     letterSpacing: 0.2,
   },
   tag: {
@@ -151,13 +154,13 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: S.card,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
     gap: 4,
     borderWidth: 1.5,
-    borderColor: '#ece8fb',
+    borderColor: S.line,
   },
   pillEm: {
     fontSize: 13,
@@ -170,9 +173,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#fff',
+    backgroundColor: S.card,
     borderWidth: 1.5,
-    borderColor: '#ece8fb',
+    borderColor: S.line,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -197,3 +200,8 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
   },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+

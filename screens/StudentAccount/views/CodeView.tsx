@@ -6,6 +6,8 @@
 // and the gamified progress profile.
 
 import React, { useCallback, useState } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert,
   ActivityIndicator, RefreshControl,
@@ -52,6 +54,7 @@ const PG_KINDS = [
 export const CodeView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
+  useTheme(); // subscribe — styles/C proxies resolve the active scheme
   const { accessToken } = useAuth();
   const playful = tier === 'sprout' || tier === 'explorer';
 
@@ -240,11 +243,11 @@ export const CodeView: React.FC = () => {
                         </LinearGradient>
                       ) : (
                         <View style={[styles.numBubble, { backgroundColor: '#d9d4ee' }]}>
-                          <Text style={[styles.numBubbleText, { color: '#8b84b3' }]}>🔒</Text>
+                          <Text style={[styles.numBubbleText, { color: C.faint }]}>🔒</Text>
                         </View>
                       )}
                       <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={[styles.lessonTitle, state === 'lock' && { color: '#8b84b3' }]} numberOfLines={1}>
+                        <Text style={[styles.lessonTitle, state === 'lock' && { color: C.faint }]} numberOfLines={1}>
                           {r.title ?? `Lesson ${r.lessonNumber}`}
                         </Text>
                         <Text style={styles.lessonSub} numberOfLines={1}>
@@ -448,39 +451,39 @@ const CpStat: React.FC<{ icon: string; value: number | string; label: string }> 
 );
 
 // =================================================================
-const styles = StyleSheet.create({
+const makeSheet = (S: StudentColors) => StyleSheet.create({
   safe: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center' },
-  loadingText: { color: '#6f679c', marginTop: 14, fontWeight: '600' },
+  loadingText: { color: S.inkSoft, marginTop: 14, fontWeight: '600' },
   scroll: { padding: 16 },
 
   brandCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#fff', padding: 13,
-    borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, padding: 13,
+    borderWidth: 1.5, borderColor: S.line,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1, shadowRadius: 10, elevation: 3,
   },
-  brandTitle: { fontSize: 15.5, fontWeight: '800', color: '#2c2550' },
-  brandSub: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 2 },
+  brandTitle: { fontSize: 15.5, fontWeight: '800', color: S.ink },
+  brandSub: { fontSize: 11.5, color: S.inkSoft, fontWeight: '600', marginTop: 2 },
   coins: { gap: 4, alignItems: 'flex-end' },
   coin: {
-    fontSize: 10.5, fontWeight: '800', color: '#2c2550',
-    backgroundColor: '#f4f1ff', borderRadius: 99,
+    fontSize: 10.5, fontWeight: '800', color: S.ink,
+    backgroundColor: S.soft, borderRadius: 99,
     paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden',
   },
 
   sectionTabs: { flexDirection: 'row', gap: 7, marginTop: 12, marginBottom: 14, flexWrap: 'wrap' },
   sectionTab: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
   },
   sectionTabIcon: { fontSize: 12 },
-  sectionTabText: { fontSize: 12, fontWeight: '800', color: '#6f679c' },
+  sectionTabText: { fontSize: 12, fontWeight: '800', color: S.inkSoft },
 
-  errorRow: { backgroundColor: '#fee2e2', borderRadius: 14, padding: 12, marginBottom: 12 },
+  errorRow: { backgroundColor: S.badSoft, borderRadius: 14, padding: 12, marginBottom: 12 },
   errorText: { color: '#b91c1c', fontWeight: '700', fontSize: 12.5 },
 
   todayBanner: {
@@ -495,42 +498,42 @@ const styles = StyleSheet.create({
   todayGo: { color: '#fff', fontWeight: '800', fontSize: 13 },
 
   empty: { alignItems: 'center', paddingVertical: 30 },
-  emptyTitle: { fontSize: 15.5, fontWeight: '800', color: '#2c2550', marginTop: 8, textAlign: 'center' },
-  emptyText: { fontSize: 12.5, color: '#6f679c', fontWeight: '600', marginTop: 4, textAlign: 'center' },
+  emptyTitle: { fontSize: 15.5, fontWeight: '800', color: S.ink, marginTop: 8, textAlign: 'center' },
+  emptyText: { fontSize: 12.5, color: S.inkSoft, fontWeight: '600', marginTop: 4, textAlign: 'center' },
 
   lessonCard: {
-    backgroundColor: '#fff',
-    borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card,
+    borderWidth: 1.5, borderColor: S.line,
     paddingHorizontal: 14, paddingVertical: 4,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
   lessonRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11 },
-  lessonRowLine: { borderTopWidth: 1, borderTopColor: '#f2effc' },
+  lessonRowLine: { borderTopWidth: 1, borderTopColor: S.divider },
   numBubble: {
     width: 38, height: 38, borderRadius: 19,
     alignItems: 'center', justifyContent: 'center',
   },
   numBubbleText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  lessonTitle: { fontSize: 13.5, fontWeight: '800', color: '#2c2550' },
-  lessonSub: { fontSize: 11, color: '#6f679c', fontWeight: '600', marginTop: 2 },
+  lessonTitle: { fontSize: 13.5, fontWeight: '800', color: S.ink },
+  lessonSub: { fontSize: 11, color: S.inkSoft, fontWeight: '600', marginTop: 2 },
   quizChip: { borderRadius: 99, paddingHorizontal: 9, paddingVertical: 4 },
   quizChipText: { fontSize: 11.5, fontWeight: '800' },
   openingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center', marginTop: 12 },
-  openingText: { fontSize: 12, color: '#6f679c', fontWeight: '700' },
+  openingText: { fontSize: 12, color: S.inkSoft, fontWeight: '700' },
 
-  pgTitle: { fontSize: 16.5, fontWeight: '800', color: '#2c2550' },
-  pgSub: { fontSize: 12.5, color: '#6f679c', fontWeight: '600', marginTop: 3, marginBottom: 12 },
+  pgTitle: { fontSize: 16.5, fontWeight: '800', color: S.ink },
+  pgSub: { fontSize: 12.5, color: S.inkSoft, fontWeight: '600', marginTop: 3, marginBottom: 12 },
   pgPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
   pgChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
   },
   pgChipOn: { backgroundColor: '#7c5cff', borderColor: '#7c5cff' },
   pgChipIcon: { fontSize: 12 },
-  pgChipText: { fontSize: 12, fontWeight: '800', color: '#2c2550' },
+  pgChipText: { fontSize: 12, fontWeight: '800', color: S.ink },
   pgWorkspace: {
     alignItems: 'center', padding: 24,
     shadowColor: '#5038A0',
@@ -552,8 +555,8 @@ const styles = StyleSheet.create({
   // Progress section
   cpHero: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: '#fff', borderRadius: 20,
-    borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 20,
+    borderWidth: 1.5, borderColor: S.line,
     padding: 16,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 6 },
@@ -563,46 +566,51 @@ const styles = StyleSheet.create({
     width: 84, height: 84, borderRadius: 42, borderWidth: 8,
     alignItems: 'center', justifyContent: 'center',
   },
-  cpRingPct: { fontSize: 17, fontWeight: '800', color: '#2c2550' },
-  cpRingLbl: { fontSize: 9, fontWeight: '700', color: '#6f679c' },
-  cpH: { fontSize: 14.5, fontWeight: '800', color: '#2c2550', lineHeight: 20 },
-  cpSub: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 3 },
+  cpRingPct: { fontSize: 17, fontWeight: '800', color: S.ink },
+  cpRingLbl: { fontSize: 9, fontWeight: '700', color: S.inkSoft },
+  cpH: { fontSize: 14.5, fontWeight: '800', color: S.ink, lineHeight: 20 },
+  cpSub: { fontSize: 11.5, color: S.inkSoft, fontWeight: '600', marginTop: 3 },
   cpCta: { borderRadius: 999, paddingVertical: 9, paddingHorizontal: 14, alignSelf: 'flex-start', marginTop: 9 },
   cpCtaText: { color: '#fff', fontWeight: '800', fontSize: 12 },
 
   cpStats: { flexDirection: 'row', gap: 9, marginTop: 12 },
   cpStat: {
     flex: 1, alignItems: 'center',
-    backgroundColor: '#fff', borderRadius: 16,
-    borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 16,
+    borderWidth: 1.5, borderColor: S.line,
     paddingVertical: 11,
   },
-  cpStatV: { fontSize: 16, fontWeight: '800', color: '#2c2550', marginTop: 2 },
-  cpStatL: { fontSize: 9.5, color: '#6f679c', fontWeight: '700', marginTop: 1 },
+  cpStatV: { fontSize: 16, fontWeight: '800', color: S.ink, marginTop: 2 },
+  cpStatL: { fontSize: 9.5, color: S.inkSoft, fontWeight: '700', marginTop: 1 },
 
   cpNext: {
-    backgroundColor: '#fff', borderRadius: 18,
-    borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 18,
+    borderWidth: 1.5, borderColor: S.line,
     padding: 14, marginTop: 12,
   },
-  cpNextH: { fontSize: 12, fontWeight: '800', color: '#6f679c', marginBottom: 9 },
+  cpNextH: { fontSize: 12, fontWeight: '800', color: S.inkSoft, marginBottom: 9 },
   cpNextRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   cpNextNum: {
-    width: 38, height: 38, borderRadius: 19, backgroundColor: '#efeaff',
+    width: 38, height: 38, borderRadius: 19, backgroundColor: S.ring,
     alignItems: 'center', justifyContent: 'center',
   },
   cpNextNumText: { fontSize: 15, fontWeight: '800', color: '#7c5cff' },
-  cpNextTitle: { fontSize: 13.5, fontWeight: '800', color: '#2c2550' },
-  cpNextSub: { fontSize: 11, color: '#6f679c', fontWeight: '600', marginTop: 1 },
+  cpNextTitle: { fontSize: 13.5, fontWeight: '800', color: S.ink },
+  cpNextSub: { fontSize: 11, color: S.inkSoft, fontWeight: '600', marginTop: 1 },
   cpGo: { borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 },
   cpGoText: { color: '#fff', fontWeight: '800', fontSize: 12.5 },
 
   cpTrackWrap: {
-    backgroundColor: '#fff', borderRadius: 18,
-    borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 18,
+    borderWidth: 1.5, borderColor: S.line,
     padding: 14, marginTop: 12,
   },
-  cpTrackH: { fontSize: 12, fontWeight: '800', color: '#6f679c', marginBottom: 10 },
+  cpTrackH: { fontSize: 12, fontWeight: '800', color: S.inkSoft, marginBottom: 10 },
   cpTrack: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   cpDot: { width: 16, height: 16, borderRadius: 8 },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+

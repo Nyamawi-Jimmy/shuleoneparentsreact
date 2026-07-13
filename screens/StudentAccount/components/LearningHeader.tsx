@@ -1,4 +1,6 @@
 import React from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
 import {
   View,
   Text,
@@ -22,6 +24,7 @@ interface Props {
 /** Compact header used on all pushed learning screens. */
 export const LearningHeader: React.FC<Props> = ({ title, subtitle, onBack, right }) => {
   const insets = useSafeAreaInsets();
+  useTheme(); // subscribe — styles/C proxies resolve the active scheme
   const topPad =
     insets.top > 0
       ? insets.top
@@ -36,7 +39,7 @@ export const LearningHeader: React.FC<Props> = ({ title, subtitle, onBack, right
         style={styles.backBtn}
         hitSlop={10}
       >
-        <Ionicons name="chevron-back" size={22} color="#2c2550" />
+        <Ionicons name="chevron-back" size={22} color={C.ink} />
       </TouchableOpacity>
 
       <View style={{ flex: 1 }}>
@@ -49,7 +52,7 @@ export const LearningHeader: React.FC<Props> = ({ title, subtitle, onBack, right
   );
 };
 
-const styles = StyleSheet.create({
+const makeSheet = (S: StudentColors) => StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -61,7 +64,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#fff',
+    backgroundColor: S.card,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#5038A0',
@@ -73,15 +76,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#2c2550',
+    color: S.ink,
     textAlign: 'center',
     letterSpacing: -0.3,
   },
   subtitle: {
     fontSize: 11.5,
-    color: '#6f679c',
+    color: S.inkSoft,
     textAlign: 'center',
     fontWeight: '600',
     marginTop: 1,
   },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+

@@ -1,4 +1,5 @@
 import { Tier } from './TierContext';
+import { useTheme } from '../../theme/ThemeContext';
 
 // Tokens from the kids-design.html CSS variables, per tier.
 // Each tier has its own accent, corner radius, and base font size.
@@ -80,7 +81,12 @@ export const TIER_TOKENS: Record<Tier, TierTokens> = {
   },
 };
 
-export const useTokens = (tier: Tier) => TIER_TOKENS[tier];
+/** Scheme-aware tokens: dark mode swaps the canvas colour, accents stay. */
+export const useTokens = (tier: Tier): TierTokens => {
+  const { scheme } = useTheme();
+  const base = TIER_TOKENS[tier];
+  return scheme === 'dark' ? { ...base, bgColor: '#15122a' } : base;
+};
 
 // Shadow presets
 export const SHADOWS = {

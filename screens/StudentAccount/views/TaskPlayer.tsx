@@ -4,6 +4,8 @@
 // review (choices keyed correct/yours, written answers + marking guide).
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
   ActivityIndicator, Alert,
@@ -36,6 +38,7 @@ export const TaskPlayer: React.FC<{
 }> = ({ examId, onClose, onSubmitted }) => {
   const { accessToken } = useAuth();
   const [phase, setPhase] = useState<Phase>('loading');
+  useTheme(); // subscribe — styles/C proxies resolve the active scheme
   const [exam, setExam] = useState<AssignmentExam | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [idx, setIdx] = useState(0);
@@ -179,7 +182,7 @@ export const TaskPlayer: React.FC<{
           </View>
         )}
         <TouchableOpacity style={styles.closeX} hitSlop={8} onPress={tryClose}>
-          <Ionicons name="close" size={17} color="#2c2550" />
+          <Ionicons name="close" size={17} color={C.ink} />
         </TouchableOpacity>
       </View>
 
@@ -311,7 +314,7 @@ export const TaskPlayer: React.FC<{
               style={[styles.navBtn, idx === 0 && { opacity: 0.4 }]}
               disabled={idx === 0}
               onPress={() => setIdx((i) => Math.max(0, i - 1))}>
-              <Ionicons name="chevron-back" size={18} color="#2c2550" />
+              <Ionicons name="chevron-back" size={18} color={C.ink} />
             </TouchableOpacity>
 
             {idx < total - 1 ? (
@@ -434,8 +437,8 @@ export const TaskPlayer: React.FC<{
                       <View style={{ flex: 1 }} />
                       <View style={[
                         styles.rvMarksChip,
-                        gotIt && { backgroundColor: '#eafef3' },
-                        missedIt && { backgroundColor: '#fee2e2' },
+                        gotIt && { backgroundColor: C.okSoft },
+                        missedIt && { backgroundColor: C.badSoft },
                       ]}>
                         <Text style={[
                           styles.rvMarksText,
@@ -457,8 +460,8 @@ export const TaskPlayer: React.FC<{
                         return (
                           <View key={c.id} style={[
                             styles.rvChoice,
-                            good && { borderColor: '#15c98c', backgroundColor: '#f2fdf8' },
-                            badPick && { borderColor: '#fda4af', backgroundColor: '#fff5f6' },
+                            good && { borderColor: '#15c98c', backgroundColor: C.okSoft },
+                            badPick && { borderColor: '#fda4af', backgroundColor: C.badSoft },
                             !released && c.chosen && { borderColor: '#c4b5fd', backgroundColor: '#f7f4ff' },
                           ]}>
                             <View style={[
@@ -478,7 +481,7 @@ export const TaskPlayer: React.FC<{
                               </View>
                             )}
                             {good && !c.chosen && (
-                              <View style={[styles.rvTagChip, { backgroundColor: '#eafef3' }]}>
+                              <View style={[styles.rvTagChip, { backgroundColor: C.okSoft }]}>
                                 <Text style={[styles.rvTagText, { color: '#0fae78' }]}>Correct</Text>
                               </View>
                             )}
@@ -516,7 +519,7 @@ export const TaskPlayer: React.FC<{
 };
 
 // =================================================================
-const styles = StyleSheet.create({
+const makeSheet = (S: StudentColors) => StyleSheet.create({
   wrap: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30, gap: 8 },
   body: { padding: 16 },
@@ -525,83 +528,83 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingBottom: 10,
   },
-  topTitle: { flex: 1, fontSize: 15.5, fontWeight: '800', color: '#2c2550' },
-  timer: { backgroundColor: '#efeaff', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  topTitle: { flex: 1, fontSize: 15.5, fontWeight: '800', color: S.ink },
+  timer: { backgroundColor: S.ring, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   timerLow: { backgroundColor: '#ef4444' },
   timerText: { fontSize: 12.5, fontWeight: '800', color: '#5b45c9' },
   closeX: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
     alignItems: 'center', justifyContent: 'center',
   },
 
-  mutedCenter: { fontSize: 13, color: '#6f679c', fontWeight: '600', textAlign: 'center', lineHeight: 19 },
+  mutedCenter: { fontSize: 13, color: S.inkSoft, fontWeight: '600', textAlign: 'center', lineHeight: 19 },
   linkBtn: { color: '#7c5cff', fontWeight: '800', fontSize: 13, textAlign: 'center', marginTop: 14 },
-  cardTitle: { fontSize: 17, fontWeight: '800', color: '#2c2550' },
+  cardTitle: { fontSize: 17, fontWeight: '800', color: S.ink },
 
   introCard: {
-    backgroundColor: '#fff', borderRadius: 20, borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 20, borderWidth: 1.5, borderColor: S.line,
     padding: 20,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.1, shadowRadius: 10, elevation: 3,
   },
-  introTitle: { fontSize: 17, fontWeight: '800', color: '#2c2550', textAlign: 'center', marginTop: 8 },
+  introTitle: { fontSize: 17, fontWeight: '800', color: S.ink, textAlign: 'center', marginTop: 8 },
   tagRow: { flexDirection: 'row', justifyContent: 'center', gap: 7, flexWrap: 'wrap', marginTop: 10 },
   tag: {
     fontSize: 11, fontWeight: '800', color: '#5b45c9',
-    backgroundColor: '#efeaff', borderRadius: 99,
+    backgroundColor: S.ring, borderRadius: 99,
     paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden',
   },
   rules: { marginTop: 14, gap: 7 },
-  rule: { fontSize: 12.5, color: '#4b4570', fontWeight: '600', lineHeight: 18 },
+  rule: { fontSize: 12.5, color: S.inkSoft, fontWeight: '600', lineHeight: 18 },
   retakeNote: {
-    fontSize: 12, color: '#92400e', fontWeight: '600', backgroundColor: '#fff7e6',
+    fontSize: 12, color: '#92400e', fontWeight: '600', backgroundColor: S.warnSoft,
     borderRadius: 10, padding: 10, marginTop: 12, lineHeight: 17,
   },
   cta: { borderRadius: 999, paddingVertical: 13, alignItems: 'center', marginTop: 16 },
   ctaText: { color: '#fff', fontWeight: '800', fontSize: 14 },
 
   progressRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  progressText: { fontSize: 11.5, fontWeight: '700', color: '#6f679c' },
-  bar: { height: 6, borderRadius: 99, backgroundColor: '#ece8fb', overflow: 'hidden' },
+  progressText: { fontSize: 11.5, fontWeight: '700', color: S.inkSoft },
+  bar: { height: 6, borderRadius: 99, backgroundColor: S.line, overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 99, backgroundColor: '#7c5cff' },
   dots: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10, marginBottom: 12 },
-  dot: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#ece8fb' },
+  dot: { width: 14, height: 14, borderRadius: 7, backgroundColor: S.line },
   dotDone: { backgroundColor: '#a78bfa' },
-  dotNow: { borderWidth: 2.5, borderColor: '#7c5cff', backgroundColor: '#fff' },
+  dotNow: { borderWidth: 2.5, borderColor: '#7c5cff', backgroundColor: S.card },
 
   qCard: {
-    backgroundColor: '#fff', borderRadius: 18, borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 18, borderWidth: 1.5, borderColor: S.line,
     padding: 16,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
   qType: { fontSize: 10, fontWeight: '800', letterSpacing: 0.6, color: '#7c5cff' },
-  qText: { fontSize: 15, fontWeight: '700', color: '#2c2550', lineHeight: 22, marginTop: 8, marginBottom: 14 },
+  qText: { fontSize: 15, fontWeight: '700', color: S.ink, lineHeight: 22, marginTop: 8, marginBottom: 14 },
   choice: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderWidth: 2, borderColor: '#ece8fb', borderRadius: 14,
+    borderWidth: 2, borderColor: S.line, borderRadius: 14,
     padding: 12, marginBottom: 8,
   },
-  choiceOn: { borderColor: '#7c5cff', backgroundColor: '#efeaff' },
+  choiceOn: { borderColor: '#7c5cff', backgroundColor: S.ring },
   choiceLbl: {
-    width: 26, height: 26, borderRadius: 13, backgroundColor: '#f4f1ff',
+    width: 26, height: 26, borderRadius: 13, backgroundColor: S.soft,
     alignItems: 'center', justifyContent: 'center',
   },
   choiceLblText: { fontSize: 12, fontWeight: '800', color: '#5b45c9' },
-  choiceText: { flex: 1, fontSize: 13.5, fontWeight: '600', color: '#2c2550', lineHeight: 19 },
+  choiceText: { flex: 1, fontSize: 13.5, fontWeight: '600', color: S.ink, lineHeight: 19 },
   written: {
-    borderWidth: 2, borderColor: '#ece8fb', borderRadius: 14,
+    borderWidth: 2, borderColor: S.line, borderRadius: 14,
     padding: 12, minHeight: 120, textAlignVertical: 'top',
-    fontSize: 13.5, fontWeight: '600', color: '#2c2550', backgroundColor: '#fbfaff',
+    fontSize: 13.5, fontWeight: '600', color: S.ink, backgroundColor: S.soft,
   },
 
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
   navBtn: {
     width: 46, height: 46, borderRadius: 23,
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
     alignItems: 'center', justifyContent: 'center',
   },
   nextBtn: {
@@ -618,7 +621,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.28, shadowRadius: 18, elevation: 8,
   },
   resultCheck: {
-    width: 72, height: 72, borderRadius: 36, backgroundColor: '#fff',
+    width: 72, height: 72, borderRadius: 36, backgroundColor: S.card,
     alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15, shadowRadius: 8, elevation: 4,
@@ -641,9 +644,9 @@ const styles = StyleSheet.create({
   },
   resultStateText: { color: '#fff', fontSize: 13, fontWeight: '800' },
   ghostBtn: {
-    borderWidth: 1.5, borderColor: '#ded7f8', borderRadius: 999,
+    borderWidth: 1.5, borderColor: S.line, borderRadius: 999,
     paddingVertical: 12, alignItems: 'center', marginTop: 10,
-    backgroundColor: '#fff',
+    backgroundColor: S.card,
   },
   ghostBtnText: { color: '#7c5cff', fontWeight: '800', fontSize: 13.5 },
 
@@ -669,7 +672,7 @@ const styles = StyleSheet.create({
   rvHeroSub: { color: 'rgba(255,255,255,0.9)', fontSize: 11.5, fontWeight: '600', marginTop: 3, lineHeight: 16 },
 
   rvItem: {
-    backgroundColor: '#fff', borderRadius: 18, borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 18, borderWidth: 1.5, borderColor: S.line,
     padding: 15, marginBottom: 10,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 3 },
@@ -677,36 +680,41 @@ const styles = StyleSheet.create({
   },
   rvHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 9 },
   rvQChip: {
-    backgroundColor: '#efeaff', borderRadius: 9,
+    backgroundColor: S.ring, borderRadius: 9,
     paddingHorizontal: 9, paddingVertical: 4,
   },
   rvQChipText: { fontSize: 11.5, fontWeight: '800', color: '#5b45c9' },
-  rvMarksChip: { backgroundColor: '#f4f1ff', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  rvMarksText: { fontSize: 11, fontWeight: '800', color: '#6f679c' },
-  rvText: { fontSize: 14, fontWeight: '700', color: '#2c2550', lineHeight: 20, marginBottom: 11 },
+  rvMarksChip: { backgroundColor: S.soft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  rvMarksText: { fontSize: 11, fontWeight: '800', color: S.inkSoft },
+  rvText: { fontSize: 14, fontWeight: '700', color: S.ink, lineHeight: 20, marginBottom: 11 },
   rvChoice: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    borderWidth: 1.5, borderColor: '#f0edfb', borderRadius: 13,
+    borderWidth: 1.5, borderColor: S.line, borderRadius: 13,
     paddingHorizontal: 11, paddingVertical: 10, marginBottom: 7,
   },
   rvChoiceMark: {
-    width: 24, height: 24, borderRadius: 12, backgroundColor: '#f4f1ff',
+    width: 24, height: 24, borderRadius: 12, backgroundColor: S.soft,
     alignItems: 'center', justifyContent: 'center',
   },
   rvChoiceLbl: { fontSize: 11, fontWeight: '800', color: '#5b45c9' },
-  rvChoiceText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#2c2550', lineHeight: 18 },
-  rvTagChip: { backgroundColor: '#efeaff', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  rvChoiceText: { flex: 1, fontSize: 13, fontWeight: '600', color: S.ink, lineHeight: 18 },
+  rvTagChip: { backgroundColor: S.ring, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   rvTagText: { fontSize: 9.5, fontWeight: '800', color: '#5b45c9' },
-  rvAnswerLbl: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.7, color: '#9b94c4', marginBottom: 5 },
+  rvAnswerLbl: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.7, color: S.faint, marginBottom: 5 },
   rvAnswerBox: {
-    backgroundColor: '#f8f6ff', borderRadius: 13, padding: 12,
-    borderWidth: 1.5, borderColor: '#f0edfb',
+    backgroundColor: S.soft, borderRadius: 13, padding: 12,
+    borderWidth: 1.5, borderColor: S.line,
   },
-  rvAnswerText: { fontSize: 13, fontWeight: '600', color: '#2c2550', lineHeight: 19 },
+  rvAnswerText: { fontSize: 13, fontWeight: '600', color: S.ink, lineHeight: 19 },
   rvScheme: {
-    backgroundColor: '#fffaf0', borderRadius: 13, padding: 12, marginTop: 8,
-    borderWidth: 1.5, borderColor: '#fdeed3',
+    backgroundColor: S.warnSoft, borderRadius: 13, padding: 12, marginTop: 8,
+    borderWidth: 1.5, borderColor: S.warnSoft,
   },
   rvSchemeLbl: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.7, color: '#b45309', marginBottom: 4 },
   rvSchemeText: { fontSize: 12, fontWeight: '600', color: '#7a5b2f', lineHeight: 17 },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+

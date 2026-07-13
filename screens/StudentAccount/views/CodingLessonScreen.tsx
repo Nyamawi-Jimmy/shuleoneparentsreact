@@ -4,6 +4,8 @@
 // team") and the practice-mode note when the teacher hasn't opened the lesson.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
   ActivityIndicator,
@@ -59,6 +61,7 @@ interface Props {
 export const CodingLessonScreen: React.FC<Props> = ({ lesson, node, playful, onClose, onProgressChanged }) => {
   const { accessToken } = useAuth();
   const outcomes = (lesson.learningOutcomes ?? []).filter((o) => o && o !== lesson.objective);
+  useTheme(); // subscribe — styles/C proxies resolve the active scheme
   const kind = lesson.sandbox?.kind ?? 'NONE';
   const modality = MODALITY[kind] || MODALITY.NONE;
   const hasSandbox = !!(lesson.sandbox && kind && kind !== 'NONE' && kind !== 'TEXT');
@@ -100,7 +103,7 @@ export const CodingLessonScreen: React.FC<Props> = ({ lesson, node, playful, onC
       {/* Back + status */}
       <View style={styles.topRow}>
         <TouchableOpacity style={styles.backBtn} onPress={onClose} hitSlop={8}>
-          <Ionicons name="chevron-back" size={16} color="#2c2550" />
+          <Ionicons name="chevron-back" size={16} color={C.ink} />
           <Text style={styles.backText}>Back to map</Text>
         </TouchableOpacity>
         <View style={[styles.statusChip, { backgroundColor: status.bg }]}>
@@ -354,7 +357,7 @@ const PairBar: React.FC<{ lessonId: number; grade: number | null; playful: boole
           <>
             {/* Search a long class list instead of scrolling it */}
             <View style={styles.searchRow}>
-              <Ionicons name="search" size={14} color="#9b94c4" />
+              <Ionicons name="search" size={14} color={C.faint} />
               <TextInput
                 style={styles.searchInput}
                 value={search}
@@ -366,7 +369,7 @@ const PairBar: React.FC<{ lessonId: number; grade: number | null; playful: boole
               />
               {search.length > 0 && (
                 <TouchableOpacity hitSlop={8} onPress={() => setSearch('')}>
-                  <Ionicons name="close-circle" size={15} color="#9b94c4" />
+                  <Ionicons name="close-circle" size={15} color={C.faint} />
                 </TouchableOpacity>
               )}
             </View>
@@ -709,50 +712,50 @@ const HintRow: React.FC<{ questionId: number }> = ({ questionId }) => {
 };
 
 // =================================================================
-const styles = StyleSheet.create({
+const makeSheet = (S: StudentColors) => StyleSheet.create({
   scroll: { padding: 16 },
 
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   backBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
     borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7,
   },
-  backText: { fontSize: 12.5, fontWeight: '800', color: '#2c2550' },
+  backText: { fontSize: 12.5, fontWeight: '800', color: S.ink },
   statusChip: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 },
   statusText: { fontSize: 11.5, fontWeight: '800' },
 
   pairBar: {
-    backgroundColor: '#fff', borderRadius: 16, borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 16, borderWidth: 1.5, borderColor: S.line,
     padding: 12, marginBottom: 12,
   },
   pairHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  pairTitle: { flex: 1, fontSize: 12.5, fontWeight: '800', color: '#2c2550' },
+  pairTitle: { flex: 1, fontSize: 12.5, fontWeight: '800', color: S.ink },
   pairAdd: { fontSize: 12.5, fontWeight: '800', color: '#7c5cff' },
   chipsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 9 },
   pairChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#efeaff', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5,
+    backgroundColor: S.ring, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5,
   },
   pairChipText: { fontSize: 11.5, fontWeight: '800', color: '#5b45c9' },
   pairChipX: { fontSize: 15, fontWeight: '800', color: '#8b7fd0' },
-  pairHint: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 9 },
+  pairHint: { fontSize: 11.5, color: S.inkSoft, fontWeight: '600', marginTop: 9 },
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
-    backgroundColor: '#f4f1ff', borderRadius: 12,
+    backgroundColor: S.soft, borderRadius: 12,
     paddingHorizontal: 11, paddingVertical: 8, marginTop: 10,
   },
-  searchInput: { flex: 1, fontSize: 12.5, fontWeight: '600', color: '#2c2550', padding: 0 },
+  searchInput: { flex: 1, fontSize: 12.5, fontWeight: '600', color: S.ink, padding: 0 },
   mateRow: { gap: 7, marginTop: 9, paddingRight: 8 },
   mateChip: {
-    backgroundColor: '#f4f1ff', borderWidth: 1.5, borderColor: '#ded7f8',
+    backgroundColor: S.soft, borderWidth: 1.5, borderColor: S.line,
     borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6,
   },
-  mateChipText: { fontSize: 11.5, fontWeight: '700', color: '#2c2550' },
+  mateChipText: { fontSize: 11.5, fontWeight: '700', color: S.ink },
 
   practice: {
     flexDirection: 'row', gap: 10, alignItems: 'flex-start',
-    backgroundColor: '#fff7e6', borderRadius: 16, padding: 12, marginBottom: 12,
+    backgroundColor: S.warnSoft, borderRadius: 16, padding: 12, marginBottom: 12,
   },
   practiceTitle: { fontSize: 12.5, fontWeight: '800', color: '#92400e' },
   practiceBody: { fontSize: 11.5, color: '#92400e', fontWeight: '500', marginTop: 2, lineHeight: 16 },
@@ -770,16 +773,16 @@ const styles = StyleSheet.create({
   secTabs: { flexDirection: 'row', gap: 7, marginBottom: 12, flexWrap: 'wrap' },
   secTab: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
   },
   secTabOn: { backgroundColor: '#7c5cff', borderColor: '#7c5cff' },
   secTabIcon: { fontSize: 12 },
-  secTabText: { fontSize: 12, fontWeight: '800', color: '#6f679c' },
+  secTabText: { fontSize: 12, fontWeight: '800', color: S.inkSoft },
   secTabTextOn: { color: '#fff' },
 
   card: {
-    backgroundColor: '#fff', borderRadius: 18, borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 18, borderWidth: 1.5, borderColor: S.line,
     padding: 16, marginBottom: 12,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 4 },
@@ -787,102 +790,107 @@ const styles = StyleSheet.create({
   },
   secHeadingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   secHeadingIcon: { fontSize: 15 },
-  secHeading: { fontSize: 15, fontWeight: '800', color: '#2c2550' },
-  objective: { fontSize: 13.5, fontWeight: '700', color: '#2c2550', marginBottom: 12, lineHeight: 19 },
+  secHeading: { fontSize: 15, fontWeight: '800', color: S.ink },
+  objective: { fontSize: 13.5, fontWeight: '700', color: S.ink, marginBottom: 12, lineHeight: 19 },
   missionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 9 },
   missionCheck: {
-    width: 20, height: 20, borderRadius: 10, backgroundColor: '#eafef3',
+    width: 20, height: 20, borderRadius: 10, backgroundColor: S.okSoft,
     alignItems: 'center', justifyContent: 'center', marginTop: 1,
   },
   missionCheckText: { color: '#0fae78', fontSize: 11, fontWeight: '800' },
-  missionText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#2c2550', lineHeight: 18 },
+  missionText: { flex: 1, fontSize: 13, fontWeight: '600', color: S.ink, lineHeight: 18 },
 
   cta: { borderRadius: 999, paddingVertical: 12, alignItems: 'center', marginTop: 12 },
   ctaText: { color: '#fff', fontWeight: '800', fontSize: 13.5 },
   linkBtn: { color: '#7c5cff', fontWeight: '800', fontSize: 13, textAlign: 'center', marginTop: 12 },
 
   sandboxRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  sandboxTitle: { fontSize: 14.5, fontWeight: '800', color: '#2c2550' },
-  sandboxBody: { fontSize: 12, color: '#6f679c', fontWeight: '600', marginTop: 3, lineHeight: 17 },
-  brief: { backgroundColor: '#f8f6ff', borderRadius: 14, padding: 12, marginTop: 12 },
-  briefTitle: { fontSize: 12.5, fontWeight: '800', color: '#2c2550' },
-  briefBody: { fontSize: 12, color: '#4b4570', fontWeight: '500', marginTop: 4, lineHeight: 17 },
+  sandboxTitle: { fontSize: 14.5, fontWeight: '800', color: S.ink },
+  sandboxBody: { fontSize: 12, color: S.inkSoft, fontWeight: '600', marginTop: 3, lineHeight: 17 },
+  brief: { backgroundColor: S.soft, borderRadius: 14, padding: 12, marginTop: 12 },
+  briefTitle: { fontSize: 12.5, fontWeight: '800', color: S.ink },
+  briefBody: { fontSize: 12, color: S.inkSoft, fontWeight: '500', marginTop: 4, lineHeight: 17 },
 
-  challengeTitle: { fontSize: 14.5, fontWeight: '800', color: '#2c2550' },
-  challengeSub: { fontSize: 12.5, color: '#6f679c', fontWeight: '600', marginTop: 6, lineHeight: 18, textAlign: 'center' },
+  challengeTitle: { fontSize: 14.5, fontWeight: '800', color: S.ink },
+  challengeSub: { fontSize: 12.5, color: S.inkSoft, fontWeight: '600', marginTop: 6, lineHeight: 18, textAlign: 'center' },
 
   gradeTop: { alignItems: 'center', marginBottom: 12 },
-  gradeScore: { fontSize: 34, fontWeight: '800', color: '#2c2550' },
-  gradeMax: { fontSize: 17, color: '#6f679c' },
-  gradeLabel: { fontSize: 12.5, fontWeight: '700', color: '#6f679c', marginTop: 2 },
-  indRow: { borderTopWidth: 1, borderTopColor: '#f2effc', paddingVertical: 9 },
-  indName: { fontSize: 12.5, fontWeight: '700', color: '#2c2550' },
+  gradeScore: { fontSize: 34, fontWeight: '800', color: S.ink },
+  gradeMax: { fontSize: 17, color: S.inkSoft },
+  gradeLabel: { fontSize: 12.5, fontWeight: '700', color: S.inkSoft, marginTop: 2 },
+  indRow: { borderTopWidth: 1, borderTopColor: S.divider, paddingVertical: 9 },
+  indName: { fontSize: 12.5, fontWeight: '700', color: S.ink },
   indMark: { fontSize: 12.5, fontWeight: '800', color: '#7c5cff', marginTop: 2 },
-  indRemark: { fontSize: 11.5, color: '#6f679c', fontWeight: '500', marginTop: 2 },
-  gradeFb: { fontSize: 12.5, color: '#4b4570', fontWeight: '600', marginTop: 10, lineHeight: 18 },
+  indRemark: { fontSize: 11.5, color: S.inkSoft, fontWeight: '500', marginTop: 2 },
+  gradeFb: { fontSize: 12.5, color: S.inkSoft, fontWeight: '600', marginTop: 10, lineHeight: 18 },
 
   // Quiz
   quizChips: { flexDirection: 'row', gap: 7, flexWrap: 'wrap', marginBottom: 8 },
   quizChip: {
-    fontSize: 11, fontWeight: '800', color: '#2c2550',
-    backgroundColor: '#f4f1ff', borderRadius: 99,
+    fontSize: 11, fontWeight: '800', color: S.ink,
+    backgroundColor: S.soft, borderRadius: 99,
     paddingHorizontal: 9, paddingVertical: 4, overflow: 'hidden',
   },
-  quizTitle: { fontSize: 16, fontWeight: '800', color: '#2c2550', marginBottom: 8 },
+  quizTitle: { fontSize: 16, fontWeight: '800', color: S.ink, marginBottom: 8 },
   qBlock: { marginTop: 12 },
   qPromptRow: { flexDirection: 'row', gap: 9, alignItems: 'flex-start', marginBottom: 9 },
   qNum: {
-    width: 22, height: 22, borderRadius: 11, backgroundColor: '#efeaff',
+    width: 22, height: 22, borderRadius: 11, backgroundColor: S.ring,
     alignItems: 'center', justifyContent: 'center', marginTop: 1,
   },
   qNumText: { fontSize: 11.5, fontWeight: '800', color: '#7c5cff' },
-  qPrompt: { flex: 1, fontSize: 13.5, fontWeight: '700', color: '#2c2550', lineHeight: 19 },
+  qPrompt: { flex: 1, fontSize: 13.5, fontWeight: '700', color: S.ink, lineHeight: 19 },
   qOpt: {
-    borderWidth: 2, borderColor: '#ece8fb', borderRadius: 13,
+    borderWidth: 2, borderColor: S.line, borderRadius: 13,
     paddingHorizontal: 13, paddingVertical: 11, marginBottom: 7,
   },
-  qOptOn: { borderColor: '#7c5cff', backgroundColor: '#efeaff' },
-  qOptText: { fontSize: 13, fontWeight: '600', color: '#2c2550' },
+  qOptOn: { borderColor: '#7c5cff', backgroundColor: S.ring },
+  qOptText: { fontSize: 13, fontWeight: '600', color: S.ink },
   qOptTextOn: { color: '#5b45c9', fontWeight: '800' },
   qInput: {
-    borderWidth: 2, borderColor: '#ece8fb', borderRadius: 13,
+    borderWidth: 2, borderColor: S.line, borderRadius: 13,
     paddingHorizontal: 13, paddingVertical: 10,
-    fontSize: 13.5, fontWeight: '600', color: '#2c2550', backgroundColor: '#fbfaff',
+    fontSize: 13.5, fontWeight: '600', color: S.ink, backgroundColor: S.soft,
   },
   orderRow: {
     flexDirection: 'row', alignItems: 'center', gap: 9,
-    borderWidth: 1.5, borderColor: '#ece8fb', borderRadius: 13,
+    borderWidth: 1.5, borderColor: S.line, borderRadius: 13,
     paddingHorizontal: 11, paddingVertical: 9, marginBottom: 7,
   },
-  orderText: { flex: 1, fontSize: 12.5, fontWeight: '600', color: '#2c2550' },
+  orderText: { flex: 1, fontSize: 12.5, fontWeight: '600', color: S.ink },
   orderArrow: { fontSize: 15, color: '#7c5cff', paddingHorizontal: 5 },
   matchBlock: { marginBottom: 10 },
-  matchLeft: { fontSize: 13, fontWeight: '700', color: '#2c2550', marginBottom: 6 },
+  matchLeft: { fontSize: 13, fontWeight: '700', color: S.ink, marginBottom: 6 },
   matchTargets: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   matchChip: {
-    borderWidth: 1.5, borderColor: '#ded7f8', backgroundColor: '#f4f1ff',
+    borderWidth: 1.5, borderColor: S.line, backgroundColor: S.soft,
     borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6,
   },
   matchChipOn: { backgroundColor: '#7c5cff', borderColor: '#7c5cff' },
-  matchChipText: { fontSize: 11.5, fontWeight: '700', color: '#2c2550' },
+  matchChipText: { fontSize: 11.5, fontWeight: '700', color: S.ink },
 
   // Result
   scoreCircle: {
     width: 96, height: 96, borderRadius: 48, borderWidth: 7,
     alignItems: 'center', justifyContent: 'center', alignSelf: 'center',
   },
-  scorePct: { fontSize: 20, fontWeight: '800', color: '#2c2550' },
-  scorePts: { fontSize: 11, fontWeight: '700', color: '#6f679c' },
-  resultTitle: { fontSize: 17, fontWeight: '800', color: '#2c2550', textAlign: 'center', marginTop: 10 },
+  scorePct: { fontSize: 20, fontWeight: '800', color: S.ink },
+  scorePts: { fontSize: 11, fontWeight: '700', color: S.inkSoft },
+  resultTitle: { fontSize: 17, fontWeight: '800', color: S.ink, textAlign: 'center', marginTop: 10 },
   practiceNote: {
     fontSize: 12, fontWeight: '700', color: '#92400e', textAlign: 'center',
-    backgroundColor: '#fff7e6', borderRadius: 10, padding: 8, marginTop: 8,
+    backgroundColor: S.warnSoft, borderRadius: 10, padding: 8, marginTop: 8,
   },
-  reviewRow: { flexDirection: 'row', gap: 9, alignItems: 'flex-start', borderTopWidth: 1, borderTopColor: '#f2effc', paddingVertical: 9 },
+  reviewRow: { flexDirection: 'row', gap: 9, alignItems: 'flex-start', borderTopWidth: 1, borderTopColor: S.divider, paddingVertical: 9 },
   reviewMark: { fontSize: 15, fontWeight: '800', marginTop: 1 },
-  reviewQ: { fontSize: 12.5, fontWeight: '700', color: '#2c2550', lineHeight: 17 },
-  reviewExp: { fontSize: 11.5, color: '#6f679c', fontWeight: '500', marginTop: 3, lineHeight: 16 },
+  reviewQ: { fontSize: 12.5, fontWeight: '700', color: S.ink, lineHeight: 17 },
+  reviewExp: { fontSize: 11.5, color: S.inkSoft, fontWeight: '500', marginTop: 3, lineHeight: 16 },
   hintBtn: { fontSize: 11.5, fontWeight: '800', color: '#7c5cff', marginTop: 4 },
-  hintText: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 4, lineHeight: 16 },
+  hintText: { fontSize: 11.5, color: S.inkSoft, fontWeight: '600', marginTop: 4, lineHeight: 16 },
   resultBtns: { marginTop: 6 },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+

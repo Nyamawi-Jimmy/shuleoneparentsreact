@@ -5,6 +5,8 @@
 // coming up in start order. Join mints a Jitsi URL and opens it.
 
 import React, { useCallback, useState } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, RefreshControl, Linking,
@@ -43,6 +45,7 @@ const rangeOf = (it: Item) => {
 export const EventsView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
+  useTheme(); // subscribe — styles/C proxies resolve the active scheme
   const { accessToken } = useAuth();
 
   const [events, setEvents] = useState<StudentCalendarItem[] | null>(null);
@@ -200,7 +203,7 @@ export const EventsView: React.FC = () => {
                         <LinearGradient colors={[tokens.accent1, tokens.accent2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.dayOnFill}>
                           <Text style={[styles.dayDow, { color: '#fff' }]}>{d.dow}</Text>
                           <Text style={[styles.dayDom, { color: '#fff' }]}>{d.dom}</Text>
-                          {d.has && <View style={[styles.dayDot, { backgroundColor: '#fff' }]} />}
+                          {d.has && <View style={[styles.dayDot, { backgroundColor: C.card }]} />}
                         </LinearGradient>
                       ) : (
                         <>
@@ -255,7 +258,7 @@ const EventCard: React.FC<{ it: StudentCalendarItem; radius: number }> = ({ it, 
     ? `For ${it.targetClass}` : 'School-wide';
   return (
     <View style={[styles.card, { borderRadius: radius }]}>
-      <View style={[styles.tile, { backgroundColor: '#e3f1ff' }]}>
+      <View style={[styles.tile, { backgroundColor: C.infoSoft }]}>
         <Text style={{ fontSize: 19 }}>🎪</Text>
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
@@ -263,7 +266,7 @@ const EventCard: React.FC<{ it: StudentCalendarItem; radius: number }> = ({ it, 
         {!!it.description && <Text style={styles.cardMeta} numberOfLines={2}>{it.description}</Text>}
         <Text style={styles.cardWhen}>{rangeOf({ ...it, _kind: 'EVENT' })}</Text>
       </View>
-      <View style={[styles.pill, { backgroundColor: '#e3f1ff' }]}>
+      <View style={[styles.pill, { backgroundColor: C.infoSoft }]}>
         <Text style={[styles.pillText, { color: '#2779c7' }]}>{target}</Text>
       </View>
     </View>
@@ -305,42 +308,42 @@ const ClassCard: React.FC<{
 };
 
 // =================================================================
-const styles = StyleSheet.create({
+const makeSheet = (S: StudentColors) => StyleSheet.create({
   safe: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center' },
-  loadingText: { color: '#6f679c', marginTop: 14, fontWeight: '600' },
+  loadingText: { color: S.inkSoft, marginTop: 14, fontWeight: '600' },
   scroll: { padding: 16 },
 
   secH: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
-  secHTitle: { fontSize: 17, fontWeight: '800', color: '#2c2550' },
-  secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: '#ece8fb' },
+  secHTitle: { fontSize: 17, fontWeight: '800', color: S.ink },
+  secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: S.line },
 
   errNote: {
     fontSize: 12, fontWeight: '700', color: '#b42318',
-    backgroundColor: '#fff1f1', borderRadius: 12, padding: 10, marginBottom: 12, overflow: 'hidden',
+    backgroundColor: S.badSoft, borderRadius: 12, padding: 10, marginBottom: 12, overflow: 'hidden',
   },
 
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 9 },
   sectionDot: { width: 8, height: 8, borderRadius: 4 },
-  sectionTitle: { fontSize: 13, fontWeight: '800', color: '#2c2550' },
+  sectionTitle: { fontSize: 13, fontWeight: '800', color: S.ink },
   countBadge: {
     minWidth: 20, height: 18, borderRadius: 9, paddingHorizontal: 6,
-    backgroundColor: '#e4defc', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: S.ringStrong, alignItems: 'center', justifyContent: 'center',
   },
   countBadgeText: { fontSize: 10, fontWeight: '800', color: '#7c5cff' },
 
   week: { gap: 7, paddingBottom: 14, paddingRight: 8 },
   dayChip: {
-    minWidth: 54, borderRadius: 14, borderWidth: 1.5, borderColor: '#ece8fb',
-    backgroundColor: '#fff', overflow: 'hidden',
+    minWidth: 54, borderRadius: 14, borderWidth: 1.5, borderColor: S.line,
+    backgroundColor: S.card, overflow: 'hidden',
     alignItems: 'center', justifyContent: 'center', paddingVertical: 8,
   },
   dayOnFill: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     alignItems: 'center', justifyContent: 'center', paddingVertical: 8,
   },
-  dayDow: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.4, color: '#6f679c', textTransform: 'uppercase' },
-  dayDom: { fontSize: 14.5, fontWeight: '800', color: '#2c2550', marginTop: 1 },
+  dayDow: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.4, color: S.inkSoft, textTransform: 'uppercase' },
+  dayDom: { fontSize: 14.5, fontWeight: '800', color: S.ink, marginTop: 1 },
   dayDot: {
     position: 'absolute', top: 5, right: 6,
     width: 6, height: 6, borderRadius: 3, backgroundColor: '#ff5e9c',
@@ -348,7 +351,7 @@ const styles = StyleSheet.create({
 
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
     padding: 13, marginBottom: 9,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 3 },
@@ -358,9 +361,9 @@ const styles = StyleSheet.create({
     width: 42, height: 42, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center',
   },
-  cardTitle: { fontSize: 13.5, fontWeight: '800', color: '#2c2550' },
-  cardMeta: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 2, lineHeight: 16 },
-  cardWhen: { fontSize: 10.5, color: '#9b94c4', fontWeight: '700', marginTop: 3 },
+  cardTitle: { fontSize: 13.5, fontWeight: '800', color: S.ink },
+  cardMeta: { fontSize: 11.5, color: S.inkSoft, fontWeight: '600', marginTop: 2, lineHeight: 16 },
+  cardWhen: { fontSize: 10.5, color: S.faint, fontWeight: '700', marginTop: 3 },
   pill: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
   pillText: { fontSize: 10.5, fontWeight: '800' },
   joinBtn: { borderRadius: 999, paddingHorizontal: 13, paddingVertical: 7 },
@@ -368,6 +371,11 @@ const styles = StyleSheet.create({
   joinErr: { fontSize: 10.5, color: '#ef4444', fontWeight: '700', marginTop: 3 },
 
   empty: { alignItems: 'center', paddingVertical: 40 },
-  emptyTitle: { fontSize: 16.5, fontWeight: '800', color: '#2c2550', marginTop: 10 },
-  emptyText: { fontSize: 12.5, color: '#6f679c', fontWeight: '600', marginTop: 4, textAlign: 'center', lineHeight: 18 },
+  emptyTitle: { fontSize: 16.5, fontWeight: '800', color: S.ink, marginTop: 10 },
+  emptyText: { fontSize: 12.5, color: S.inkSoft, fontWeight: '600', marginTop: 4, textAlign: 'center', lineHeight: 18 },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+

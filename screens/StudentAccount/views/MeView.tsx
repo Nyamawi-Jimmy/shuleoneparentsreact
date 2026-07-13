@@ -5,6 +5,8 @@
 // emoji pills and the mascot for the play tiers.
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView,
   RefreshControl, ActivityIndicator,
@@ -38,6 +40,7 @@ const isTier = (t: string | null | undefined): t is Tier => !!t && t in TIER_LAY
 export const MeView: React.FC = () => {
   const { tier, setTier } = useTier();
   const tokens = useTokens(tier);
+  useTheme(); // subscribe — styles/C proxies resolve the active scheme
   const {
     profile, game, next, mastery, access, assignments, liveClasses,
     loading, refreshing, refresh, error,
@@ -143,7 +146,7 @@ export const MeView: React.FC = () => {
           <View style={{ flex: 1 }}>
             <View style={styles.greetTop}>
               <Text style={styles.greetTitle}>Hi {firstName}! 👋</Text>
-              <View style={[styles.lvlChip, { backgroundColor: SHARED.ring }]}>
+              <View style={[styles.lvlChip, { backgroundColor: C.ring }]}>
                 <Text style={[styles.lvlChipText, { color: tokens.accent1 }]}>💎 Lvl {level}</Text>
               </View>
             </View>
@@ -282,8 +285,8 @@ export const MeView: React.FC = () => {
                     </LinearGradient>
                   ) : (
                     <View style={[styles.node, state === 'cur'
-                      ? { backgroundColor: SHARED.ring, borderWidth: 2, borderColor: tokens.accent1 }
-                      : { backgroundColor: SHARED.ring }]}>
+                      ? { backgroundColor: C.ring, borderWidth: 2, borderColor: tokens.accent1 }
+                      : { backgroundColor: C.ring }]}>
                       <Text style={styles.nodeText}>{state === 'cur' ? '⭐' : '🔒'}</Text>
                     </View>
                   )}
@@ -349,14 +352,14 @@ function fmtDue(iso: string): string {
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-const styles = StyleSheet.create({
+const makeSheet = (S: StudentColors) => StyleSheet.create({
   safe: { flex: 1 },
   scroll: { paddingHorizontal: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { marginTop: 12, color: SHARED.inkSoft, fontWeight: '600', fontSize: 13 },
+  loadingText: { marginTop: 12, color: S.inkSoft, fontWeight: '600', fontSize: 13 },
 
   errorRow: {
-    backgroundColor: '#fee2e2', borderRadius: 14, padding: 12, marginBottom: 12,
+    backgroundColor: S.badSoft, borderRadius: 14, padding: 12, marginBottom: 12,
   },
   errorText: { color: '#b91c1c', fontWeight: '700', fontSize: 12.5 },
 
@@ -365,27 +368,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 13, marginBottom: 12,
     ...SHADOWS.cardSm,
   },
-  liveDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#fff' },
+  liveDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: S.card },
   liveText: { flex: 1, color: '#fff', fontWeight: '800', fontSize: 13 },
   liveJoin: { color: '#fff', fontWeight: '800', fontSize: 13 },
 
   greetCard: {
-    backgroundColor: '#fff', padding: 18, marginBottom: 12,
+    backgroundColor: S.card, padding: 18, marginBottom: 12,
     flexDirection: 'row', alignItems: 'center', overflow: 'hidden',
     ...SHADOWS.card,
   },
   greetTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  greetTitle: { flexShrink: 1, fontSize: 22, fontWeight: '800', color: SHARED.ink, letterSpacing: -0.3 },
-  greetSub: { color: SHARED.inkSoft, fontWeight: '600', marginTop: 6, fontSize: 13, lineHeight: 18 },
+  greetTitle: { flexShrink: 1, fontSize: 22, fontWeight: '800', color: S.ink, letterSpacing: -0.3 },
+  greetSub: { color: S.inkSoft, fontWeight: '600', marginTop: 6, fontSize: 13, lineHeight: 18 },
   lvlChip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   lvlChipText: { fontWeight: '800', fontSize: 11.5 },
 
   trialRow: {
     flexDirection: 'row', alignItems: 'center', gap: 9,
-    backgroundColor: SHARED.ring, borderWidth: 1.5, borderColor: SHARED.line,
+    backgroundColor: S.ring, borderWidth: 1.5, borderColor: S.line,
     paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12,
   },
-  trialText: { flex: 1, color: SHARED.ink, fontWeight: '600', fontSize: 12.5 },
+  trialText: { flex: 1, color: S.ink, fontWeight: '600', fontSize: 12.5 },
 
   hero: { padding: 18, marginBottom: 12, ...SHADOWS.card },
   heroKick: {
@@ -402,66 +405,71 @@ const styles = StyleSheet.create({
   heroGoText: { fontWeight: '800', fontSize: 13.5 },
 
   lockCard: {
-    backgroundColor: '#fff', alignItems: 'center', padding: 22, marginBottom: 12,
+    backgroundColor: S.card, alignItems: 'center', padding: 22, marginBottom: 12,
     ...SHADOWS.card,
   },
-  lockTitle: { fontWeight: '800', fontSize: 17, color: SHARED.ink, marginTop: 8 },
-  lockSub: { color: SHARED.inkSoft, fontSize: 12.5, fontWeight: '600', marginTop: 4 },
+  lockTitle: { fontWeight: '800', fontSize: 17, color: S.ink, marginTop: 8 },
+  lockSub: { color: S.inkSoft, fontSize: 12.5, fontWeight: '600', marginTop: 4 },
   lockPerks: { marginTop: 14, gap: 8, alignSelf: 'flex-start' },
-  lockPerk: { fontSize: 13, fontWeight: '600', color: SHARED.ink },
+  lockPerk: { fontSize: 13, fontWeight: '600', color: S.ink },
   lockCta: { borderRadius: 13, paddingHorizontal: 22, paddingVertical: 12, marginTop: 16 },
   lockCtaText: { color: '#fff', fontWeight: '800', fontSize: 13 },
 
-  card: { backgroundColor: '#fff', padding: 16, marginBottom: 12, ...SHADOWS.cardSm },
+  card: { backgroundColor: S.card, padding: 16, marginBottom: 12, ...SHADOWS.cardSm },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardTitle: { fontSize: 15, fontWeight: '800', color: SHARED.ink, marginBottom: 10 },
+  cardTitle: { fontSize: 15, fontWeight: '800', color: S.ink, marginBottom: 10 },
   seeAll: { fontWeight: '800', fontSize: 12.5, marginBottom: 10 },
 
   goalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  goalBig: { fontSize: 26, fontWeight: '800', color: SHARED.ink, letterSpacing: -0.5 },
-  goalOf: { fontSize: 14, color: SHARED.inkSoft, fontWeight: '700' },
+  goalBig: { fontSize: 26, fontWeight: '800', color: S.ink, letterSpacing: -0.5 },
+  goalOf: { fontSize: 14, color: S.inkSoft, fontWeight: '700' },
   goalDots: { flexDirection: 'row', gap: 7 },
   goalDot: {
     width: 26, height: 10, borderRadius: 99,
-    borderWidth: 2, borderColor: SHARED.line, backgroundColor: 'transparent',
+    borderWidth: 2, borderColor: S.line, backgroundColor: 'transparent',
   },
-  goalHint: { color: SHARED.inkSoft, fontSize: 12, fontWeight: '600', marginTop: 8 },
+  goalHint: { color: S.inkSoft, fontSize: 12, fontWeight: '600', marginTop: 8 },
   weekRow: { flexDirection: 'row', gap: 6, marginTop: 12 },
   dayChip: {
     flex: 1, paddingVertical: 7, borderRadius: 10, alignItems: 'center',
-    backgroundColor: SHARED.ring,
+    backgroundColor: S.ring,
   },
-  dayText: { fontSize: 11, fontWeight: '800', color: SHARED.inkSoft },
+  dayText: { fontSize: 11, fontWeight: '800', color: S.inkSoft },
 
   tasksBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 12,
     borderWidth: 2, borderColor: '#fff', ...SHADOWS.cardSm,
   },
-  tasksTitle: { fontSize: 14, fontWeight: '800', color: SHARED.ink },
-  tasksSub: { fontSize: 11.5, color: SHARED.inkSoft, fontWeight: '600', marginTop: 2 },
+  tasksTitle: { fontSize: 14, fontWeight: '800', color: S.ink },
+  tasksSub: { fontSize: 11.5, color: S.inkSoft, fontWeight: '600', marginTop: 2 },
   tasksBtn: { borderRadius: 999, paddingVertical: 9, paddingHorizontal: 15 },
   tasksBtnText: { color: '#fff', fontWeight: '800', fontSize: 12.5 },
 
   pathRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 9 },
-  pathRowLine: { borderTopWidth: 1.5, borderTopColor: SHARED.line },
+  pathRowLine: { borderTopWidth: 1.5, borderTopColor: S.divider },
   node: {
     width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
   },
   nodeText: { fontSize: 15, color: '#fff', fontWeight: '800' },
-  pathTitle: { fontSize: 13.5, fontWeight: '800', color: SHARED.ink },
-  pathSub: { fontSize: 11, color: SHARED.inkSoft, fontWeight: '600', marginTop: 1 },
+  pathTitle: { fontSize: 13.5, fontWeight: '800', color: S.ink },
+  pathSub: { fontSize: 11, color: S.inkSoft, fontWeight: '600', marginTop: 1 },
   pathRight: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  miniBar: { width: 56, height: 7, borderRadius: 99, backgroundColor: SHARED.ring, overflow: 'hidden' },
+  miniBar: { width: 56, height: 7, borderRadius: 99, backgroundColor: S.ring, overflow: 'hidden' },
   miniFill: { height: '100%', borderRadius: 99 },
   miniPct: { fontSize: 11.5, fontWeight: '800' },
 
   skillRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
   skillDot: { width: 8, height: 8, borderRadius: 4 },
-  skillName: { maxWidth: 110, fontSize: 12.5, fontWeight: '700', color: SHARED.ink },
-  focusChip: { backgroundColor: '#fff3da', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  skillName: { maxWidth: 110, fontSize: 12.5, fontWeight: '700', color: S.ink },
+  focusChip: { backgroundColor: S.warnSoft, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   focusChipText: { color: '#b45309', fontSize: 8.5, fontWeight: '800', letterSpacing: 0.4 },
-  skillBar: { flex: 1, height: 8, borderRadius: 99, backgroundColor: SHARED.ring, overflow: 'hidden', minWidth: 30 },
+  skillBar: { flex: 1, height: 8, borderRadius: 99, backgroundColor: S.ring, overflow: 'hidden', minWidth: 30 },
   skillFill: { height: '100%', borderRadius: 99 },
-  skillPct: { width: 36, textAlign: 'right', fontSize: 12, fontWeight: '800', color: SHARED.ink },
+  skillPct: { width: 36, textAlign: 'right', fontSize: 12, fontWeight: '800', color: S.ink },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+

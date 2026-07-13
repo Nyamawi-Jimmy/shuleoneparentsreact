@@ -5,10 +5,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { TierProvider } from '../../screens/StudentAccount/TierContext';
 import { LessonProgressProvider } from '../../screens/StudentAccount/LessonProgressContext';
 import { useStudentBadges } from '../../hooks/useStudentBadges';
+import { useTheme } from '../../theme/ThemeContext';
 
 export default function StudentTabsLayout() {
   // Live badge counts like the web sidebar: due tasks + classes live now.
   const { due, live } = useStudentBadges();
+  const { scheme } = useTheme();
+  const dark = scheme === 'dark';
 
   return (
     <SafeAreaProvider>
@@ -17,15 +20,15 @@ export default function StudentTabsLayout() {
           <Tabs
             screenOptions={{
               headerShown: false,
-              tabBarActiveTintColor: '#7c5cff',
-              tabBarInactiveTintColor: '#9b94c4',
+              tabBarActiveTintColor: dark ? '#a78bfa' : '#7c5cff',
+              tabBarInactiveTintColor: dark ? '#7d76a8' : '#9b94c4',
               tabBarStyle: {
                 height: 64,
                 paddingTop: 6,
                 paddingBottom: 8,
                 borderTopWidth: 1,
-                borderTopColor: '#f5f3fa',
-                backgroundColor: '#fff',
+                borderTopColor: dark ? '#2c2750' : '#f5f3fa',
+                backgroundColor: dark ? '#1b1735' : '#fff',
               },
               tabBarLabelStyle: { fontSize: 10.5, fontWeight: '700' },
               tabBarBadgeStyle: {

@@ -4,6 +4,8 @@
 // then Done and Missed. Tapping a task opens the in-app TaskPlayer.
 
 import React, { useCallback, useState } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, RefreshControl,
@@ -50,6 +52,7 @@ function statusMeta(a: StudentAssignment) {
 export const AssignmentsView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
+  useTheme(); // subscribe — styles/C proxies resolve the active scheme
   const { accessToken } = useAuth();
 
   const [items, setItems] = useState<StudentAssignment[] | null>(null);
@@ -298,37 +301,37 @@ const Section: React.FC<{
 );
 
 // =================================================================
-const styles = StyleSheet.create({
+const makeSheet = (S: StudentColors) => StyleSheet.create({
   safe: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center' },
-  loadingText: { color: '#6f679c', marginTop: 14, fontWeight: '600' },
+  loadingText: { color: S.inkSoft, marginTop: 14, fontWeight: '600' },
   scroll: { padding: 16 },
 
   secH: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  secHTitle: { fontSize: 17, fontWeight: '800', color: '#2c2550' },
-  secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: '#ece8fb' },
-  subline: { fontSize: 12, color: '#6f679c', fontWeight: '700', marginBottom: 14 },
+  secHTitle: { fontSize: 17, fontWeight: '800', color: S.ink },
+  secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: S.line },
+  subline: { fontSize: 12, color: S.inkSoft, fontWeight: '700', marginBottom: 14 },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   chip: {
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
     borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7,
   },
-  chipText: { fontSize: 12, fontWeight: '800', color: '#6f679c' },
+  chipText: { fontSize: 12, fontWeight: '800', color: S.inkSoft },
 
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10 },
   sectionDot: { width: 8, height: 8, borderRadius: 4 },
-  sectionTitle: { fontSize: 13, fontWeight: '800', color: '#2c2550' },
+  sectionTitle: { fontSize: 13, fontWeight: '800', color: S.ink },
   countBadge: {
     minWidth: 20, height: 18, borderRadius: 9, paddingHorizontal: 6,
-    backgroundColor: '#e4defc', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: S.ringStrong, alignItems: 'center', justifyContent: 'center',
   },
   countBadgeText: { fontSize: 10, fontWeight: '800', color: '#7c5cff' },
-  sectionLine: { flex: 1, height: 2, borderRadius: 2, backgroundColor: '#ece8fb' },
+  sectionLine: { flex: 1, height: 2, borderRadius: 2, backgroundColor: S.line },
 
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
     paddingVertical: 13, paddingLeft: 16, paddingRight: 12,
     marginBottom: 10, overflow: 'hidden',
     shadowColor: '#5038A0',
@@ -342,19 +345,24 @@ const styles = StyleSheet.create({
   },
   dateDay: { fontSize: 17, fontWeight: '800', lineHeight: 20 },
   dateMon: { fontSize: 8.5, fontWeight: '800', letterSpacing: 0.6 },
-  cardTitle: { fontSize: 13.5, fontWeight: '800', color: '#2c2550', lineHeight: 18 },
+  cardTitle: { fontSize: 13.5, fontWeight: '800', color: S.ink, lineHeight: 18 },
   chipLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' },
   catPill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2.5 },
   catPillText: { fontSize: 9.5, fontWeight: '800' },
   statusPill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2.5 },
   statusPillText: { fontSize: 9.5, fontWeight: '800' },
-  cardMeta: { fontSize: 11, color: '#9b94c4', fontWeight: '600', marginTop: 4 },
+  cardMeta: { fontSize: 11, color: S.faint, fontWeight: '600', marginTop: 4 },
   actionBtn: {
     borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9,
   },
   actionText: { fontSize: 12, fontWeight: '800', color: '#fff' },
 
   empty: { alignItems: 'center', paddingVertical: 40 },
-  emptyTitle: { fontSize: 16.5, fontWeight: '800', color: '#2c2550', marginTop: 10 },
-  emptyText: { fontSize: 12.5, color: '#6f679c', fontWeight: '600', marginTop: 4, textAlign: 'center' },
+  emptyTitle: { fontSize: 16.5, fontWeight: '800', color: S.ink, marginTop: 10 },
+  emptyText: { fontSize: 12.5, color: S.inkSoft, fontWeight: '600', marginTop: 4, textAlign: 'center' },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+

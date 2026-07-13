@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
@@ -38,6 +40,7 @@ export const LessonPlayer: React.FC = () => {
     lessonId?: string; questId?: string; stageId?: string;
   }>();
   const { accessToken } = useAuth();
+  useTheme(); // subscribe — styles/C proxies resolve the active scheme
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [loading, setLoading] = useState(true);
@@ -510,8 +513,8 @@ const CountPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) =>
             key={n} activeOpacity={0.85} onPress={() => tap(n)} disabled={answered || rightPick != null}
             style={[
               styles.numChip,
-              rightPick === n && { backgroundColor: '#eafef3', borderColor: '#15c98c' },
-              wrongPick === n && { backgroundColor: '#fee2e2', borderColor: '#ef4444' },
+              rightPick === n && { backgroundColor: C.okSoft, borderColor: '#15c98c' },
+              wrongPick === n && { backgroundColor: C.badSoft, borderColor: '#ef4444' },
             ]}
           >
             <Text style={[
@@ -596,7 +599,7 @@ const SortBucketPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
         {items.map((it, i) => placed[i] == null && (
           <TouchableOpacity
             key={i} activeOpacity={0.85} onPress={() => tapItem(i)} disabled={done}
-            style={[styles.tile, sel === i && { borderColor: '#7c5cff', backgroundColor: '#efeaff' }]}
+            style={[styles.tile, sel === i && { borderColor: '#7c5cff', backgroundColor: C.ring }]}
           >
             <Text style={styles.tileEmoji}>{it.emoji ?? '❓'}</Text>
             {!!it.label && <Text style={styles.tileLabel} numberOfLines={1}>{it.label}</Text>}
@@ -614,7 +617,7 @@ const SortBucketPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
               style={[
                 styles.bucket,
                 { borderColor: b.color ?? '#ece8fb' },
-                wrongBucket === b.id && { borderColor: '#ef4444', backgroundColor: '#fee2e2' },
+                wrongBucket === b.id && { borderColor: '#ef4444', backgroundColor: C.badSoft },
               ]}
             >
               <Text style={styles.bucketLabel}>{b.label}</Text>
@@ -741,26 +744,26 @@ function emojiForSubject(subject: string): string {
 // =================================================================
 // Styles
 // =================================================================
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#fafafe' },
+const makeSheet = (S: StudentColors) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: S.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
-  loadingText: { color: '#6f679c', marginTop: 14, fontWeight: '600' },
+  loadingText: { color: S.inkSoft, marginTop: 14, fontWeight: '600' },
 
   emptyIcon: { fontSize: 60, marginBottom: 14 },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#2c2550' },
-  emptyText: { fontSize: 13, color: '#6f679c', fontWeight: '600', marginTop: 6, textAlign: 'center' },
+  emptyTitle: { fontSize: 18, fontWeight: '800', color: S.ink },
+  emptyText: { fontSize: 13, color: S.inkSoft, fontWeight: '600', marginTop: 6, textAlign: 'center' },
   backBtn: { marginTop: 18, backgroundColor: '#7c5cff', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 99 },
   backBtnText: { color: '#fff', fontWeight: '800' },
 
   stepChip: {
     minWidth: 40, alignItems: 'center',
-    backgroundColor: '#efeaff', borderRadius: 999,
+    backgroundColor: S.ring, borderRadius: 999,
     paddingHorizontal: 10, paddingVertical: 6,
   },
   stepChipText: { color: '#7c5cff', fontWeight: '800', fontSize: 12 },
 
   progressRow: { flexDirection: 'row', gap: 4, paddingHorizontal: 16, marginBottom: 8 },
-  dot: { flex: 1, height: 5, borderRadius: 99, backgroundColor: '#ece8fb' },
+  dot: { flex: 1, height: 5, borderRadius: 99, backgroundColor: S.line },
   dotVisited: { backgroundColor: '#a78bfa' },
   dotActive: { backgroundColor: '#7c5cff' },
 
@@ -769,11 +772,11 @@ const styles = StyleSheet.create({
   // Intro
   introCard: { borderRadius: 20, padding: 18, alignItems: 'center' },
   introEmoji: { fontSize: 54, marginBottom: 8 },
-  introTitle: { fontSize: 19, fontWeight: '800', color: '#2c2550', textAlign: 'center' },
-  introBody: { fontSize: 14.5, color: '#2c2550', textAlign: 'center', lineHeight: 21, fontWeight: '500', marginTop: 8 },
+  introTitle: { fontSize: 19, fontWeight: '800', color: S.ink, textAlign: 'center' },
+  introBody: { fontSize: 14.5, color: S.ink, textAlign: 'center', lineHeight: 21, fontWeight: '500', marginTop: 8 },
   listenChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 7,
+    backgroundColor: S.card, paddingHorizontal: 12, paddingVertical: 7,
     borderRadius: 99, marginTop: 12,
     borderWidth: 1.5, borderColor: '#a78bfa',
   },
@@ -781,13 +784,13 @@ const styles = StyleSheet.create({
 
   // Prompt row
   promptRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
-  promptText: { flex: 1, fontSize: 17, fontWeight: '800', color: '#2c2550', lineHeight: 23 },
+  promptText: { flex: 1, fontSize: 17, fontWeight: '800', color: S.ink, lineHeight: 23 },
   listenRound: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: '#efeaff', borderWidth: 1.5, borderColor: '#a78bfa',
+    backgroundColor: S.ring, borderWidth: 1.5, borderColor: '#a78bfa',
     alignItems: 'center', justifyContent: 'center',
   },
-  hint: { fontSize: 12, color: '#6f679c', fontWeight: '700', marginBottom: 10 },
+  hint: { fontSize: 12, color: S.inkSoft, fontWeight: '700', marginBottom: 10 },
 
   // Choice tiles (emoji/colour grid)
   tileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
@@ -796,11 +799,11 @@ const styles = StyleSheet.create({
     aspectRatio: 1.15,
     borderRadius: 18, borderWidth: 2,
     alignItems: 'center', justifyContent: 'center', gap: 4,
-    backgroundColor: '#fff', borderColor: '#ece8fb',
+    backgroundColor: S.card, borderColor: S.line,
   },
   tileEmoji: { fontSize: 44 },
   tileSwatch: { width: 44, height: 44, borderRadius: 22 },
-  tileLabel: { fontSize: 11.5, fontWeight: '700', color: '#6f679c' },
+  tileLabel: { fontSize: 11.5, fontWeight: '700', color: S.inkSoft },
   dim: { opacity: 0.45 },
 
   // Text-mode choices
@@ -809,22 +812,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     padding: 14, borderRadius: 14, borderWidth: 2,
   },
-  textChoiceLabel: { flex: 1, fontSize: 14.5, fontWeight: '700', color: '#2c2550' },
+  textChoiceLabel: { flex: 1, fontSize: 14.5, fontWeight: '700', color: S.ink },
 
   // Count
   countStage: {
     flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8,
-    backgroundColor: '#fff', borderRadius: 18, borderWidth: 2, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 18, borderWidth: 2, borderColor: S.line,
     padding: 18, marginBottom: 12,
   },
   countEmoji: { fontSize: 42 },
   numRow: { flexDirection: 'row', gap: 10, justifyContent: 'center' },
   numChip: {
     minWidth: 62, alignItems: 'center',
-    backgroundColor: '#fff', borderWidth: 2, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderWidth: 2, borderColor: S.line,
     borderRadius: 16, paddingVertical: 12,
   },
-  numChipText: { fontSize: 20, fontWeight: '800', color: '#2c2550' },
+  numChipText: { fontSize: 20, fontWeight: '800', color: S.ink },
 
   // Audio match
   bigListen: {
@@ -837,21 +840,21 @@ const styles = StyleSheet.create({
   bucketRow: { flexDirection: 'row', gap: 10, marginTop: 12 },
   bucket: {
     flex: 1, minHeight: 84,
-    backgroundColor: '#fff', borderWidth: 2.5, borderRadius: 18,
+    backgroundColor: S.card, borderWidth: 2.5, borderRadius: 18,
     padding: 10, alignItems: 'center',
   },
-  bucketLabel: { fontSize: 13, fontWeight: '800', color: '#2c2550' },
+  bucketLabel: { fontSize: 13, fontWeight: '800', color: S.ink },
   bucketItems: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 6, justifyContent: 'center' },
   bucketEmoji: { fontSize: 22 },
 
   // Scene
   sceneCard: { borderRadius: 20, padding: 22, alignItems: 'center' },
   sceneEmoji: { fontSize: 56, marginBottom: 10 },
-  sceneLine: { fontSize: 16, fontWeight: '700', color: '#2c2550', textAlign: 'center', lineHeight: 24 },
+  sceneLine: { fontSize: 16, fontWeight: '700', color: S.ink, textAlign: 'center', lineHeight: 24 },
 
   placeholder: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#fff7e6', borderRadius: 14, padding: 16,
+    backgroundColor: S.warnSoft, borderRadius: 14, padding: 16,
   },
   placeholderText: { flex: 1, color: '#92400e', fontSize: 13, fontWeight: '600' },
   placeholderSkip: { color: '#b45309', fontWeight: '800', fontSize: 13 },
@@ -859,12 +862,12 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 22,
-    backgroundColor: '#fff',
-    borderTopWidth: 1, borderTopColor: '#ece8fb',
+    backgroundColor: S.card,
+    borderTopWidth: 1, borderTopColor: S.divider,
   },
   prevBtn: {
     width: 48, height: 48, borderRadius: 24,
-    backgroundColor: '#f4f1ff',
+    backgroundColor: S.soft,
     alignItems: 'center', justifyContent: 'center',
   },
   nextBtn: {
@@ -909,3 +912,8 @@ const styles = StyleSheet.create({
   },
   doneBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+

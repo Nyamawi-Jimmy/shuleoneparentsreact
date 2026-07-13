@@ -16,6 +16,8 @@
 // on first use — mirroring the web's shared-runtime pattern.
 
 import React, { useCallback, useRef, useState } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
   KeyboardAvoidingView, Platform, Linking,
@@ -138,6 +140,7 @@ export const PlaygroundRunner: React.FC = () => {
   const kind = String(kindParam || 'PYTHON').toUpperCase();
   const k = KINDS[kind] ?? KINDS.PYTHON;
   const insets = useSafeAreaInsets();
+  useTheme(); // subscribe — styles/C proxies resolve the active scheme
   const topPad = insets.top > 0 ? insets.top : 24;
 
   // ── External editors: Scratch / Blocks / MakeCode ─────
@@ -147,7 +150,7 @@ export const PlaygroundRunner: React.FC = () => {
       <View style={styles.safe}>
         <View style={[styles.head, { paddingTop: topPad + 8 }]}>
           <TouchableOpacity style={styles.backBtn} hitSlop={8} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={18} color="#2c2550" />
+            <Ionicons name="chevron-back" size={18} color={C.ink} />
           </TouchableOpacity>
           <View style={styles.headTitleRow}>
             <Text style={styles.headIcon}>{k.icon}</Text>
@@ -166,7 +169,7 @@ export const PlaygroundRunner: React.FC = () => {
     <View style={styles.safe}>
       <View style={[styles.head, { paddingTop: topPad + 8 }]}>
         <TouchableOpacity style={styles.backBtn} hitSlop={8} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={18} color="#2c2550" />
+          <Ionicons name="chevron-back" size={18} color={C.ink} />
         </TouchableOpacity>
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={styles.headTitleRow}>
@@ -397,7 +400,7 @@ const WebPlayground: React.FC<{ k: typeof KINDS[string] }> = ({ k }) => {
               source={{ html: doc }}
               originWhitelist={['*']}
               javaScriptEnabled
-              style={{ backgroundColor: '#fff' }}
+              style={{ backgroundColor: C.card }}
             />
           </View>
         </View>
@@ -506,24 +509,24 @@ const NotesEditor: React.FC<{ kind: string; k: typeof KINDS[string] }> = ({ kind
 };
 
 // =================================================================
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f4f1ff' },
+const makeSheet = (S: StudentColors) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: S.soft },
   head: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingBottom: 10,
   },
   backBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
     alignItems: 'center', justifyContent: 'center',
   },
   headTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   headIcon: { fontSize: 15 },
-  headTitle: { fontSize: 15.5, fontWeight: '800', color: '#2c2550', flexShrink: 1 },
-  headSub: { fontSize: 11, fontWeight: '700', color: '#6f679c', marginTop: 1 },
+  headTitle: { fontSize: 15.5, fontWeight: '800', color: S.ink, flexShrink: 1 },
+  headSub: { fontSize: 11, fontWeight: '700', color: S.inkSoft, marginTop: 1 },
   extBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#efeaff', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: S.ring, alignItems: 'center', justifyContent: 'center',
   },
 
   body: { padding: 14 },
@@ -567,7 +570,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15, shadowRadius: 8, elevation: 3,
   },
-  outHead: { color: '#9b94c4', fontSize: 11, fontWeight: '800', letterSpacing: 0.4 },
+  outHead: { color: S.faint, fontSize: 11, fontWeight: '800', letterSpacing: 0.4 },
   engineNote: { color: '#ffd766', fontSize: 11.5, fontWeight: '700', marginTop: 8 },
   outText: {
     color: '#a5f3d0', fontSize: 12.5, lineHeight: 19, marginTop: 8,
@@ -582,7 +585,7 @@ const styles = StyleSheet.create({
   },
   sqlHeadCell: { color: '#ffd766', fontWeight: '700' },
 
-  previewBox: { height: 380, backgroundColor: '#fff' },
+  previewBox: { height: 380, backgroundColor: S.card },
 
   termCard: {
     flex: 1, backgroundColor: '#141228', borderRadius: 18, overflow: 'hidden',
@@ -605,6 +608,11 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 
-  noteRow: { backgroundColor: '#fff7e6', borderRadius: 14, padding: 12, marginTop: 12 },
+  noteRow: { backgroundColor: S.warnSoft, borderRadius: 14, padding: 12, marginTop: 12 },
   noteText: { color: '#92400e', fontSize: 12, fontWeight: '600', lineHeight: 17 },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+

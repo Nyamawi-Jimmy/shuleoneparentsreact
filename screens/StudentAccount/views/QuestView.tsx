@@ -1,4 +1,6 @@
 import React, { useCallback, useState } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator,
   Image,
@@ -33,6 +35,7 @@ const DEFAULT_POSITIONS = [
 export const QuestView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
+  useTheme(); // subscribe — styles/C proxies resolve the active scheme
   const { accessToken } = useAuth();
 
   const [quests, setQuests] = useState<QuestSummary[]>([]);
@@ -294,7 +297,7 @@ const QuestMapView: React.FC<{
         {/* "← Back to quests" + title */}
         <View style={styles.detailHeader}>
           <TouchableOpacity onPress={onBack} style={styles.backBtnSm} hitSlop={10}>
-            <Ionicons name="chevron-back" size={18} color="#2c2550" />
+            <Ionicons name="chevron-back" size={18} color={C.ink} />
             <Text style={styles.backBtnSmText}>Quests</Text>
           </TouchableOpacity>
           <View style={styles.secHLine} />
@@ -444,19 +447,19 @@ const LegendItem: React.FC<{ colors?: [string, string]; solid?: string; label: s
 // =================================================================
 // Styles
 // =================================================================
-const styles = StyleSheet.create({
+const makeSheet = (S: StudentColors) => StyleSheet.create({
   safe: { flex: 1 },
   scroll: { padding: 16 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
-  loadingText: { color: '#6f679c', marginTop: 14, fontWeight: '600' },
+  loadingText: { color: S.inkSoft, marginTop: 14, fontWeight: '600' },
 
   secH: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
-  secHTitle: { fontSize: 17, fontWeight: '800', color: '#2c2550' },
-  secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: '#ece8fb' },
+  secHTitle: { fontSize: 17, fontWeight: '800', color: S.ink },
+  secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: S.line },
 
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#fee2e2', borderRadius: 10,
+    backgroundColor: S.badSoft, borderRadius: 10,
     padding: 12, marginBottom: 14,
   },
   errorBannerText: { flex: 1, color: '#dc2626', fontSize: 12.5, fontWeight: '700' },
@@ -464,12 +467,12 @@ const styles = StyleSheet.create({
 
   empty: { alignItems: 'center', paddingVertical: 40 },
   emptyIcon: { fontSize: 60, marginBottom: 12 },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#2c2550' },
-  emptyText: { fontSize: 13, color: '#6f679c', fontWeight: '600', marginTop: 6, textAlign: 'center' },
+  emptyTitle: { fontSize: 18, fontWeight: '800', color: S.ink },
+  emptyText: { fontSize: 13, color: S.inkSoft, fontWeight: '600', marginTop: 6, textAlign: 'center' },
 
   // Quest card
   questCard: {
-    backgroundColor: '#fff',
+    backgroundColor: S.card,
     borderRadius: 18,
     overflow: 'hidden',
     marginBottom: 14,
@@ -491,18 +494,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 4,
     borderRadius: 99,
   },
-  themePillText: { fontSize: 10.5, fontWeight: '800', color: '#2c2550', letterSpacing: 0.3 },
+  themePillText: { fontSize: 10.5, fontWeight: '800', color: S.ink, letterSpacing: 0.3 },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
   statusBadgeText: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.3 },
 
   questBody: { padding: 12 },
-  questTitle: { fontSize: 15.5, fontWeight: '800', color: '#2c2550' },
-  questDesc: { fontSize: 12, color: '#6f679c', fontWeight: '500', marginTop: 3 },
+  questTitle: { fontSize: 15.5, fontWeight: '800', color: S.ink },
+  questDesc: { fontSize: 12, color: S.inkSoft, fontWeight: '500', marginTop: 3 },
 
   statsRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   statChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#f4f1ff',
+    backgroundColor: S.soft,
     paddingHorizontal: 9, paddingVertical: 4,
     borderRadius: 99,
   },
@@ -512,7 +515,7 @@ const styles = StyleSheet.create({
   progressBar: {
     flex: 1,
     height: 8, borderRadius: 99,
-    backgroundColor: '#ece8fb', overflow: 'hidden',
+    backgroundColor: S.line, overflow: 'hidden',
   },
   progressFill: { height: '100%', borderRadius: 99 },
   actionLabel: { fontSize: 12.5, fontWeight: '800' },
@@ -521,29 +524,29 @@ const styles = StyleSheet.create({
   detailHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
   backBtnSm: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#fff',
+    backgroundColor: S.card,
     paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: 999,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08, shadowRadius: 4, elevation: 2,
   },
-  backBtnSmText: { fontSize: 13, fontWeight: '800', color: '#2c2550' },
+  backBtnSmText: { fontSize: 13, fontWeight: '800', color: S.ink },
 
   metaCard: {
-    backgroundColor: '#fff', padding: 14, marginBottom: 14,
+    backgroundColor: S.card, padding: 14, marginBottom: 14,
     borderWidth: 2,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
   metaSubject: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.6 },
-  metaTitle: { fontSize: 17, fontWeight: '800', color: '#2c2550', marginTop: 2 },
-  metaDesc: { fontSize: 12, color: '#6f679c', fontWeight: '500', marginTop: 4, lineHeight: 16 },
+  metaTitle: { fontSize: 17, fontWeight: '800', color: S.ink, marginTop: 2 },
+  metaDesc: { fontSize: 12, color: S.inkSoft, fontWeight: '500', marginTop: 4, lineHeight: 16 },
   xpRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
-  xpBar: { flex: 1, height: 9, borderRadius: 99, backgroundColor: '#ece8fb', overflow: 'hidden' },
+  xpBar: { flex: 1, height: 9, borderRadius: 99, backgroundColor: S.line, overflow: 'hidden' },
   xpFill: { height: '100%', borderRadius: 99 },
-  xpText: { fontSize: 11.5, color: '#2c2550', fontWeight: '800' },
+  xpText: { fontSize: 11.5, color: S.ink, fontWeight: '800' },
 
   // Map
   mapWrap: {
@@ -579,7 +582,7 @@ const styles = StyleSheet.create({
   bubText: { fontSize: 30, color: '#fff' },
   bubTextBoss: { fontSize: 42 },
   lbl: {
-    backgroundColor: '#fff',
+    backgroundColor: S.card,
     paddingHorizontal: 10, paddingVertical: 5,
     borderRadius: 14, marginTop: 6,
     shadowColor: '#5038A0',
@@ -588,7 +591,7 @@ const styles = StyleSheet.create({
     maxWidth: 150,
   },
   lblCur: { backgroundColor: '#ff9d2e' },
-  lblText: { fontWeight: '700', fontSize: 11.5, lineHeight: 15, color: '#2c2550', textAlign: 'center' },
+  lblText: { fontWeight: '700', fontSize: 11.5, lineHeight: 15, color: S.ink, textAlign: 'center' },
   lblTextCur: { color: '#fff' },
 
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 18, paddingHorizontal: 4 },
@@ -600,5 +603,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1, shadowRadius: 4, elevation: 2,
   },
-  legendText: { fontWeight: '600', color: '#6f679c', fontSize: 13.5 },
+  legendText: { fontWeight: '600', color: S.inkSoft, fontSize: 13.5 },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+

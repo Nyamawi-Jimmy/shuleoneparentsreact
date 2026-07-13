@@ -4,6 +4,8 @@
 // sign-out flow.
 
 import React, { useCallback, useState } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
   ActivityIndicator, RefreshControl,
@@ -34,6 +36,8 @@ const fmtEarned = (iso: string | null) => {
 export const AvatarView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
+  // Also subscribes the scheme proxies; mode/setMode drive the Appearance picker.
+  const { mode, setMode, scheme } = useTheme();
   const { signOut, user, accessToken } = useAuth();
 
   const [profile, setProfile] = useState<StudentProfile | null>(null);
@@ -198,7 +202,7 @@ export const AvatarView: React.FC = () => {
 
         <View style={styles.accountCard}>
           <View style={styles.accountRow}>
-            <View style={[styles.rowIcon, { backgroundColor: '#efeaff' }]}>
+            <View style={[styles.rowIcon, { backgroundColor: C.ring }]}>
               <Ionicons name="person" size={17} color="#7c5cff" />
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -209,7 +213,7 @@ export const AvatarView: React.FC = () => {
 
           {!!profile?.className && (
             <View style={[styles.accountRow, styles.accountRowLine]}>
-              <View style={[styles.rowIcon, { backgroundColor: '#e3f1ff' }]}>
+              <View style={[styles.rowIcon, { backgroundColor: C.infoSoft }]}>
                 <Ionicons name="school" size={16} color="#3aa0ff" />
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -221,6 +225,32 @@ export const AvatarView: React.FC = () => {
               </View>
             </View>
           )}
+        </View>
+
+        {/* ── Appearance ─────────────────────────────────────── */}
+        <View style={styles.secH}>
+          <Text style={styles.secHTitle}>{scheme === 'dark' ? '🌙 Appearance' : '☀️ Appearance'}</Text>
+          <View style={styles.secHLine} />
+        </View>
+        <View style={styles.appearanceCard}>
+          {([
+            { key: 'light', emoji: '☀️', label: 'Light' },
+            { key: 'dark', emoji: '🌙', label: 'Dark' },
+            { key: 'system', emoji: '📱', label: 'System' },
+          ] as const).map((opt) => {
+            const on = mode === opt.key;
+            return (
+              <TouchableOpacity
+                key={opt.key}
+                activeOpacity={0.8}
+                onPress={() => setMode(opt.key)}
+                style={[styles.modeChip, on && { backgroundColor: tokens.accent1, borderColor: tokens.accent1 }]}
+              >
+                <Text style={styles.modeChipIcon}>{opt.emoji}</Text>
+                <Text style={[styles.modeChipText, on && { color: '#fff' }]}>{opt.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* Sign out — its own clear, deliberate card */}
@@ -252,15 +282,15 @@ const HeroStat: React.FC<{ emoji: string; value: string; label: string }> = ({ e
   </View>
 );
 
-const styles = StyleSheet.create({
+const makeSheet = (S: StudentColors) => StyleSheet.create({
   safe: { flex: 1 },
   center: { alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: 16 },
   secH: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 6 },
-  secHTitle: { fontSize: 17, fontWeight: '800', color: '#2c2550' },
-  secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: '#ece8fb' },
+  secHTitle: { fontSize: 17, fontWeight: '800', color: S.ink },
+  secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: S.line },
   countBadge: {
-    backgroundColor: '#e4defc', borderRadius: 999,
+    backgroundColor: S.ringStrong, borderRadius: 999,
     paddingHorizontal: 8, paddingVertical: 3,
   },
   countBadgeText: { fontSize: 10.5, fontWeight: '800', color: '#7c5cff' },
@@ -299,34 +329,34 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.25)' },
 
   emptyBadges: {
-    backgroundColor: '#fff', borderRadius: 18,
-    borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 18,
+    borderWidth: 1.5, borderColor: S.line,
     alignItems: 'center', paddingVertical: 26, marginBottom: 6,
   },
-  emptyTitle: { fontSize: 14.5, fontWeight: '800', color: '#2c2550', marginTop: 8 },
-  emptyText: { fontSize: 12, color: '#6f679c', fontWeight: '600', marginTop: 3, textAlign: 'center', paddingHorizontal: 30 },
+  emptyTitle: { fontSize: 14.5, fontWeight: '800', color: S.ink, marginTop: 8 },
+  emptyText: { fontSize: 12, color: S.inkSoft, fontWeight: '600', marginTop: 3, textAlign: 'center', paddingHorizontal: 30 },
 
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   badge: {
     flexBasis: '30%', flexGrow: 1, maxWidth: '48%',
-    backgroundColor: '#fff', padding: 13, borderRadius: 18,
+    backgroundColor: S.card, padding: 13, borderRadius: 18,
     alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#ece8fb',
+    borderWidth: 1.5, borderColor: S.line,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
-  badgeLocked: { borderStyle: 'dashed', backgroundColor: '#faf9ff' },
+  badgeLocked: { borderStyle: 'dashed', backgroundColor: S.soft },
   badgeIcon: { fontSize: 30 },
   badgeLabel: {
-    fontSize: 10.5, fontWeight: '800', color: '#2c2550',
+    fontSize: 10.5, fontWeight: '800', color: S.ink,
     marginTop: 6, textAlign: 'center', lineHeight: 14,
   },
-  badgeSub: { fontSize: 9, fontWeight: '700', color: '#9b94c4', marginTop: 3 },
+  badgeSub: { fontSize: 9, fontWeight: '700', color: S.faint, marginTop: 3 },
 
   accountCard: {
-    backgroundColor: '#fff', borderRadius: 18,
-    borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 18,
+    borderWidth: 1.5, borderColor: S.line,
     paddingHorizontal: 14,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 3 },
@@ -334,25 +364,39 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   accountRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-  accountRowLine: { borderTopWidth: 1, borderTopColor: '#f2effc' },
+  accountRowLine: { borderTopWidth: 1, borderTopColor: S.divider },
   rowIcon: {
     width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
   },
-  rowTitle: { fontSize: 10.5, fontWeight: '800', color: '#9b94c4', letterSpacing: 0.3, textTransform: 'uppercase' },
-  rowSub: { fontSize: 13, fontWeight: '700', color: '#2c2550', marginTop: 2 },
+  rowTitle: { fontSize: 10.5, fontWeight: '800', color: S.faint, letterSpacing: 0.3, textTransform: 'uppercase' },
+  rowSub: { fontSize: 13, fontWeight: '700', color: S.ink, marginTop: 2 },
+
+  appearanceCard: { flexDirection: 'row', gap: 9, marginBottom: 12 },
+  modeChip: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
+    borderRadius: 14, paddingVertical: 12,
+  },
+  modeChipIcon: { fontSize: 14 },
+  modeChipText: { fontSize: 12.5, fontWeight: '800', color: S.inkSoft },
 
   signOutCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#fff', padding: 14,
+    backgroundColor: S.card, padding: 14,
     borderRadius: 18,
     borderWidth: 1.5, borderColor: '#fecdd3',
   },
   signOutIcon: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#ffe4e6',
+    backgroundColor: S.badSoft,
     alignItems: 'center', justifyContent: 'center',
   },
   signOutTitle: { fontSize: 13.5, fontWeight: '800', color: '#e11d48' },
-  signOutSub: { fontSize: 11, color: '#9b94c4', fontWeight: '600', marginTop: 2 },
+  signOutSub: { fontSize: 11, color: S.faint, fontWeight: '600', marginTop: 2 },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+

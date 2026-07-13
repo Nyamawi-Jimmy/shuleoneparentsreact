@@ -1,6 +1,7 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Appearance } from 'react-native';
 import { ColorPalette, lightColors, darkColors } from './palettes';
+import { schemeHolder } from './schemeHolder';
 
 // =================================================================
 // AsyncStorage with safe fallback (some setups may not have it installed)
@@ -41,6 +42,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [systemScheme, setSystemScheme] = useState<'light' | 'dark'>(
     (Appearance.getColorScheme() ?? 'light') as 'light' | 'dark',
   );
+  // Mirror of `mode` readable inside event callbacks without stale closures.
+  const modeRef = useRef<ThemeMode>('system');
+
+  const applyMode = useCallback((next: ThemeMode) => {
+    modeRef.current = next;
+    // Keep the module-level scheme mirror in sync BEFORE React re-renders,
+    // so scheme-proxy stylesheets resolve the fresh scheme on the next pass.
+    schemeHolder.current = next === 'system'
+      ? ((Appearance.getColorScheme() ?? 'light') as 'light' | 'dark')
+      : next;
+    setModeState(next);
+  }, []);
 
   // ── Hydrate stored mode on mount ───
   useEffect(() => {
@@ -48,16 +61,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       try {
         const stored = await storage.getItem(STORAGE_KEY);
         if (stored === 'light' || stored === 'dark' || stored === 'system') {
-          setModeState(stored);
+          applyMode(stored);
         }
       } catch { /* ignore */ }
     })();
-  }, []);
+  }, [applyMode]);
 
   // ── Watch system colour scheme changes ───
   useEffect(() => {
     const sub = Appearance.addChangeListener(({ colorScheme }) => {
-      setSystemScheme((colorScheme ?? 'light') as 'light' | 'dark');
+      const sys = (colorScheme ?? 'light') as 'light' | 'dark';
+      if (modeRef.current === 'system') schemeHolder.current = sys;
+      setSystemScheme(sys);
     });
     return () => sub.remove();
   }, []);
@@ -67,9 +82,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const colors = scheme === 'dark' ? darkColors : lightColors;
 
   const setMode = useCallback(async (next: ThemeMode) => {
-    setModeState(next);
+    applyMode(next);
     try { await storage.setItem(STORAGE_KEY, next); } catch { /* ignore */ }
-  }, []);
+  }, [applyMode]);
 
   return (
     <ThemeContext.Provider value={{ mode, scheme, colors, setMode }}>

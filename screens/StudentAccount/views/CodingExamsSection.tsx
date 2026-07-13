@@ -4,6 +4,8 @@
 // per-question feedback).
 
 import React, { useCallback, useState } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator,
 } from 'react-native';
@@ -20,6 +22,7 @@ const BANDS: Record<number, string> = { 4: 'Exceeding', 3: 'Meeting', 2: 'Approa
 export const CodingExamsSection: React.FC<{ studentId: number | null }> = ({ studentId }) => {
   const { accessToken } = useAuth();
   const [exams, setExams] = useState<CodingExamRow[] | null>(null);
+  useTheme(); // subscribe — styles/C proxies resolve the active scheme
   const [take, setTake] = useState<CodingExamTake | null>(null);
   const [responses, setResponses] = useState<Record<number, string>>({});
   const [report, setReport] = useState<CodingExamReport | null>(null);
@@ -249,27 +252,27 @@ export const CodingExamsSection: React.FC<{ studentId: number | null }> = ({ stu
 };
 
 // =================================================================
-const styles = StyleSheet.create({
-  headTitle: { fontSize: 16.5, fontWeight: '800', color: '#2c2550' },
-  headSub: { fontSize: 12, color: '#6f679c', fontWeight: '600', marginTop: 3, marginBottom: 12 },
-  back: { fontSize: 13, fontWeight: '800', color: '#6f679c', marginBottom: 10 },
+const makeSheet = (S: StudentColors) => StyleSheet.create({
+  headTitle: { fontSize: 16.5, fontWeight: '800', color: S.ink },
+  headSub: { fontSize: 12, color: S.inkSoft, fontWeight: '600', marginTop: 3, marginBottom: 12 },
+  back: { fontSize: 13, fontWeight: '800', color: S.inkSoft, marginBottom: 10 },
   err: {
-    backgroundColor: '#fff1f1', color: '#b42318', borderRadius: 12,
+    backgroundColor: S.badSoft, color: '#b42318', borderRadius: 12,
     padding: 10, fontSize: 12, fontWeight: '700', marginBottom: 10, overflow: 'hidden',
   },
 
   card: {
-    backgroundColor: '#fff', borderRadius: 16, borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 16, borderWidth: 1.5, borderColor: S.line,
     padding: 14, marginBottom: 10,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
-  secTitle: { fontSize: 13.5, fontWeight: '800', color: '#2c2550', marginBottom: 10 },
+  secTitle: { fontSize: 13.5, fontWeight: '800', color: S.ink, marginBottom: 10 },
 
   examRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  examTitle: { fontSize: 14, fontWeight: '800', color: '#2c2550' },
-  examMeta: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 3 },
+  examTitle: { fontSize: 14, fontWeight: '800', color: S.ink },
+  examMeta: { fontSize: 11.5, color: S.inkSoft, fontWeight: '600', marginTop: 3 },
   goBtn: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9 },
   goBtnText: { color: '#fff', fontWeight: '800', fontSize: 12.5 },
   ghostBtn: {
@@ -277,32 +280,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8,
   },
   ghostBtnText: { color: '#7c5cff', fontWeight: '800', fontSize: 12 },
-  donePill: { backgroundColor: '#e9f9ef', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7 },
+  donePill: { backgroundColor: S.okSoft, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7 },
   donePillText: { color: '#15803d', fontWeight: '800', fontSize: 11.5 },
 
-  emptyTitle: { fontSize: 14, fontWeight: '800', color: '#2c2550', marginTop: 8 },
-  emptySub: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 3 },
+  emptyTitle: { fontSize: 14, fontWeight: '800', color: S.ink, marginTop: 8 },
+  emptySub: { fontSize: 11.5, color: S.inkSoft, fontWeight: '600', marginTop: 3 },
 
-  takeTitle: { fontSize: 17, fontWeight: '800', color: '#2c2550' },
-  takeSub: { fontSize: 12, color: '#6f679c', fontWeight: '600', marginTop: 3, marginBottom: 12 },
+  takeTitle: { fontSize: 17, fontWeight: '800', color: S.ink },
+  takeSub: { fontSize: 12, color: S.inkSoft, fontWeight: '600', marginTop: 3, marginBottom: 12 },
   fbHead: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginBottom: 8 },
   fbN: { fontWeight: '800', color: '#7c5cff', fontSize: 12.5 },
-  fbPrompt: { flex: 1, fontSize: 13, fontWeight: '700', color: '#2c2550', lineHeight: 18 },
-  fbMarks: { fontSize: 11, fontWeight: '800', color: '#6f679c' },
-  fbRow: { borderTopWidth: 1, borderTopColor: '#f2effc', paddingTop: 9, marginTop: 9 },
-  fbText: { fontSize: 12, color: '#6f679c', fontWeight: '500', lineHeight: 17 },
+  fbPrompt: { flex: 1, fontSize: 13, fontWeight: '700', color: S.ink, lineHeight: 18 },
+  fbMarks: { fontSize: 11, fontWeight: '800', color: S.inkSoft },
+  fbRow: { borderTopWidth: 1, borderTopColor: S.divider, paddingTop: 9, marginTop: 9 },
+  fbText: { fontSize: 12, color: S.inkSoft, fontWeight: '500', lineHeight: 17 },
 
   opt: {
-    borderWidth: 2, borderColor: '#ece8fb', borderRadius: 12,
+    borderWidth: 2, borderColor: S.line, borderRadius: 12,
     paddingHorizontal: 12, paddingVertical: 10, marginBottom: 7,
   },
-  optOn: { borderColor: '#7c5cff', backgroundColor: '#efeaff' },
-  optText: { fontSize: 13, fontWeight: '600', color: '#2c2550' },
+  optOn: { borderColor: '#7c5cff', backgroundColor: S.ring },
+  optText: { fontSize: 13, fontWeight: '600', color: S.ink },
   optTextOn: { color: '#5b45c9', fontWeight: '800' },
   input: {
-    borderWidth: 2, borderColor: '#ece8fb', borderRadius: 12,
+    borderWidth: 2, borderColor: S.line, borderRadius: 12,
     paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 13, fontWeight: '600', color: '#2c2550', backgroundColor: '#fbfaff',
+    fontSize: 13, fontWeight: '600', color: S.ink, backgroundColor: S.soft,
   },
   area: { minHeight: 90, textAlignVertical: 'top' },
   code: {
@@ -326,8 +329,13 @@ const styles = StyleSheet.create({
   rhBand: { color: '#fff', fontSize: 11, fontWeight: '700', marginTop: 2 },
 
   topicRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 9 },
-  topicName: { width: '36%', fontSize: 12, fontWeight: '600', color: '#2c2550' },
-  topicBar: { flex: 1, height: 8, borderRadius: 99, backgroundColor: '#efeaff', overflow: 'hidden' },
+  topicName: { width: '36%', fontSize: 12, fontWeight: '600', color: S.ink },
+  topicBar: { flex: 1, height: 8, borderRadius: 99, backgroundColor: S.ring, overflow: 'hidden' },
   topicFill: { height: '100%', borderRadius: 99, backgroundColor: '#7c5cff' },
-  topicN: { width: 44, textAlign: 'right', fontSize: 11.5, fontWeight: '800', color: '#2c2550' },
+  topicN: { width: 44, textAlign: 'right', fontSize: 11.5, fontWeight: '800', color: S.ink },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+

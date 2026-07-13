@@ -5,6 +5,8 @@
 // engines: QuizGame (all round-based games) and MemoryGame (flip the pairs).
 
 import React, { useCallback, useRef, useState } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
 } from 'react-native';
@@ -40,6 +42,7 @@ const say = (text: string) => {
 export const GamesView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
+  useTheme(); // subscribe — styles/C proxies resolve the active scheme
   const { accessToken } = useAuth();
   const playful = tier === 'sprout' || tier === 'explorer';
 
@@ -392,7 +395,7 @@ const GameHead: React.FC<{ icon: string; title: string; onExit: () => void; chil
   ({ icon, title, onExit, children }) => (
     <View style={styles.gameHead}>
       <TouchableOpacity style={styles.exitBtn} hitSlop={8} onPress={onExit}>
-        <Ionicons name="chevron-back" size={18} color="#2c2550" />
+        <Ionicons name="chevron-back" size={18} color={C.ink} />
       </TouchableOpacity>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.gameHeadEyebrow}>BRAIN GAMES</Text>
@@ -444,13 +447,13 @@ const GameReward: React.FC<{
 );
 
 // =================================================================
-const styles = StyleSheet.create({
+const makeSheet = (S: StudentColors) => StyleSheet.create({
   safe: { flex: 1 },
   scroll: { padding: 16 },
   secH: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  secHTitle: { fontSize: 17, fontWeight: '800', color: '#2c2550' },
-  secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: '#ece8fb' },
-  subline: { fontSize: 12.5, color: '#6f679c', fontWeight: '600', marginBottom: 14 },
+  secHTitle: { fontSize: 17, fontWeight: '800', color: S.ink },
+  secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: S.line },
+  subline: { fontSize: 12.5, color: S.inkSoft, fontWeight: '600', marginBottom: 14 },
 
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   tile: { flexBasis: '47%', flexGrow: 1 },
@@ -480,31 +483,31 @@ const styles = StyleSheet.create({
   gameHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   exitBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
     alignItems: 'center', justifyContent: 'center',
   },
-  gameHeadEyebrow: { fontSize: 8.5, fontWeight: '800', letterSpacing: 0.7, color: '#9b94c4' },
+  gameHeadEyebrow: { fontSize: 8.5, fontWeight: '800', letterSpacing: 0.7, color: S.faint },
   gameHeadTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   gameHeadIcon: { fontSize: 15 },
-  gameHeadTitle: { fontSize: 16, fontWeight: '800', color: '#2c2550', flexShrink: 1 },
+  gameHeadTitle: { fontSize: 16, fontWeight: '800', color: S.ink, flexShrink: 1 },
   gameHeadRight: { flexDirection: 'row', gap: 6 },
   headChip: {
-    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
     borderRadius: 99, paddingHorizontal: 9, paddingVertical: 4,
-    fontSize: 11.5, fontWeight: '800', color: '#2c2550', overflow: 'hidden',
+    fontSize: 11.5, fontWeight: '800', color: S.ink, overflow: 'hidden',
   },
 
   promptRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
-  prompt: { flex: 1, fontSize: 18, fontWeight: '800', color: '#2c2550' },
+  prompt: { flex: 1, fontSize: 18, fontWeight: '800', color: S.ink },
   hear: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: '#efeaff', borderWidth: 1.5, borderColor: '#a78bfa',
+    backgroundColor: S.ring, borderWidth: 1.5, borderColor: '#a78bfa',
     alignItems: 'center', justifyContent: 'center',
   },
 
   iconsWrap: {
     flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6,
-    backgroundColor: '#fff', borderRadius: 18, borderWidth: 2, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 18, borderWidth: 2, borderColor: S.line,
     padding: 16, marginBottom: 14,
   },
   iconGlyph: { fontSize: 38, padding: 2 },
@@ -516,7 +519,7 @@ const styles = StyleSheet.create({
     minWidth: 76, alignItems: 'center',
     borderWidth: 2.5, borderRadius: 18, paddingVertical: 16, paddingHorizontal: 18,
   },
-  bigOptText: { fontSize: 26, fontWeight: '800', color: '#2c2550' },
+  bigOptText: { fontSize: 26, fontWeight: '800', color: S.ink },
   glyphOpt: {
     flexBasis: '47%', flexGrow: 1, alignItems: 'center',
     borderWidth: 2.5, borderRadius: 18, paddingVertical: 18,
@@ -527,7 +530,7 @@ const styles = StyleSheet.create({
     borderWidth: 2.5, borderRadius: 18, paddingVertical: 14,
   },
   swatch: { width: 46, height: 46, borderRadius: 23 },
-  swatchLabel: { fontSize: 12.5, fontWeight: '800', color: '#2c2550' },
+  swatchLabel: { fontSize: 12.5, fontWeight: '800', color: S.ink },
 
   // Memory
   memGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
@@ -540,8 +543,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15, shadowRadius: 8, elevation: 3,
   },
-  memCardUp: { backgroundColor: '#fff', borderColor: '#ece8fb' },
-  memCardMatched: { backgroundColor: '#eafef3', borderColor: '#15c98c' },
+  memCardUp: { backgroundColor: S.card, borderColor: S.line },
+  memCardMatched: { backgroundColor: S.okSoft, borderColor: '#15c98c' },
   memFace: { fontSize: 30, color: '#fff' },
 
   // Reward
@@ -565,10 +568,15 @@ const styles = StyleSheet.create({
   rewardBtns: { flexDirection: 'row', gap: 12, marginTop: 22, justifyContent: 'center' },
   replayBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#fff', borderWidth: 2, borderColor: '#a78bfa',
+    backgroundColor: S.card, borderWidth: 2, borderColor: '#a78bfa',
     borderRadius: 999, paddingHorizontal: 18, paddingVertical: 12,
   },
   replayText: { color: '#7c5cff', fontWeight: '800', fontSize: 13.5 },
   exitGrad: { borderRadius: 999, paddingHorizontal: 22, paddingVertical: 13 },
   exitGradText: { color: '#fff', fontWeight: '800', fontSize: 13.5 },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+

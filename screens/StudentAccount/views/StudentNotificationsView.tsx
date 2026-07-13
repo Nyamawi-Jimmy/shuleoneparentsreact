@@ -5,6 +5,8 @@
 // work — all from real student endpoints, grouped into clean sections.
 
 import React, { useCallback, useState } from 'react';
+import { useTheme } from '../../../theme/ThemeContext';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, RefreshControl,
@@ -35,6 +37,7 @@ interface Section {
 
 export const StudentNotificationsView: React.FC = () => {
   const { accessToken } = useAuth();
+  useTheme(); // subscribe — styles/C proxies resolve the active scheme
   const [assignments, setAssignments] = useState<StudentAssignment[] | null>(null);
   const [liveClasses, setLiveClasses] = useState<StudentLiveClass[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -110,7 +113,7 @@ export const StudentNotificationsView: React.FC = () => {
                       <Text style={styles.rowTitle} numberOfLines={2}>{it.title}</Text>
                       <Text style={[styles.rowSub, { color: it.tint }]} numberOfLines={1}>{it.sub}</Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={16} color="#c4bde4" />
+                    <Ionicons name="chevron-forward" size={16} color={C.faint} />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -194,36 +197,36 @@ function fmtWhen(iso: string): string {
 }
 
 // =================================================================
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f4f1ff' },
+const makeSheet = (S: StudentColors) => StyleSheet.create({
+  safe: { flex: 1, backgroundColor: S.soft },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scroll: { paddingHorizontal: 16, paddingTop: 4 },
 
   empty: { alignItems: 'center', paddingVertical: 64 },
   emptyCircle: {
     width: 76, height: 76, borderRadius: 38,
-    backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: S.card, alignItems: 'center', justifyContent: 'center',
     marginBottom: 14,
-    borderWidth: 1.5, borderColor: '#ece8fb',
+    borderWidth: 1.5, borderColor: S.line,
   },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#2c2550' },
+  emptyTitle: { fontSize: 18, fontWeight: '800', color: S.ink },
   emptyText: {
-    fontSize: 13, color: '#6f679c', fontWeight: '600', marginTop: 6,
+    fontSize: 13, color: S.inkSoft, fontWeight: '600', marginTop: 6,
     textAlign: 'center', paddingHorizontal: 40, lineHeight: 19,
   },
 
   section: { marginBottom: 18 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8, paddingHorizontal: 2 },
-  sectionLabel: { fontSize: 11, fontWeight: '800', color: '#6f679c', letterSpacing: 0.8 },
+  sectionLabel: { fontSize: 11, fontWeight: '800', color: S.inkSoft, letterSpacing: 0.8 },
   countBadge: {
     minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 6,
-    backgroundColor: '#e4defc', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: S.ringStrong, alignItems: 'center', justifyContent: 'center',
   },
   countBadgeText: { fontSize: 10.5, fontWeight: '800', color: '#7c5cff' },
 
   groupCard: {
-    backgroundColor: '#fff', borderRadius: 18,
-    borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: S.card, borderRadius: 18,
+    borderWidth: 1.5, borderColor: S.line,
     overflow: 'hidden',
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 3 },
@@ -233,11 +236,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 14, paddingVertical: 12,
   },
-  rowLine: { borderTopWidth: 1, borderTopColor: '#f2effc' },
+  rowLine: { borderTopWidth: 1, borderTopColor: S.divider },
   iconCircle: {
     width: 38, height: 38, borderRadius: 19,
     alignItems: 'center', justifyContent: 'center',
   },
-  rowTitle: { fontSize: 13.5, fontWeight: '800', color: '#2c2550', lineHeight: 18 },
+  rowTitle: { fontSize: 13.5, fontWeight: '800', color: S.ink, lineHeight: 18 },
   rowSub: { fontSize: 11.5, fontWeight: '700', marginTop: 2 },
 });
+
+// Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
+// (see studentTheme.themedSheets) — no render-time mutation needed.
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+
