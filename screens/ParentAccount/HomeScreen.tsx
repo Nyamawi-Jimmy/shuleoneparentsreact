@@ -1,13 +1,21 @@
+// Today — the parent dashboard. 2026-07 redesign: one integrated gradient header
+// (avatar + greeting + notifications + frosted child switcher), an elevated
+// quick-access grid that surfaces every section in one tap, and an "At a glance"
+// row of real status cards (fees / attendance / bus / updates). Below that, the
+// existing signal-driven sections: needs-your-attention, coding class report,
+// upcoming events and recent activity.
+
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
+  Image, Platform,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
-import { ParentHeader } from '../../components/ParentHeader';
 import { fonts } from '../../constants/theme';
 import { ChildSwitcherModal } from '../../components/ChildSwitcherModal';
 import { useSelectedChild } from '../../context/SelectedChildContext';
@@ -15,7 +23,7 @@ import { useParentProfile } from '../../context/ParentProfileContext';
 import { useParentHome } from '../../hooks/useParentHome';
 import { useChildFees } from '../../hooks/useChildFees';
 import { useChildAttendance } from '../../hooks/useAcademics';
-import { useChildUpcoming, UpcomingItem } from '../../hooks/useChildUpcoming';
+import { useChildUpcoming } from '../../hooks/useChildUpcoming';
 import { moneyToNumber } from '../../api/fees.types';
 import { ParentHomeAction, ParentHomeSignal } from '../../api/home';
 import { useAuth } from '../../context/AuthContext';
@@ -30,6 +38,7 @@ function toMobileRoute(deepLink?: string | null): string {
   if (p.includes('attendance')) return '/academics';
   if (p.includes('academics') || p.includes('exam') || p.includes('result')) return '/academics';
   if (p.includes('transport') || p.includes('bus')) return '/transport';
+  if (p.includes('coding')) return '/coding';
   if (p.includes('communication') || p.includes('message') || p.includes('announce')) return '/communication';
   if (p.includes('calendar') || p.includes('event') || p.includes('live')) return '/calendar';
   if (p.includes('diary')) return '/diary';
@@ -50,6 +59,19 @@ function greetingWord(): string {
   return 'Good evening';
 }
 
+// Quick access — every section one tap away, so More stays a fallback, not a maze.
+interface QuickItem { label: string; route: string; icon: React.ReactNode; tint: string }
+const quickItems = (c: ColorPalette): QuickItem[] => [
+  { label: 'Fees',      route: '/finance',       tint: '#10B981', icon: <MaterialCommunityIcons name="wallet-outline" size={21} color="#10B981" /> },
+  { label: 'Academics', route: '/academics',     tint: '#6366F1', icon: <Ionicons name="school-outline" size={21} color="#6366F1" /> },
+  { label: 'Bus',       route: '/transport',     tint: '#2563EB', icon: <MaterialCommunityIcons name="bus-school" size={21} color="#2563EB" /> },
+  { label: 'Messages',  route: '/chat',          tint: '#0891B2', icon: <Ionicons name="chatbubbles-outline" size={21} color="#0891B2" /> },
+  { label: 'Coding',    route: '/coding',        tint: '#059669', icon: <MaterialCommunityIcons name="code-tags" size={21} color="#059669" /> },
+  { label: 'Calendar',  route: '/calendar',      tint: '#E11D48', icon: <Ionicons name="calendar-outline" size={21} color="#E11D48" /> },
+  { label: 'Documents', route: '/documents',     tint: '#D97706', icon: <Ionicons name="folder-open-outline" size={21} color="#D97706" /> },
+  { label: 'Updates',   route: '/communication', tint: '#7C3AED', icon: <Ionicons name="megaphone-outline" size={21} color="#7C3AED" /> },
+];
+
 export const HomeScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -69,181 +91,226 @@ export const HomeScreen: React.FC = () => {
 
   const actions: ParentHomeAction[] = Array.isArray(home?.actions) ? home!.actions : [];
   const signals: ParentHomeSignal[] = Array.isArray(home?.signals) ? home!.signals : [];
+  const newSignals = signals.filter((s) => s.isNew).length;
 
-  // Status tile values — real where available, honest neutral otherwise.
+  // At a glance — real where available, honest neutral otherwise.
   const feesBalance = feesSummary ? moneyToNumber(feesSummary.balance) : null;
   const feesValue = feesBalance == null ? '—' : feesBalance > 0 ? formatKsh(feesBalance) : 'Up to date';
   const feesTone = feesBalance != null && feesBalance > 0 ? colors.danger : colors.success;
+  const feesFoot = feesBalance == null ? 'Tap to view' : feesBalance > 0 ? 'Balance due · tap to pay' : 'All settled this term';
 
   const attDays = attendanceSummary?.days ?? [];
   const attLatest = attDays.length
     ? [...attDays].sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]
     : null;
-  const attValue = attendanceSummary?.attendanceRate != null
-    ? `${Math.round(attendanceSummary.attendanceRate)}%`
-    : attLatest?.status
-      ? String(attLatest.status)
-      : '—';
+  const attRate = attendanceSummary?.attendanceRate;
+  const attValue = attRate != null ? `${Math.round(attRate)}%` : attLatest?.status ? String(attLatest.status) : '—';
+  const attFoot = attRate != null ? 'Attendance this term' : attLatest?.status ? 'Latest recorded day' : 'No records yet';
 
   const statusLine = home?.statusLine || (homeLoading ? 'Loading your day…' : 'Here’s your day');
 
+  // Light status icons belong to the indigo header, but only while this tab is
+  // focused — other tabs have plain backgrounds and keep the theme default.
+  const [focused, setFocused] = useState(true);
+  useFocusEffect(useCallback(() => {
+    setFocused(true);
+    return () => setFocused(false);
+  }, []));
+
   return (
     <View style={styles.root}>
-      <ParentHeader greetingName={parentName} />
-
+      {/* Light status icons over the indigo header — only while this tab is focused. */}
+      {focused && <StatusBar style="light" />}
       <ScrollView
-        contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#FFF" progressViewOffset={70} />}
       >
-        {/* Greeting hero */}
-        <LinearGradient colors={['#6366F1', '#4338CA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
-          <Text style={styles.heroGreeting}>{greetingWord()}, {parentName} 👋</Text>
-          <Text style={styles.heroSub}>Here’s what’s happening with {childFirst} today.</Text>
-          <View style={styles.statusPill}>
-            <Ionicons
-              name={home?.status === 'ALL_GOOD' ? 'checkmark-circle' : 'sparkles'}
-              size={14} color="#FFF"
-            />
-            <Text style={styles.statusPillText}>{statusLine}</Text>
+        {/* ── Integrated header: greeting, bell, child switcher ─────────── */}
+        <LinearGradient colors={['#4F46E5', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity style={styles.avatarWrap} activeOpacity={0.8} onPress={() => router.push('/settings' as any)}>
+              {parent?.photoUrl ? (
+                <Image source={{ uri: parent.photoUrl }} style={styles.avatarImg} />
+              ) : (
+                <Text style={styles.avatarText}>{parent?.initials || '?'}</Text>
+              )}
+            </TouchableOpacity>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.greeting} numberOfLines={1}>{greetingWord()}, {parentName}</Text>
+              <Text style={styles.greetingSub} numberOfLines={1}>{statusLine}</Text>
+            </View>
+            <TouchableOpacity style={styles.bellBtn} activeOpacity={0.7} onPress={() => router.push('/notifications' as any)}>
+              <Ionicons name="notifications-outline" size={20} color="#FFF" />
+              {newSignals > 0 && <View style={styles.bellDot} />}
+            </TouchableOpacity>
           </View>
-        </LinearGradient>
 
-        {/* Child + status tiles */}
-        {child && (
-          <View style={styles.childCard}>
+          {/* Child switcher — frosted card inside the header */}
+          {child && (
             <TouchableOpacity
-              style={styles.childRow}
-              activeOpacity={hasMultiple ? 0.7 : 1}
+              style={styles.childCard}
+              activeOpacity={0.8}
               onPress={hasMultiple ? () => setSwitcherOpen(true) : () => router.push('/settings' as any)}
             >
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{initials(child.fullName || (child as any).name)}</Text>
+              <View style={styles.childAvatar}>
+                <Text style={styles.childAvatarText}>{initials(child.fullName || (child as any).name)}</Text>
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.childName} numberOfLines={1}>{child.fullName || (child as any).name}</Text>
                 <Text style={styles.childMeta} numberOfLines={1}>
-                  {[child.className, (child as any).streamName].filter(Boolean).join(' ')}  •  {child.schoolName}
+                  {[child.className, (child as any).streamName].filter(Boolean).join(' ')}  ·  {child.schoolName}
                 </Text>
               </View>
               {hasMultiple ? (
                 <View style={styles.switchPill}>
-                  <Ionicons name="swap-horizontal" size={13} color={colors.primary} />
+                  <Ionicons name="swap-horizontal" size={12} color="#FFF" />
                   <Text style={styles.switchPillText}>Switch</Text>
                 </View>
               ) : (
-                <Feather name="chevron-right" size={18} color={colors.textTertiary} />
+                <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.7)" />
               )}
             </TouchableOpacity>
+          )}
+        </LinearGradient>
 
-            <View style={styles.tiles}>
-              <Tile styles={styles} colors={colors} icon={<MaterialCommunityIcons name="wallet-outline" size={16} color={colors.success} />}
-                label="Fees" value={feesValue} valueColor={feesTone} onPress={() => router.push('/finance' as any)} />
-              <Tile styles={styles} colors={colors} icon={<Ionicons name="checkmark-done-outline" size={16} color={colors.info} />}
-                label="Attendance" value={attValue} onPress={() => router.push('/academics' as any)} />
-              <Tile styles={styles} colors={colors} icon={<MaterialCommunityIcons name="bus-school" size={16} color={colors.info} />}
-                label="Bus" value="View" onPress={() => router.push('/transport' as any)} />
-              <Tile styles={styles} colors={colors} icon={<Ionicons name="megaphone-outline" size={16} color={colors.warning} />}
-                label="Updates" value="View" onPress={() => router.push('/communication' as any)} />
-            </View>
+        <View style={styles.body}>
+          {/* ── Quick access — elevated card overlapping the header ───────── */}
+          <View style={styles.quickCard}>
+            {quickItems(colors).map((q) => (
+              <TouchableOpacity key={q.label} style={styles.quickItem} activeOpacity={0.7}
+                onPress={() => router.push(q.route as any)}>
+                <View style={[styles.quickIcon, { backgroundColor: q.tint + '14' }]}>{q.icon}</View>
+                <Text style={styles.quickLabel} numberOfLines={1}>{q.label}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        )}
 
-        {/* Coding class report — only when the child's class was delivered recently */}
-        <CodingClassReportCard styles={styles} colors={colors} studentId={child?.studentId ?? null} />
+          {/* ── At a glance ────────────────────────────────────────────────── */}
+          <SectionHeader styles={styles} colors={colors} title={`${childFirst}’s day at a glance`} />
+          <View style={styles.statGrid}>
+            <StatCard
+              styles={styles} tint="#10B981" label="Fees"
+              icon={<MaterialCommunityIcons name="wallet-outline" size={17} color="#10B981" />}
+              value={feesValue} valueColor={feesTone} foot={feesFoot}
+              onPress={() => router.push('/finance' as any)}
+            />
+            <StatCard
+              styles={styles} tint="#6366F1" label="Attendance"
+              icon={<Ionicons name="checkmark-done-outline" size={17} color="#6366F1" />}
+              value={attValue} foot={attFoot}
+              progress={attRate != null ? Math.max(0, Math.min(100, attRate)) : null}
+              onPress={() => router.push('/academics' as any)}
+            />
+            <StatCard
+              styles={styles} tint="#2563EB" label="School bus"
+              icon={<MaterialCommunityIcons name="bus-school" size={17} color="#2563EB" />}
+              value="Track live" foot="Pickup, drop-off & route"
+              onPress={() => router.push('/transport' as any)}
+            />
+            <StatCard
+              styles={styles} tint="#7C3AED" label="Updates"
+              icon={<Ionicons name="megaphone-outline" size={17} color="#7C3AED" />}
+              value={newSignals > 0 ? `${newSignals} new` : 'All read'}
+              foot={newSignals > 0 ? 'School news waiting' : 'Nothing unread'}
+              onPress={() => router.push('/communication' as any)}
+            />
+          </View>
 
-        {/* Needs your attention */}
-        {actions.length > 0 && (
-          <>
-            <SectionHeader styles={styles} colors={colors} title="Needs your attention" />
-            <View style={styles.card}>
-              {actions.map((a, i) => {
-                const pr = PRIORITY[String(a.priority || 'WHENEVER').toUpperCase()] || PRIORITY.WHENEVER;
-                const tint = colors[pr.tintKey] as string;
-                const isFee = a.kind === 'PAY_FEES';
-                return (
-                  <TouchableOpacity key={a.id || i} style={[styles.attnRow, i > 0 && styles.divider]} activeOpacity={0.7}
-                    onPress={() => router.push(toMobileRoute(a.deepLink) as any)}>
-                    <View style={[styles.attnIcon, { backgroundColor: tint + '1A' }]}>
-                      <Ionicons name={isFee ? 'wallet' : 'alert-circle'} size={18} color={tint} />
+          {/* Coding class report — only when the child's class was delivered recently */}
+          <CodingClassReportCard styles={styles} colors={colors} studentId={child?.studentId ?? null} />
+
+          {/* Needs your attention */}
+          {actions.length > 0 && (
+            <>
+              <SectionHeader styles={styles} colors={colors} title="Needs your attention" />
+              <View style={styles.card}>
+                {actions.map((a, i) => {
+                  const pr = PRIORITY[String(a.priority || 'WHENEVER').toUpperCase()] || PRIORITY.WHENEVER;
+                  const tint = colors[pr.tintKey] as string;
+                  const isFee = a.kind === 'PAY_FEES';
+                  return (
+                    <TouchableOpacity key={a.id || i} style={[styles.attnRow, i > 0 && styles.divider]} activeOpacity={0.7}
+                      onPress={() => router.push(toMobileRoute(a.deepLink) as any)}>
+                      <View style={[styles.attnIcon, { backgroundColor: tint + '1A' }]}>
+                        <Ionicons name={isFee ? 'wallet' : 'alert-circle'} size={18} color={tint} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.attnTitle}>{a.title}</Text>
+                        {!!a.subtitle && <Text style={styles.attnSub} numberOfLines={1}>{a.subtitle}</Text>}
+                      </View>
+                      {isFee ? (
+                        <View style={styles.payBtn}><Text style={styles.payBtnText}>Pay now</Text></View>
+                      ) : (
+                        <Feather name="chevron-right" size={18} color={colors.textTertiary} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          )}
+
+          {/* Upcoming events */}
+          {upcoming.length > 0 && (
+            <>
+              <SectionHeader styles={styles} colors={colors} title="Upcoming events"
+                actionLabel="View calendar" onAction={() => router.push('/calendar' as any)} />
+              <View style={styles.card}>
+                {upcoming.map((u, i) => (
+                  <TouchableOpacity key={u.key} style={[styles.eventRow, i > 0 && styles.divider]} activeOpacity={0.7}
+                    onPress={() => router.push('/calendar' as any)}>
+                    <View style={[styles.eventDate, { backgroundColor: u.isLive ? colors.dangerSoft : colors.primarySoft }]}>
+                      <Text style={[styles.eventDay, { color: u.isLive ? colors.danger : colors.primary }]}>{dayNum(u.date)}</Text>
+                      <Text style={[styles.eventMon, { color: u.isLive ? colors.danger : colors.primary }]}>{monShort(u.date)}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.attnTitle}>{a.title}</Text>
-                      {!!a.subtitle && <Text style={styles.attnSub} numberOfLines={1}>{a.subtitle}</Text>}
+                      <Text style={styles.eventTitle} numberOfLines={1}>{u.title}</Text>
+                      <Text style={styles.eventMeta} numberOfLines={1}>
+                        {eventDateLabel(u.date)}{u.time ? `  ·  ${u.time}` : ''}
+                      </Text>
                     </View>
-                    {isFee ? (
-                      <View style={styles.payBtn}><Text style={styles.payBtnText}>Pay now</Text></View>
+                    {u.isLive ? (
+                      <View style={styles.livePill}><View style={styles.liveDot} /><Text style={styles.liveText}>Live</Text></View>
                     ) : (
                       <Feather name="chevron-right" size={18} color={colors.textTertiary} />
                     )}
                   </TouchableOpacity>
-                );
-              })}
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* Recent activity */}
+          {signals.length > 0 && (
+            <>
+              <SectionHeader styles={styles} colors={colors} title="Recent activity" />
+              <View style={styles.card}>
+                {signals.slice(0, 8).map((s, i) => (
+                  <TouchableOpacity key={s.id || i} style={[styles.signalRow, i > 0 && styles.divider]} activeOpacity={0.7}
+                    onPress={() => router.push(toMobileRoute(s.deepLink) as any)}>
+                    <Text style={styles.signalTime}>{timeLabel(s.occurredAt)}</Text>
+                    <View style={[styles.signalDot, { backgroundColor: s.isNew ? colors.primary : colors.border }]} />
+                    <Text style={styles.signalTitle} numberOfLines={2}>{s.title}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* Empty / error */}
+          {!homeLoading && actions.length === 0 && signals.length === 0 && upcoming.length === 0 && (
+            <View style={styles.empty}>
+              <Ionicons name={homeError ? 'cloud-offline-outline' : 'checkmark-circle-outline'} size={42} color={colors.textTertiary} />
+              <Text style={styles.emptyTitle}>{homeError ? 'Couldn’t load your home' : 'Nothing on your list'}</Text>
+              <Text style={styles.emptyText}>
+                {homeError
+                  ? 'Pull down to try again.'
+                  : 'When fees, attendance, announcements or events need you, they’ll show up here.'}
+              </Text>
             </View>
-          </>
-        )}
-
-        {/* Upcoming events */}
-        {upcoming.length > 0 && (
-          <>
-            <SectionHeader styles={styles} colors={colors} title="Upcoming events"
-              actionLabel="View calendar" onAction={() => router.push('/calendar' as any)} />
-            <View style={styles.card}>
-              {upcoming.map((u, i) => (
-                <TouchableOpacity key={u.key} style={[styles.eventRow, i > 0 && styles.divider]} activeOpacity={0.7}
-                  onPress={() => router.push('/calendar' as any)}>
-                  <View style={[styles.eventDate, { backgroundColor: u.isLive ? colors.dangerSoft : colors.primarySoft }]}>
-                    <Text style={[styles.eventDay, { color: u.isLive ? colors.danger : colors.primary }]}>{dayNum(u.date)}</Text>
-                    <Text style={[styles.eventMon, { color: u.isLive ? colors.danger : colors.primary }]}>{monShort(u.date)}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.eventTitle} numberOfLines={1}>{u.title}</Text>
-                    <Text style={styles.eventMeta} numberOfLines={1}>
-                      {eventDateLabel(u.date)}{u.time ? `  •  ${u.time}` : ''}
-                    </Text>
-                  </View>
-                  {u.isLive ? (
-                    <View style={styles.livePill}><View style={styles.liveDot} /><Text style={styles.liveText}>Live</Text></View>
-                  ) : (
-                    <Feather name="chevron-right" size={18} color={colors.textTertiary} />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          </>
-        )}
-
-        {/* Recent activity */}
-        {signals.length > 0 && (
-          <>
-            <SectionHeader styles={styles} colors={colors} title="Recent activity" />
-            <View style={styles.card}>
-              {signals.slice(0, 8).map((s, i) => (
-                <TouchableOpacity key={s.id || i} style={[styles.signalRow, i > 0 && styles.divider]} activeOpacity={0.7}
-                  onPress={() => router.push(toMobileRoute(s.deepLink) as any)}>
-                  <Text style={styles.signalTime}>{timeLabel(s.occurredAt)}</Text>
-                  <View style={[styles.signalDot, { backgroundColor: s.isNew ? colors.primary : colors.border }]} />
-                  <Text style={styles.signalTitle} numberOfLines={2}>{s.title}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </>
-        )}
-
-        {/* Empty / error */}
-        {!homeLoading && actions.length === 0 && signals.length === 0 && upcoming.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons name={homeError ? 'cloud-offline-outline' : 'checkmark-circle-outline'} size={42} color={colors.textTertiary} />
-            <Text style={styles.emptyTitle}>{homeError ? 'Couldn’t load your home' : 'Nothing on your list'}</Text>
-            <Text style={styles.emptyText}>
-              {homeError
-                ? 'Pull down to try again.'
-                : 'When fees, attendance, announcements or events need you, they’ll show up here.'}
-            </Text>
-          </View>
-        )}
-
-        <View style={{ height: 32 }} />
+          )}
+        </View>
       </ScrollView>
 
       <ChildSwitcherModal visible={switcherOpen} onClose={() => setSwitcherOpen(false)} />
@@ -313,15 +380,23 @@ function timeLabel(ms?: number | null): string {
   return d.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
 }
 
-const Tile: React.FC<{
-  styles: any; colors: ColorPalette; icon: React.ReactNode; label: string; value: string; valueColor?: string; onPress: () => void;
-}> = ({ styles, colors, icon, label, value, valueColor, onPress }) => (
-  <TouchableOpacity style={styles.tile} activeOpacity={0.7} onPress={onPress}>
-    <View style={styles.tileHead}>
-      {icon}
-      <Text style={styles.tileLabel}>{label}</Text>
+/** One "At a glance" card: tinted icon tile, small-caps label, value, footnote. */
+const StatCard: React.FC<{
+  styles: any; tint: string; label: string; icon: React.ReactNode;
+  value: string; valueColor?: string; foot: string; progress?: number | null; onPress: () => void;
+}> = ({ styles, tint, label, icon, value, valueColor, foot, progress, onPress }) => (
+  <TouchableOpacity style={styles.statCard} activeOpacity={0.7} onPress={onPress}>
+    <View style={styles.statHead}>
+      <View style={[styles.statIcon, { backgroundColor: tint + '14' }]}>{icon}</View>
+      <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
     </View>
-    <Text style={[styles.tileValue, { color: valueColor || colors.text }]} numberOfLines={1}>{value}</Text>
+    <Text style={[styles.statValue, valueColor ? { color: valueColor } : null]} numberOfLines={1}>{value}</Text>
+    {progress != null ? (
+      <View style={styles.statTrack}>
+        <View style={[styles.statFill, { width: `${progress}%`, backgroundColor: tint }]} />
+      </View>
+    ) : null}
+    <Text style={styles.statFoot} numberOfLines={1}>{foot}</Text>
   </TouchableOpacity>
 );
 
@@ -363,67 +438,101 @@ function eventDateLabel(date: string): string {
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
-    scroll: { paddingHorizontal: 16, paddingTop: 4 },
 
-    hero: {
-      borderRadius: 22, padding: 20, marginBottom: 16,
-      shadowColor: '#4338CA', shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.28, shadowRadius: 22, elevation: 9,
+    // Header
+    header: {
+      paddingTop: Platform.OS === 'ios' ? 58 : 44,
+      paddingHorizontal: 16,
+      paddingBottom: 42, // room for the quick-access card to overlap
+      borderBottomLeftRadius: 28,
+      borderBottomRightRadius: 28,
     },
-    heroGreeting: { color: '#FFF', fontSize: 20, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
-    heroSub: { color: 'rgba(255,255,255,0.9)', fontSize: 13.5, marginTop: 5, fontFamily: fonts.medium, lineHeight: 19 },
-    statusPill: {
-      flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-      backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 999,
-      paddingHorizontal: 12, paddingVertical: 7, marginTop: 16,
+    headerTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    avatarWrap: {
+      width: 44, height: 44, borderRadius: 22,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.45)',
+      alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    },
+    avatarImg: { width: '100%', height: '100%' },
+    avatarText: { color: '#FFF', fontSize: 15, fontFamily: fonts.extrabold },
+    greeting: { color: '#FFF', fontSize: 17.5, fontFamily: fonts.extrabold, letterSpacing: -0.4 },
+    greetingSub: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: fonts.medium, marginTop: 2 },
+    bellBtn: {
+      width: 40, height: 40, borderRadius: 20,
+      backgroundColor: 'rgba(255,255,255,0.16)',
       borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
-    },
-    statusPillText: { color: '#FFF', fontSize: 12, fontFamily: fonts.bold, letterSpacing: 0.1 },
-
-    childCard: {
-      backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.border,
-      padding: 16, marginBottom: 24,
-    },
-    childRow: { flexDirection: 'row', alignItems: 'center', gap: 13 },
-    avatar: {
-      width: 50, height: 50, borderRadius: 25, backgroundColor: c.primarySoft,
       alignItems: 'center', justifyContent: 'center',
     },
-    avatarText: { color: c.primary, fontSize: 16, fontFamily: fonts.extrabold },
-    childName: { fontSize: 16.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.3 },
-    childMeta: { fontSize: 12, color: c.textSecondary, marginTop: 3, fontFamily: fonts.regular },
+    bellDot: {
+      position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4,
+      backgroundColor: '#FBBF24', borderWidth: 1.5, borderColor: '#5B4FE0',
+    },
+
+    childCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: 'rgba(255,255,255,0.14)',
+      borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+      borderRadius: 18, padding: 12, marginTop: 16,
+    },
+    childAvatar: {
+      width: 42, height: 42, borderRadius: 21,
+      backgroundColor: 'rgba(255,255,255,0.22)',
+      alignItems: 'center', justifyContent: 'center',
+    },
+    childAvatarText: { color: '#FFF', fontSize: 14, fontFamily: fonts.extrabold },
+    childName: { color: '#FFF', fontSize: 14.5, fontFamily: fonts.bold, letterSpacing: -0.2 },
+    childMeta: { color: 'rgba(255,255,255,0.8)', fontSize: 11.5, fontFamily: fonts.regular, marginTop: 2 },
     switchPill: {
       flexDirection: 'row', alignItems: 'center', gap: 4,
-      backgroundColor: c.primarySoft, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6,
+      backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 999,
+      paddingHorizontal: 10, paddingVertical: 6,
     },
-    switchPillText: { color: c.primary, fontSize: 11, fontFamily: fonts.bold },
+    switchPillText: { color: '#FFF', fontSize: 11, fontFamily: fonts.bold },
 
-    tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 16 },
-    tile: {
-      flexBasis: '47.5%', flexGrow: 1, backgroundColor: c.backgroundAlt,
-      borderRadius: 13, padding: 12,
+    // Body
+    body: { paddingHorizontal: 16 },
+
+    quickCard: {
+      flexDirection: 'row', flexWrap: 'wrap',
+      backgroundColor: c.card, borderRadius: 20,
+      borderWidth: 1, borderColor: c.border,
+      paddingVertical: 14, paddingHorizontal: 6,
+      marginTop: -28, marginBottom: 24,
+      shadowColor: '#312E81', shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.12, shadowRadius: 18, elevation: 6,
     },
-    tileHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 7 },
-    tileLabel: { fontSize: 11.5, color: c.textSecondary, fontFamily: fonts.semibold },
-    tileValue: { fontSize: 15.5, fontFamily: fonts.extrabold, letterSpacing: -0.3 },
+    quickItem: { width: '25%', alignItems: 'center', paddingVertical: 8, gap: 7 },
+    quickIcon: {
+      width: 48, height: 48, borderRadius: 16,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    quickLabel: { fontSize: 11, fontFamily: fonts.semibold, color: c.textSecondary },
 
     sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
     sectionTitle: { fontSize: 15.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.4 },
     sectionAction: { flexDirection: 'row', alignItems: 'center', gap: 2 },
     sectionActionText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.primary },
 
-    eventRow: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 12 },
-    eventDate: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    eventDay: { fontSize: 17, fontFamily: fonts.extrabold, lineHeight: 20 },
-    eventMon: { fontSize: 10, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 0.5 },
-    eventTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
-    eventMeta: { fontSize: 12, fontFamily: fonts.medium, color: c.textSecondary, marginTop: 2 },
-    livePill: {
-      flexDirection: 'row', alignItems: 'center', gap: 5,
-      backgroundColor: c.dangerSoft, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4,
+    statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 24 },
+    statCard: {
+      flexBasis: '47.5%', flexGrow: 1,
+      backgroundColor: c.card, borderRadius: 18,
+      borderWidth: 1, borderColor: c.border,
+      padding: 14,
+      shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
     },
-    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: c.danger },
-    liveText: { fontSize: 11, fontFamily: fonts.bold, color: c.danger },
+    statHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 11 },
+    statIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    statLabel: {
+      flex: 1, fontSize: 10.5, fontFamily: fonts.bold, color: c.textTertiary,
+      textTransform: 'uppercase', letterSpacing: 0.7,
+    },
+    statValue: { fontSize: 17, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.4 },
+    statTrack: { height: 5, borderRadius: 999, backgroundColor: c.backgroundAlt, overflow: 'hidden', marginTop: 7 },
+    statFill: { height: '100%', borderRadius: 999 },
+    statFoot: { fontSize: 11, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 6 },
 
     card: {
       backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
@@ -437,6 +546,19 @@ function makeStyles(c: ColorPalette) {
     attnSub: { fontSize: 12, color: c.textSecondary, marginTop: 2, fontFamily: fonts.regular },
     payBtn: { backgroundColor: c.primary, borderRadius: 11, paddingHorizontal: 15, paddingVertical: 9 },
     payBtnText: { color: '#FFF', fontSize: 12.5, fontFamily: fonts.bold },
+
+    eventRow: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 12 },
+    eventDate: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    eventDay: { fontSize: 17, fontFamily: fonts.extrabold, lineHeight: 20 },
+    eventMon: { fontSize: 10, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 0.5 },
+    eventTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    eventMeta: { fontSize: 12, fontFamily: fonts.medium, color: c.textSecondary, marginTop: 2 },
+    livePill: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      backgroundColor: c.dangerSoft, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4,
+    },
+    liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: c.danger },
+    liveText: { fontSize: 11, fontFamily: fonts.bold, color: c.danger },
 
     signalRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12 },
     signalTime: { fontSize: 11, color: c.textTertiary, fontFamily: fonts.semibold, width: 48 },
