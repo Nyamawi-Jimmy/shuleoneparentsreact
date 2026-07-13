@@ -162,6 +162,7 @@ export const CodingLessonScreen: React.FC<Props> = ({ lesson, node, playful, onC
       {/* 2) Code */}
       {sec === 'play' && (
         <View style={styles.card}>
+          <Text style={styles.secHeading}>🎮 Code</Text>
           {hasSandbox ? (
             <>
               <View style={styles.sandboxRow}>
@@ -212,6 +213,7 @@ export const CodingLessonScreen: React.FC<Props> = ({ lesson, node, playful, onC
           />
         ) : (
           <View style={styles.card}>
+            <Text style={styles.secHeading}>🏆 Challenge</Text>
             {lesson.assignment ? (
               <>
                 <Text style={styles.challengeTitle}>
@@ -739,6 +741,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
+  secHeading: { fontSize: 15, fontWeight: '800', color: '#2c2550', marginBottom: 12 },
   objective: { fontSize: 13.5, fontWeight: '700', color: '#2c2550', marginBottom: 12, lineHeight: 19 },
   missionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 9 },
   missionCheck: {

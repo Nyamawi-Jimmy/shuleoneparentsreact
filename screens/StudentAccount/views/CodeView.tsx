@@ -33,12 +33,19 @@ const SECTIONS = [
 ] as const;
 type SectionKey = typeof SECTIONS[number]['key'];
 
-const TOOLS = [
-  { id: 'scratch', emoji: '🐱', name: 'Scratch', sub: 'Visual blocks', colors: ['#ff5e9c', '#ffa3c6'] as [string, string], route: '/student/code/scratch' },
-  { id: 'blockly', emoji: '🧩', name: 'Blockly', sub: 'Logic puzzles', colors: ['#f4a716', '#ffd766'] as [string, string], route: '/student/code/blockly' },
-  { id: 'python', emoji: '🐍', name: 'Python', sub: 'Real code', colors: ['#3aa0ff', '#7fc4ff'] as [string, string], route: '/student/code/python' },
-  { id: 'mobile', emoji: '📱', name: 'Mobile', sub: 'Build apps', colors: ['#15c98c', '#74e6b4'] as [string, string], route: '/student/code/mobile' },
-  { id: 'robotics', emoji: '🤖', name: 'Robotics', sub: 'Code robots', colors: ['#5b6cff', '#9aa6ff'] as [string, string], route: '/student/code/robotics' },
+// Playground languages — the exact catalogue the web PlaygroundTab offers.
+// `route` = the app's own editor screen where one exists; the rest note that
+// the full editor runs on the classroom computer.
+const PG_KINDS = [
+  { kind: 'PYTHON', icon: '🐍', label: 'Python', language: 'Python', colors: ['#1fc99a', '#0f9e8e'] as [string, string], route: '/student/code/python' },
+  { kind: 'WEB', icon: '🌐', label: 'Web', language: 'HTML / CSS', colors: ['#3a8bff', '#e91e63'] as [string, string], route: null },
+  { kind: 'JS', icon: '🟨', label: 'JavaScript', language: 'JavaScript', colors: ['#f4a716', '#ffd766'] as [string, string], route: null },
+  { kind: 'SQL', icon: '🗄️', label: 'SQL', language: 'SQL (SQLite)', colors: ['#5b6cff', '#9aa6ff'] as [string, string], route: null },
+  { kind: 'BASH', icon: '💻', label: 'Terminal', language: 'Bash + Git (emulated)', colors: ['#475569', '#64748b'] as [string, string], route: null },
+  { kind: 'SCRATCH', icon: '🐱', label: 'Scratch', language: 'Scratch', colors: ['#ff8a3d', '#ff5e9c'] as [string, string], route: '/student/code/scratch' },
+  { kind: 'MICROBIT', icon: '📟', label: 'micro:bit', language: 'micro:bit (MakeCode)', colors: ['#00b8d4', '#3a8bff'] as [string, string], route: null },
+  { kind: 'ARDUINO', icon: '🔌', label: 'Arduino', language: 'Arduino (C++)', colors: ['#19b39b', '#1577c2'] as [string, string], route: null },
+  { kind: 'ROBOT', icon: '🤖', label: 'Robot', language: 'mBot2', colors: ['#e91e63', '#ff8fc0'] as [string, string], route: '/student/code/robotics' },
 ];
 
 export const CodeView: React.FC = () => {
@@ -282,21 +289,7 @@ export const CodeView: React.FC = () => {
 
         {/* ═══ 🎮 PLAYGROUND ═══ */}
         {section === 'playground' && (
-          <>
-            <Text style={styles.pgSub}>Pick a tool and start building — no lesson needed.</Text>
-            <View style={styles.toolsGrid}>
-              {TOOLS.map((t) => (
-                <TouchableOpacity key={t.id} activeOpacity={0.85} style={styles.toolWrap}
-                  onPress={() => router.push(t.route as any)}>
-                  <LinearGradient colors={t.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.toolCard, { borderRadius: tokens.radius }]}>
-                    <Text style={{ fontSize: 30 }}>{t.emoji}</Text>
-                    <Text style={styles.toolName}>{t.name}</Text>
-                    <Text style={styles.toolSub}>{t.sub}</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </>
+          <PlaygroundSection radius={tokens.radius} />
         )}
 
         {/* ═══ 🏅 EXAMS ═══ */}
@@ -312,6 +305,53 @@ export const CodeView: React.FC = () => {
         <View style={{ height: 110 }} />
       </ScrollView>
       <AgeSwitcher />
+    </View>
+  );
+};
+
+// =================================================================
+// 🎮 Playground — the web PlaygroundTab: language chip picker + the
+// selected workspace. Where the app has its own editor screen the
+// workspace opens it; the rest run on the classroom computer.
+// =================================================================
+const PlaygroundSection: React.FC<{ radius: number }> = ({ radius }) => {
+  const [kind, setKind] = useState(PG_KINDS[0].kind);
+  const k = PG_KINDS.find((x) => x.kind === kind) ?? PG_KINDS[0];
+
+  return (
+    <View>
+      <Text style={styles.pgTitle}>🎮 Playground</Text>
+      <Text style={styles.pgSub}>Pick a language and start building — no lesson needed.</Text>
+
+      <View style={styles.pgPicker}>
+        {PG_KINDS.map((x) => (
+          <TouchableOpacity
+            key={x.kind}
+            activeOpacity={0.8}
+            onPress={() => setKind(x.kind)}
+            style={[styles.pgChip, kind === x.kind && styles.pgChipOn]}
+          >
+            <Text style={[styles.pgChipText, kind === x.kind && { color: '#fff' }]}>
+              {x.icon} {x.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <LinearGradient colors={k.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.pgWorkspace, { borderRadius: radius }]}>
+        <Text style={{ fontSize: 44 }}>{k.icon}</Text>
+        <Text style={styles.pgWsTitle}>{k.label} workspace</Text>
+        <Text style={styles.pgWsLang}>{k.language}</Text>
+        {k.route ? (
+          <TouchableOpacity activeOpacity={0.85} onPress={() => router.push(k.route as any)} style={styles.pgOpenBtn}>
+            <Text style={[styles.pgOpenText, { color: k.colors[0] }]}>Open the editor ▶</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.pgWsNote}>
+            The full {k.label} editor runs in the classroom — use it there or on a computer at home.
+          </Text>
+        )}
+      </LinearGradient>
     </View>
   );
 };
@@ -481,17 +521,32 @@ const styles = StyleSheet.create({
   openingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center', marginTop: 12 },
   openingText: { fontSize: 12, color: '#6f679c', fontWeight: '700' },
 
-  pgSub: { fontSize: 12.5, color: '#6f679c', fontWeight: '600', marginBottom: 12 },
-  toolsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  toolWrap: { flexBasis: '47%', flexGrow: 1 },
-  toolCard: {
-    padding: 14, minHeight: 112,
-    shadowColor: '#5038A0',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.16, shadowRadius: 10, elevation: 3,
+  pgTitle: { fontSize: 16.5, fontWeight: '800', color: '#2c2550' },
+  pgSub: { fontSize: 12.5, color: '#6f679c', fontWeight: '600', marginTop: 3, marginBottom: 12 },
+  pgPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  pgChip: {
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8,
   },
-  toolName: { color: '#fff', fontSize: 14.5, fontWeight: '800', marginTop: 8 },
-  toolSub: { color: '#fff', fontSize: 11, fontWeight: '600', opacity: 0.92, marginTop: 2 },
+  pgChipOn: { backgroundColor: '#7c5cff', borderColor: '#7c5cff' },
+  pgChipText: { fontSize: 12, fontWeight: '800', color: '#2c2550' },
+  pgWorkspace: {
+    alignItems: 'center', padding: 24,
+    shadowColor: '#5038A0',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2, shadowRadius: 12, elevation: 4,
+  },
+  pgWsTitle: { color: '#fff', fontSize: 17, fontWeight: '800', marginTop: 10 },
+  pgWsLang: { color: 'rgba(255,255,255,0.92)', fontSize: 12.5, fontWeight: '700', marginTop: 3 },
+  pgOpenBtn: {
+    backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 999,
+    paddingHorizontal: 18, paddingVertical: 11, marginTop: 16,
+  },
+  pgOpenText: { fontWeight: '800', fontSize: 13.5 },
+  pgWsNote: {
+    color: 'rgba(255,255,255,0.95)', fontSize: 12, fontWeight: '600',
+    textAlign: 'center', lineHeight: 17, marginTop: 14, paddingHorizontal: 10,
+  },
 
   // Progress section
   cpHero: {
