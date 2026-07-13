@@ -38,6 +38,43 @@ export interface StudentFeeSummary {
   term?: number | null;
 }
 
+/** /api/student/assignments → StudentAssignment[] (partner-school students only) */
+export interface StudentAssignment {
+  id: number;
+  title: string | null;
+  subject: string | null;
+  teacher: string | null;
+  status: string | null;          // DUE | OVERDUE | SUBMITTED | GRADED
+  dueAt: string | null;
+  submittedAt: string | null;
+  score: number | null;
+  maxScore: number | null;
+  deepLink: string | null;
+  category: string | null;        // Assignment | CAT | Term paper ...
+}
+
+/** /api/student/live-classes → StudentLiveClass[] */
+export interface StudentLiveClass {
+  id: number;
+  title: string | null;
+  subject?: string | null;
+  teacher?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  status?: string | null;         // 'Live' | 'Upcoming' | 'Ended'
+  [key: string]: unknown;
+}
+
+/** Web's dueItems(): what still needs doing. */
+export function dueAssignments(items: StudentAssignment[] | null | undefined): StudentAssignment[] {
+  return (items ?? []).filter((a) => a.status === 'DUE' || a.status === 'OVERDUE');
+}
+
+/** Web's liveNow(): classes broadcasting right now. */
+export function liveNowClasses(items: StudentLiveClass[] | null | undefined): StudentLiveClass[] {
+  return (items ?? []).filter((c) => c.status === 'Live');
+}
+
 /** Initials helper */
 export function initialsFor(profile: StudentProfile | null): string {
   if (!profile?.fullName) return '?';

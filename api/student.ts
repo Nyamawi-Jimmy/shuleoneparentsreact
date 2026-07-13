@@ -1,5 +1,8 @@
 import { apiFetch } from '../config/api';
-import { StudentProfile, StudentCalendarItem, StudentFeeSummary } from './student.types';
+import {
+  StudentProfile, StudentCalendarItem, StudentFeeSummary,
+  StudentAssignment, StudentLiveClass,
+} from './student.types';
 
 // =================================================================
 // /api/student/me, /api/student/calendar, /api/student/fees
@@ -11,6 +14,14 @@ export async function getStudentProfile(accessToken: string): Promise<StudentPro
 
 export async function getStudentFees(accessToken: string): Promise<StudentFeeSummary> {
   return apiFetch<StudentFeeSummary>('/api/student/fees', { accessToken });
+}
+
+export async function getStudentAssignments(accessToken: string): Promise<StudentAssignment[]> {
+  return apiFetch<StudentAssignment[]>('/api/student/assignments', { accessToken });
+}
+
+export async function getStudentLiveClasses(accessToken: string): Promise<StudentLiveClass[]> {
+  return apiFetch<StudentLiveClass[]>('/api/student/live-classes', { accessToken });
 }
 
 export async function getStudentCalendar(

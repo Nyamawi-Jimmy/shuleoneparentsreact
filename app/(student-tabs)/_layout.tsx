@@ -26,25 +26,19 @@ export default function StudentTabsLayout() {
               tabBarLabelStyle: { fontSize: 10.5, fontWeight: '700' },
             }}
           >
+            {/* Web parity: Me · Quests · Games · Code Lab · Tasks · Events */}
             <Tabs.Screen
               name="index"
               options={{
-                title: 'Home',
+                title: 'Me',
                 tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
               }}
             />
             <Tabs.Screen
               name="quest"
               options={{
-                title: 'Quest',
+                title: 'Quests',
                 tabBarIcon: ({ color, size }) => <Ionicons name="map" size={size} color={color} />,
-              }}
-            />
-            <Tabs.Screen
-              name="code"
-              options={{
-                title: 'Code',
-                tabBarIcon: ({ color, size }) => <Ionicons name="code-slash" size={size} color={color} />,
               }}
             />
             <Tabs.Screen
@@ -55,12 +49,28 @@ export default function StudentTabsLayout() {
               }}
             />
             <Tabs.Screen
-              name="me"
+              name="code"
               options={{
-                title: 'Me',
-                tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />,
+                title: 'Code Lab',
+                tabBarIcon: ({ color, size }) => <Ionicons name="code-slash" size={size} color={color} />,
               }}
             />
+            <Tabs.Screen
+              name="tasks"
+              options={{
+                title: 'Tasks',
+                tabBarIcon: ({ color, size }) => <Ionicons name="clipboard" size={size} color={color} />,
+              }}
+            />
+            <Tabs.Screen
+              name="events"
+              options={{
+                title: 'Events',
+                tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} />,
+              }}
+            />
+            {/* Avatar/profile — merged into Me (header avatar), not a tab. */}
+            <Tabs.Screen name="me" options={{ href: null }} />
           </Tabs>
         </LessonProgressProvider>
       </TierProvider>

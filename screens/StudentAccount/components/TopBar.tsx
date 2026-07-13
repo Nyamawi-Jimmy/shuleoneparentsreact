@@ -23,7 +23,16 @@ import { mockPlayHome, mockAvatarEmoji } from '../mockData';
  * Status bar inset handled via useSafeAreaInsets so the phone's clock,
  * battery, and signal indicators stay fully visible above the bar.
  */
-export const TopBar: React.FC = () => {
+interface TopBarProps {
+  /** Real class chip, e.g. "GRADE2 · B" — falls back to the tier's sample band. */
+  chip?: string;
+  streak?: number | null;
+  stars?: number | null;
+  onAvatarPress?: () => void;
+  onBellPress?: () => void;
+}
+
+export const TopBar: React.FC<TopBarProps> = ({ chip, streak, stars, onAvatarPress, onBellPress }) => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
   const insets = useSafeAreaInsets();
@@ -53,26 +62,28 @@ export const TopBar: React.FC = () => {
           </View>
 
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.bell} hitSlop={6}>
+            <TouchableOpacity style={styles.bell} hitSlop={6} onPress={onBellPress}>
               <Text style={{ fontSize: 18 }}>🔔</Text>
               <View style={styles.bellDot} />
             </TouchableOpacity>
 
-            <LinearGradient
-                colors={['#3aa0ff', '#7c5cff']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.me}
-            >
-              <Text style={{ fontSize: 22 }}>{mockAvatarEmoji}</Text>
-            </LinearGradient>
+            <TouchableOpacity activeOpacity={0.8} onPress={onAvatarPress} disabled={!onAvatarPress}>
+              <LinearGradient
+                  colors={['#3aa0ff', '#7c5cff']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.me}
+              >
+                <Text style={{ fontSize: 22 }}>{mockAvatarEmoji}</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         </View>
 
         {/* Row 2: class chip + streak/star pills */}
         <View style={styles.row2}>
           <View style={styles.chip}>
-            <Text style={styles.chipText}>{TIER_META[tier].bandLabel}</Text>
+            <Text style={styles.chipText}>{chip ?? TIER_META[tier].bandLabel}</Text>
           </View>
 
           {!isAdult && (
@@ -80,13 +91,13 @@ export const TopBar: React.FC = () => {
                 <View style={styles.pill}>
                   <Text style={styles.pillEm}>🔥</Text>
                   <Text style={[styles.pillNum, { color: '#ff6a3d' }]}>
-                    {mockPlayHome.streak}
+                    {streak ?? mockPlayHome.streak}
                   </Text>
                 </View>
                 <View style={styles.pill}>
                   <Text style={styles.pillEm}>⭐</Text>
                   <Text style={[styles.pillNum, { color: '#f59e0b' }]}>
-                    {mockPlayHome.stars}
+                    {stars ?? mockPlayHome.stars}
                   </Text>
                 </View>
               </View>

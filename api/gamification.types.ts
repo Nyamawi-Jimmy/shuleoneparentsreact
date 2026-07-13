@@ -13,6 +13,9 @@ export interface GamificationState {
 export interface Streak {
   current: number | null;
   longest: number | null;
+  dailyGoal?: number | null;    // lessons per day target
+  todayCount?: number | null;   // lessons done today
+  goalMet?: boolean | null;
 }
 
 export interface Badge {

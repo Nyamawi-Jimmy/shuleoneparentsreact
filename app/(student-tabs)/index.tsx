@@ -1,2 +1,2 @@
-import { HomeView } from '../../screens/StudentAccount/views/HomeView';
-export default HomeView;
+import { MeView } from '../../screens/StudentAccount/views/MeView';
+export default MeView;
