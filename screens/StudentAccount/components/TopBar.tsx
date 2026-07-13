@@ -9,19 +9,23 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { useTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { mockAvatarEmoji } from '../mockData';
+import { useAuth } from '../../../context/AuthContext';
+import { getGamificationState } from '../../../api/gamification';
 
 /**
- * Student top bar — one tidy row:
+ * Student top bar — one tidy row, IDENTICAL on every student screen:
  *
  *   [ShuleOne  STUDENT] ·············· [🔥n] [⭐n] [🔔] [avatar]
  *
- * The class/stream lives on the greeting card (like the web's header
- * subtitle), NOT here — a phone-width row can't fit it without crushing
- * everything else. Streak/star pills are hidden on scholar/campus (the
- * web's `clean` mode).
+ * The bar fetches its own streak/XP (cached across mounts so tab
+ * switches don't flash 0s); screens with fresher numbers can still pass
+ * them as props. Bell/avatar default to the student notifications and
+ * profile routes. Streak/star pills hide on scholar/campus (the web's
+ * `clean` mode). The class/stream lives on the Me greeting card.
  */
 interface TopBarProps {
   streak?: number | null;
@@ -30,11 +34,34 @@ interface TopBarProps {
   onBellPress?: () => void;
 }
 
+// Module-level cache: last known numbers survive remounts (tab hops).
+let statsCache: { streak: number; stars: number } | null = null;
+
 export const TopBar: React.FC<TopBarProps> = ({ streak, stars, onAvatarPress, onBellPress }) => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
   const insets = useSafeAreaInsets();
+  const { accessToken } = useAuth();
   const isAdult = tier === 'scholar' || tier === 'campus';
+
+  const [fetched, setFetched] = React.useState(statsCache);
+  React.useEffect(() => {
+    if (!accessToken || (streak != null && stars != null)) return;
+    let off = false;
+    getGamificationState(accessToken)
+      .then((g) => {
+        const next = { streak: g.streak?.current ?? 0, stars: g.totalXp ?? 0 };
+        statsCache = next;
+        if (!off) setFetched(next);
+      })
+      .catch(() => {});
+    return () => { off = true; };
+  }, [accessToken, streak, stars]);
+
+  const streakShown = streak ?? fetched?.streak ?? 0;
+  const starsShown = stars ?? fetched?.stars ?? 0;
+  const goBell = onBellPress ?? (() => router.push('/student/notifications' as any));
+  const goAvatar = onAvatarPress ?? (() => router.push('/(student-tabs)/me' as any));
 
   const topPad =
       insets.top > 0
@@ -63,21 +90,21 @@ export const TopBar: React.FC<TopBarProps> = ({ streak, stars, onAvatarPress, on
             <>
               <View style={styles.pill}>
                 <Text style={styles.pillEm}>🔥</Text>
-                <Text style={[styles.pillNum, { color: '#ff6a3d' }]}>{streak ?? 0}</Text>
+                <Text style={[styles.pillNum, { color: '#ff6a3d' }]}>{streakShown}</Text>
               </View>
               <View style={styles.pill}>
                 <Text style={styles.pillEm}>⭐</Text>
-                <Text style={[styles.pillNum, { color: '#f59e0b' }]}>{compact(stars ?? 0)}</Text>
+                <Text style={[styles.pillNum, { color: '#f59e0b' }]}>{compact(starsShown)}</Text>
               </View>
             </>
         )}
 
-        <TouchableOpacity style={styles.bell} hitSlop={6} onPress={onBellPress}>
+        <TouchableOpacity style={styles.bell} hitSlop={6} onPress={goBell}>
           <Text style={{ fontSize: 16 }}>🔔</Text>
           <View style={styles.bellDot} />
         </TouchableOpacity>
 
-        <TouchableOpacity activeOpacity={0.8} onPress={onAvatarPress} disabled={!onAvatarPress}>
+        <TouchableOpacity activeOpacity={0.8} onPress={goAvatar}>
           <LinearGradient
               colors={['#3aa0ff', '#7c5cff']}
               start={{ x: 0, y: 0 }}
