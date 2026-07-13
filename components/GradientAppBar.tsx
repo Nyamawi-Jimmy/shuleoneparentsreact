@@ -25,7 +25,7 @@ export const GradientAppBar: React.FC<Props> = ({ title, subtitle, showBack = fa
 
   return (
     <LinearGradient
-      colors={[colors.primary, colors.purpleDeep]}
+      colors={[colors.primary, colors.primaryDeep]}
       start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
       style={styles.bar}
     >

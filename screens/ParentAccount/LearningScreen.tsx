@@ -166,7 +166,7 @@ export const LearningScreen: React.FC = () => {
               the screen straight into that quest; progress lands on the child's account. */}
           {resumeQuest && resumeQuest.id != null && (
             <TouchableOpacity activeOpacity={0.85} onPress={() => playQuest(resumeQuest.id)}>
-              <LinearGradient colors={[colors.primary, colors.purpleDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.resumeCard}>
+              <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.resumeCard}>
                 <View style={styles.resumePlay}>
                   <Ionicons name="play" size={20} color="#FFF" />
                 </View>
@@ -184,7 +184,7 @@ export const LearningScreen: React.FC = () => {
           )}
 
           {/* Hero — entitlement-aware */}
-          <LinearGradient colors={[colors.primary, colors.purpleDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+          <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
             <View style={styles.heroTopRow}>
               <View style={styles.heroIcon}>
                 <Ionicons name={subscribed ? 'flag' : 'sparkles'} size={20} color="#FFF" />
@@ -434,7 +434,7 @@ const SubjectQuestsView: React.FC<{
                 ) : null}
               </View>
               <TouchableOpacity activeOpacity={0.85} onPress={() => onPlay(q.id)}>
-                <LinearGradient colors={[colors.primary, colors.purpleDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.questPlayBtn}>
+                <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.questPlayBtn}>
                   <Ionicons name="play" size={13} color="#FFF" />
                   <Text style={styles.questPlayBtnText}>
                     {done ? 'Replay' : q.status === 'IN_PROGRESS' ? 'Continue' : 'Start'}

@@ -127,7 +127,7 @@ export const HomeScreen: React.FC = () => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#FFF" progressViewOffset={70} />}
       >
         {/* ── Integrated header: greeting, bell, child switcher ─────────── */}
-        <LinearGradient colors={['#4F46E5', '#7C3AED']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
+        <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
           <View style={styles.headerTop}>
             <TouchableOpacity style={styles.avatarWrap} activeOpacity={0.8} onPress={() => router.push('/settings' as any)}>
               {parent?.photoUrl ? (
@@ -506,7 +506,7 @@ function makeStyles(c: ColorPalette) {
     },
     bellDot: {
       position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4,
-      backgroundColor: '#FBBF24', borderWidth: 1.5, borderColor: '#5B4FE0',
+      backgroundColor: '#FBBF24', borderWidth: 1.5, borderColor: c.primaryDeep,
     },
 
     childCard: {

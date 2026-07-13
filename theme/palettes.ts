@@ -6,6 +6,7 @@ export interface ColorPalette {
   // Brand pink/rose
   primary: string;
   primaryLight: string;
+  primaryDeep: string;
   primarySoft: string;
   primarySofter: string;
 
@@ -50,13 +51,14 @@ export interface ColorPalette {
 }
 
 // =================================================================
-// Light — professional, calm, trustworthy. Indigo primary on a soft
-// slate canvas with white cards. Reads "school / bank" reliable, modern.
+// Light — professional, calm, trustworthy. Rose primary (the Parent App
+// brand card color) on a soft slate canvas with white cards.
 export const lightColors: ColorPalette = {
-  primary:       '#4F46E5',   // indigo-600
-  primaryLight:  '#818CF8',   // indigo-400
-  primarySoft:   '#E0E7FF',   // indigo-100
-  primarySofter: '#EEF2FF',   // indigo-50
+  primary:       '#E11D48',   // rose-600 — the Parent App card color
+  primaryLight:  '#FB7185',   // rose-400
+  primaryDeep:   '#BE123C',   // rose-700 — gradient partner
+  primarySoft:   '#FFE4E6',   // rose-100
+  primarySofter: '#FFF1F2',   // rose-50
 
   purple:        '#7C3AED',   // violet accent (academics)
   purpleLight:   '#EDE9FE',
@@ -94,12 +96,13 @@ export const lightColors: ColorPalette = {
 
 // =================================================================
 export const darkColors: ColorPalette = {
-  // Indigo lifts nicely on dark and keeps the professional feel
-  primary:       '#6366F1',     // indigo-500 — pops on slate
-  primaryLight:  '#818CF8',
+  // Rose lifted for dark surfaces — same brand, readable on slate
+  primary:       '#FB7185',     // rose-400 — pops on slate
+  primaryLight:  '#FDA4AF',
+  primaryDeep:   '#E11D48',
   // Soft tints become low-saturation dark variants of the brand
-  primarySoft:   '#1E1B4B',     // indigo-950
-  primarySofter: '#171635',
+  primarySoft:   '#4C0519',     // rose-950
+  primarySofter: '#38030F',
 
   purple:        '#A78BFA',     // lifted purple, sits better on dark
   purpleLight:   '#332554',
