@@ -9,6 +9,7 @@ import {
   ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { TopBar } from '../components/TopBar';
@@ -17,13 +18,6 @@ import { useAuth } from '../../../context/AuthContext';
 import { getStudentAssignments } from '../../../api/student';
 import { StudentAssignment, AssignmentSubmitResult } from '../../../api/student.types';
 import { TaskPlayer } from './TaskPlayer';
-
-const fmtDate = (iso: string | null | undefined) => {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return null;
-  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-};
 
 const categoryKey = (a: StudentAssignment) => String(a.category || 'Assignment').trim().toLowerCase();
 
@@ -222,33 +216,62 @@ export const AssignmentsView: React.FC = () => {
 };
 
 // =================================================================
+// Task cards — the app's OWN look (deliberately unlike the web rows):
+// a status-tinted accent stripe, a calendar date block for the due /
+// submitted day, chips beneath the title, and a real action button.
+// =================================================================
+const dateParts = (iso: string | null | undefined) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return {
+    day: String(d.getDate()),
+    mon: d.toLocaleDateString('en-GB', { month: 'short' }).toUpperCase(),
+  };
+};
+
 const Section: React.FC<{
   name: string; tone: string; rows: StudentAssignment[]; radius: number;
   onOpen: (id: number) => void;
 }> = ({ name, tone, rows, radius, onOpen }) => (
-  <View style={{ marginBottom: 16 }}>
+  <View style={{ marginBottom: 18 }}>
     <View style={styles.sectionHead}>
       <View style={[styles.sectionDot, { backgroundColor: tone }]} />
       <Text style={styles.sectionTitle}>{name}</Text>
       <View style={styles.countBadge}><Text style={styles.countBadgeText}>{rows.length}</Text></View>
+      <View style={styles.sectionLine} />
     </View>
     {rows.map((a) => {
       const s = statusMeta(a);
       const c = categoryMeta(a.category);
       const isDone = a.status === 'GRADED' || a.status === 'SUBMITTED';
-      const due = fmtDate(a.dueAt);
-      const sub = fmtDate(a.submittedAt);
+      const when = dateParts(isDone ? (a.submittedAt ?? a.dueAt) : a.dueAt);
       return (
-        <TouchableOpacity key={a.id} activeOpacity={0.8} onPress={() => onOpen(a.id)}
+        <TouchableOpacity key={a.id} activeOpacity={0.85} onPress={() => onOpen(a.id)}
           style={[styles.card, { borderRadius: radius }]}>
-          <View style={[styles.tile, { backgroundColor: s.bg }]}>
-            <Text style={{ fontSize: 19 }}>{s.emoji}</Text>
+          {/* Status accent stripe */}
+          <View style={[styles.stripe, { backgroundColor: s.tint }]} />
+
+          {/* Calendar date block */}
+          <View style={[styles.dateBlock, { backgroundColor: s.bg }]}>
+            {when ? (
+              <>
+                <Text style={[styles.dateDay, { color: s.tint }]}>{when.day}</Text>
+                <Text style={[styles.dateMon, { color: s.tint }]}>{when.mon}</Text>
+              </>
+            ) : (
+              <Text style={{ fontSize: 20 }}>{s.emoji}</Text>
+            )}
           </View>
+
           <View style={{ flex: 1, minWidth: 0 }}>
-            <View style={styles.titleRow}>
-              <Text style={styles.cardTitle} numberOfLines={1}>{a.title ?? 'Task'}</Text>
+            <Text style={styles.cardTitle} numberOfLines={2}>{a.title ?? 'Task'}</Text>
+            <View style={styles.chipLine}>
               <View style={[styles.catPill, { backgroundColor: c.bg }]}>
                 <Text style={[styles.catPillText, { color: c.fg }]}>{c.label}</Text>
+              </View>
+              <View style={[styles.statusPill, { backgroundColor: s.bg }]}>
+                <Text style={[styles.statusPillText, { color: s.tint }]}>{s.emoji} {s.label}</Text>
               </View>
             </View>
             {(a.subject || a.teacher) && (
@@ -256,16 +279,18 @@ const Section: React.FC<{
                 {a.subject ?? ''}{a.subject && a.teacher ? ' · ' : ''}{a.teacher ?? ''}
               </Text>
             )}
-            <Text style={styles.cardWhen}>
-              {isDone ? (sub ? `Submitted ${sub}` : 'Submitted') : (due ? `Due ${due}` : 'No due date')}
+          </View>
+
+          {/* Action */}
+          <LinearGradient
+            colors={isDone ? ['#f4f1ff', '#f4f1ff'] : ['#7c5cff', '#a78bfa']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={styles.actionBtn}
+          >
+            <Text style={[styles.actionText, isDone && { color: '#7c5cff' }]}>
+              {isDone ? 'View' : 'Start'}
             </Text>
-          </View>
-          <View style={{ alignItems: 'flex-end', gap: 6 }}>
-            <View style={[styles.statusPill, { backgroundColor: s.bg }]}>
-              <Text style={[styles.statusPillText, { color: s.tint }]}>{s.label}</Text>
-            </View>
-            <Text style={styles.go}>{isDone ? 'View ›' : 'Start ›'}</Text>
-          </View>
+          </LinearGradient>
         </TouchableOpacity>
       );
     })}
@@ -291,7 +316,7 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 12, fontWeight: '800', color: '#6f679c' },
 
-  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 9 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10 },
   sectionDot: { width: 8, height: 8, borderRadius: 4 },
   sectionTitle: { fontSize: 13, fontWeight: '800', color: '#2c2550' },
   countBadge: {
@@ -299,28 +324,35 @@ const styles = StyleSheet.create({
     backgroundColor: '#e4defc', alignItems: 'center', justifyContent: 'center',
   },
   countBadgeText: { fontSize: 10, fontWeight: '800', color: '#7c5cff' },
+  sectionLine: { flex: 1, height: 2, borderRadius: 2, backgroundColor: '#ece8fb' },
 
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
-    padding: 13, marginBottom: 9,
+    paddingVertical: 13, paddingLeft: 16, paddingRight: 12,
+    marginBottom: 10, overflow: 'hidden',
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.07, shadowRadius: 7, elevation: 2,
   },
-  tile: {
-    width: 42, height: 42, borderRadius: 14,
+  stripe: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 5 },
+  dateBlock: {
+    width: 46, height: 50, borderRadius: 13,
     alignItems: 'center', justifyContent: 'center',
   },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  cardTitle: { flexShrink: 1, fontSize: 13.5, fontWeight: '800', color: '#2c2550' },
+  dateDay: { fontSize: 17, fontWeight: '800', lineHeight: 20 },
+  dateMon: { fontSize: 8.5, fontWeight: '800', letterSpacing: 0.6 },
+  cardTitle: { fontSize: 13.5, fontWeight: '800', color: '#2c2550', lineHeight: 18 },
+  chipLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' },
   catPill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2.5 },
   catPillText: { fontSize: 9.5, fontWeight: '800' },
-  cardMeta: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 2 },
-  cardWhen: { fontSize: 10.5, color: '#9b94c4', fontWeight: '700', marginTop: 3 },
-  statusPill: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
-  statusPillText: { fontSize: 10.5, fontWeight: '800' },
-  go: { fontSize: 11.5, fontWeight: '800', color: '#7c5cff' },
+  statusPill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2.5 },
+  statusPillText: { fontSize: 9.5, fontWeight: '800' },
+  cardMeta: { fontSize: 11, color: '#9b94c4', fontWeight: '600', marginTop: 4 },
+  actionBtn: {
+    borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9,
+  },
+  actionText: { fontSize: 12, fontWeight: '800', color: '#fff' },
 
   empty: { alignItems: 'center', paddingVertical: 40 },
   emptyTitle: { fontSize: 16.5, fontWeight: '800', color: '#2c2550', marginTop: 10 },

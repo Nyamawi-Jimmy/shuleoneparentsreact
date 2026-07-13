@@ -334,23 +334,43 @@ export const TaskPlayer: React.FC<{
       )}
 
       {phase === 'result' && (
-        <View style={styles.center}>
-          <Text style={{ fontSize: 52 }}>🎉</Text>
-          <Text style={styles.cardTitle}>Handed in!</Text>
-          {result?.pendingMarking ? (
-            <Text style={styles.mutedCenter}>Your written answers will be marked by your teacher — results come later.</Text>
-          ) : result?.score != null ? (
-            <Text style={styles.resultScore}>{result.score}/{result.maxScore ?? '—'}</Text>
-          ) : (
-            <Text style={styles.mutedCenter}>Your answers are in — results aren’t released yet.</Text>
-          )}
+        <ScrollView contentContainerStyle={styles.resultBody} showsVerticalScrollIndicator={false}>
+          <LinearGradient colors={['#7c5cff', '#a78bfa']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.resultHero}>
+            <View style={styles.resultCheck}>
+              <Ionicons name="checkmark" size={38} color="#7c5cff" />
+            </View>
+            <Text style={styles.resultTitle}>Handed in!</Text>
+            <Text style={styles.resultSub}>
+              {result?.pendingMarking
+                ? 'Your written answers go to your teacher for marking.'
+                : result?.score != null
+                  ? 'Marked automatically — here’s how you did.'
+                  : 'Your answers are safely in.'}
+            </Text>
+
+            {result?.score != null ? (
+              <View style={styles.resultScoreRow}>
+                <Text style={styles.resultScoreBig}>{result.score}</Text>
+                <Text style={styles.resultScoreMax}> / {result.maxScore ?? '—'}</Text>
+              </View>
+            ) : (
+              <View style={styles.resultStatePill}>
+                <Text style={styles.resultStateText}>
+                  {result?.pendingMarking ? '⏳ Being marked' : '🔒 Results come later'}
+                </Text>
+              </View>
+            )}
+          </LinearGradient>
+
           <TouchableOpacity activeOpacity={0.85} onPress={loadReview}>
             <LinearGradient colors={['#7c5cff', '#a78bfa']} style={styles.cta}>
               <Text style={styles.ctaText}>See my paper →</Text>
             </LinearGradient>
           </TouchableOpacity>
-          <TouchableOpacity onPress={onClose}><Text style={styles.linkBtn}>Done</Text></TouchableOpacity>
-        </View>
+          <TouchableOpacity style={styles.ghostBtn} activeOpacity={0.8} onPress={onClose}>
+            <Text style={styles.ghostBtnText}>Done</Text>
+          </TouchableOpacity>
+        </ScrollView>
       )}
 
       {phase === 'loadingReview' && (
@@ -366,31 +386,67 @@ export const TaskPlayer: React.FC<{
             </View>
           ) : (
             <>
-              <View style={styles.rvTop}>
-                {review?.released && review.score != null ? (
-                  <>
-                    <Text style={styles.rvScore}>{review.score}<Text style={styles.rvMax}> / {review.maxScore ?? '—'}</Text></Text>
-                    {review.pendingMarking && <Text style={styles.rvNote}>Written answers are still being marked.</Text>}
-                  </>
-                ) : (
-                  <Text style={styles.rvPending}>⏳ Your answers are in — results aren’t released yet.</Text>
-                )}
-              </View>
+              {/* Score hero */}
+              <LinearGradient
+                colors={review?.released && review.score != null ? ['#7c5cff', '#a78bfa'] : ['#64748b', '#94a3b8']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={styles.rvHero}
+              >
+                <View style={styles.rvRing}>
+                  {review?.released && review.score != null && review.maxScore ? (
+                    <>
+                      <Text style={styles.rvRingPct}>
+                        {Math.round((review.score / Math.max(review.maxScore, 1)) * 100)}%
+                      </Text>
+                      <Text style={styles.rvRingLbl}>score</Text>
+                    </>
+                  ) : (
+                    <Text style={{ fontSize: 26 }}>⏳</Text>
+                  )}
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  {review?.released && review.score != null ? (
+                    <>
+                      <Text style={styles.rvHeroScore}>{review.score}<Text style={styles.rvHeroMax}> / {review.maxScore ?? '—'}</Text></Text>
+                      <Text style={styles.rvHeroSub}>
+                        {review.pendingMarking ? 'Written answers are still being marked.' : 'Marked and released.'}
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.rvHeroTitle}>Answers are in</Text>
+                      <Text style={styles.rvHeroSub}>Results aren’t released yet — check back soon.</Text>
+                    </>
+                  )}
+                </View>
+              </LinearGradient>
 
               {(review?.items ?? []).map((it, i) => {
                 const released = !!review?.released;
+                const gotIt = released && it.awardedMarks != null && it.correct;
+                const missedIt = released && it.awardedMarks === 0 && !it.correct;
                 return (
                   <View key={it.questionId ?? i} style={styles.rvItem}>
                     <View style={styles.rvHead}>
-                      <Text style={styles.rvQ}>Q{it.sequenceNumber ?? i + 1}</Text>
-                      <Text style={[
-                        styles.rvMarks,
-                        released && it.awardedMarks != null && (it.correct ? { color: '#0fae78' } : it.awardedMarks === 0 ? { color: '#ef4444' } : null),
+                      <View style={styles.rvQChip}>
+                        <Text style={styles.rvQChipText}>Q{it.sequenceNumber ?? i + 1}</Text>
+                      </View>
+                      <View style={{ flex: 1 }} />
+                      <View style={[
+                        styles.rvMarksChip,
+                        gotIt && { backgroundColor: '#eafef3' },
+                        missedIt && { backgroundColor: '#fee2e2' },
                       ]}>
-                        {released && it.awardedMarks != null
-                          ? `${it.awardedMarks} / ${it.maxMarks ?? '—'}`
-                          : `${it.maxMarks ?? '—'} mark${it.maxMarks === 1 ? '' : 's'}`}
-                      </Text>
+                        <Text style={[
+                          styles.rvMarksText,
+                          gotIt && { color: '#0fae78' },
+                          missedIt && { color: '#ef4444' },
+                        ]}>
+                          {released && it.awardedMarks != null
+                            ? `${it.awardedMarks}/${it.maxMarks ?? '—'} mk`
+                            : `${it.maxMarks ?? '—'} mk`}
+                        </Text>
+                      </View>
                     </View>
                     <Text style={styles.rvText}>{it.questionText}</Text>
 
@@ -401,24 +457,45 @@ export const TaskPlayer: React.FC<{
                         return (
                           <View key={c.id} style={[
                             styles.rvChoice,
-                            good && { borderColor: '#15c98c', backgroundColor: '#eafef3' },
-                            badPick && { borderColor: '#ef4444', backgroundColor: '#fee2e2' },
-                            !released && c.chosen && { borderColor: '#7c5cff', backgroundColor: '#efeaff' },
+                            good && { borderColor: '#15c98c', backgroundColor: '#f2fdf8' },
+                            badPick && { borderColor: '#fda4af', backgroundColor: '#fff5f6' },
+                            !released && c.chosen && { borderColor: '#c4b5fd', backgroundColor: '#f7f4ff' },
                           ]}>
-                            <Text style={styles.rvChoiceLbl}>{c.label}</Text>
+                            <View style={[
+                              styles.rvChoiceMark,
+                              good && { backgroundColor: '#15c98c' },
+                              badPick && { backgroundColor: '#ef4444' },
+                              !released && c.chosen && { backgroundColor: '#7c5cff' },
+                            ]}>
+                              {good ? <Ionicons name="checkmark" size={12} color="#fff" />
+                                : badPick ? <Ionicons name="close" size={12} color="#fff" />
+                                : <Text style={[styles.rvChoiceLbl, (!released && c.chosen) && { color: '#fff' }]}>{c.label}</Text>}
+                            </View>
                             <Text style={styles.rvChoiceText}>{c.text}</Text>
-                            {c.chosen && <Text style={styles.rvTag}>You</Text>}
-                            {good && !c.chosen && <Text style={[styles.rvTag, { color: '#0fae78' }]}>Correct</Text>}
+                            {c.chosen && (
+                              <View style={styles.rvTagChip}>
+                                <Text style={styles.rvTagText}>Your pick</Text>
+                              </View>
+                            )}
+                            {good && !c.chosen && (
+                              <View style={[styles.rvTagChip, { backgroundColor: '#eafef3' }]}>
+                                <Text style={[styles.rvTagText, { color: '#0fae78' }]}>Correct</Text>
+                              </View>
+                            )}
                           </View>
                         );
                       })
                     ) : (
                       <>
+                        <Text style={styles.rvAnswerLbl}>YOUR ANSWER</Text>
                         <View style={styles.rvAnswerBox}>
                           <Text style={styles.rvAnswerText}>{it.yourAnswer || '—'}</Text>
                         </View>
                         {released && !!it.markingScheme && (
-                          <Text style={styles.rvScheme}>📖 Marking guide: {it.markingScheme}</Text>
+                          <View style={styles.rvScheme}>
+                            <Text style={styles.rvSchemeLbl}>📖 MARKING GUIDE</Text>
+                            <Text style={styles.rvSchemeText}>{it.markingScheme}</Text>
+                          </View>
                         )}
                       </>
                     )}
@@ -426,7 +503,9 @@ export const TaskPlayer: React.FC<{
                 );
               })}
 
-              <TouchableOpacity onPress={onClose}><Text style={styles.linkBtn}>Close</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.ghostBtn} activeOpacity={0.8} onPress={onClose}>
+                <Text style={styles.ghostBtnText}>Close</Text>
+              </TouchableOpacity>
             </>
           )}
           <View style={{ height: 40 }} />
@@ -530,33 +609,104 @@ const styles = StyleSheet.create({
     borderRadius: 999, paddingHorizontal: 24, paddingVertical: 13,
   },
 
-  resultScore: { fontSize: 34, fontWeight: '800', color: '#0fae78' },
+  // ── Handed-in result ──────────────────────────────────
+  resultBody: { padding: 16, paddingTop: 24 },
+  resultHero: {
+    borderRadius: 24, padding: 26, alignItems: 'center', marginBottom: 18,
+    shadowColor: '#5038A0',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.28, shadowRadius: 18, elevation: 8,
+  },
+  resultCheck: {
+    width: 72, height: 72, borderRadius: 36, backgroundColor: '#fff',
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15, shadowRadius: 8, elevation: 4,
+  },
+  resultTitle: { color: '#fff', fontSize: 22, fontWeight: '800', marginTop: 14, letterSpacing: -0.3 },
+  resultSub: {
+    color: 'rgba(255,255,255,0.92)', fontSize: 13, fontWeight: '600',
+    textAlign: 'center', marginTop: 6, lineHeight: 19, paddingHorizontal: 10,
+  },
+  resultScoreRow: {
+    flexDirection: 'row', alignItems: 'baseline',
+    backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 18,
+    paddingHorizontal: 22, paddingVertical: 10, marginTop: 18,
+  },
+  resultScoreBig: { color: '#fff', fontSize: 34, fontWeight: '800' },
+  resultScoreMax: { color: 'rgba(255,255,255,0.85)', fontSize: 17, fontWeight: '700' },
+  resultStatePill: {
+    backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 999,
+    paddingHorizontal: 16, paddingVertical: 9, marginTop: 18,
+  },
+  resultStateText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  ghostBtn: {
+    borderWidth: 1.5, borderColor: '#ded7f8', borderRadius: 999,
+    paddingVertical: 12, alignItems: 'center', marginTop: 10,
+    backgroundColor: '#fff',
+  },
+  ghostBtnText: { color: '#7c5cff', fontWeight: '800', fontSize: 13.5 },
 
-  rvTop: { alignItems: 'center', marginBottom: 14 },
-  rvScore: { fontSize: 34, fontWeight: '800', color: '#2c2550' },
-  rvMax: { fontSize: 17, color: '#6f679c', fontWeight: '700' },
-  rvPending: {
-    fontSize: 12.5, fontWeight: '700', color: '#92400e', textAlign: 'center',
-    backgroundColor: '#fff7e6', borderRadius: 12, padding: 12, overflow: 'hidden',
+  // ── Review ────────────────────────────────────────────
+  rvHero: {
+    flexDirection: 'row', alignItems: 'center', gap: 16,
+    borderRadius: 20, padding: 18, marginBottom: 14,
+    shadowColor: '#5038A0',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22, shadowRadius: 14, elevation: 5,
   },
-  rvNote: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 4 },
+  rvRing: {
+    width: 74, height: 74, borderRadius: 37,
+    borderWidth: 6, borderColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  rvRingPct: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  rvRingLbl: { color: 'rgba(255,255,255,0.85)', fontSize: 9, fontWeight: '700' },
+  rvHeroScore: { color: '#fff', fontSize: 28, fontWeight: '800' },
+  rvHeroMax: { color: 'rgba(255,255,255,0.85)', fontSize: 15, fontWeight: '700' },
+  rvHeroTitle: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  rvHeroSub: { color: 'rgba(255,255,255,0.9)', fontSize: 11.5, fontWeight: '600', marginTop: 3, lineHeight: 16 },
+
   rvItem: {
-    backgroundColor: '#fff', borderRadius: 16, borderWidth: 1.5, borderColor: '#ece8fb',
-    padding: 14, marginBottom: 10,
+    backgroundColor: '#fff', borderRadius: 18, borderWidth: 1.5, borderColor: '#ece8fb',
+    padding: 15, marginBottom: 10,
+    shadowColor: '#5038A0',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
-  rvHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  rvQ: { fontSize: 12.5, fontWeight: '800', color: '#7c5cff' },
-  rvMarks: { fontSize: 12, fontWeight: '800', color: '#6f679c' },
-  rvText: { fontSize: 13.5, fontWeight: '700', color: '#2c2550', lineHeight: 19, marginBottom: 10 },
+  rvHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 9 },
+  rvQChip: {
+    backgroundColor: '#efeaff', borderRadius: 9,
+    paddingHorizontal: 9, paddingVertical: 4,
+  },
+  rvQChipText: { fontSize: 11.5, fontWeight: '800', color: '#5b45c9' },
+  rvMarksChip: { backgroundColor: '#f4f1ff', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  rvMarksText: { fontSize: 11, fontWeight: '800', color: '#6f679c' },
+  rvText: { fontSize: 14, fontWeight: '700', color: '#2c2550', lineHeight: 20, marginBottom: 11 },
   rvChoice: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    borderWidth: 1.5, borderColor: '#ece8fb', borderRadius: 12,
-    paddingHorizontal: 11, paddingVertical: 9, marginBottom: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    borderWidth: 1.5, borderColor: '#f0edfb', borderRadius: 13,
+    paddingHorizontal: 11, paddingVertical: 10, marginBottom: 7,
   },
-  rvChoiceLbl: { fontSize: 11.5, fontWeight: '800', color: '#5b45c9' },
-  rvChoiceText: { flex: 1, fontSize: 12.5, fontWeight: '600', color: '#2c2550' },
-  rvTag: { fontSize: 10, fontWeight: '800', color: '#7c5cff' },
-  rvAnswerBox: { backgroundColor: '#f8f6ff', borderRadius: 12, padding: 11 },
-  rvAnswerText: { fontSize: 12.5, fontWeight: '600', color: '#2c2550', lineHeight: 18 },
-  rvScheme: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 8, lineHeight: 16 },
+  rvChoiceMark: {
+    width: 24, height: 24, borderRadius: 12, backgroundColor: '#f4f1ff',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  rvChoiceLbl: { fontSize: 11, fontWeight: '800', color: '#5b45c9' },
+  rvChoiceText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#2c2550', lineHeight: 18 },
+  rvTagChip: { backgroundColor: '#efeaff', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  rvTagText: { fontSize: 9.5, fontWeight: '800', color: '#5b45c9' },
+  rvAnswerLbl: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.7, color: '#9b94c4', marginBottom: 5 },
+  rvAnswerBox: {
+    backgroundColor: '#f8f6ff', borderRadius: 13, padding: 12,
+    borderWidth: 1.5, borderColor: '#f0edfb',
+  },
+  rvAnswerText: { fontSize: 13, fontWeight: '600', color: '#2c2550', lineHeight: 19 },
+  rvScheme: {
+    backgroundColor: '#fffaf0', borderRadius: 13, padding: 12, marginTop: 8,
+    borderWidth: 1.5, borderColor: '#fdeed3',
+  },
+  rvSchemeLbl: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.7, color: '#b45309', marginBottom: 4 },
+  rvSchemeText: { fontSize: 12, fontWeight: '600', color: '#7a5b2f', lineHeight: 17 },
 });
