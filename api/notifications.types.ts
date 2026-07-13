@@ -15,19 +15,23 @@ export interface ParentNotification {
 }
 
 /**
- * Notification preferences. Backend stores as a JSON string (the endpoint
- * accepts and returns `string` per the OpenAPI spec). We parse/serialize
- * a structured shape on the client side.
+ * Per-category routing preferences — the backend's canonical shape
+ * (ParentNotificationController): { FEES: { inApp, push }, ... }.
+ * Defaults are ALL ON; the server only stores changed values.
  */
-export interface NotificationPrefs {
-  push: Record<string, boolean>;
-  sms: Record<string, boolean>;
-  email: Record<string, boolean>;
-  whatsapp: Record<string, boolean>;
-}
+export interface CategoryRouting { inApp: boolean; push: boolean }
+export type NotificationPrefs = Record<string, CategoryRouting>;
 
-export function emptyPrefs(): NotificationPrefs {
-  return { push: {}, sms: {}, email: {}, whatsapp: {} };
+/** The stable category set, in the order the web Settings page renders. */
+export const PREF_CATEGORIES = [
+  'FEES', 'ATTENDANCE', 'MESSAGES', 'ACADEMICS', 'ANNOUNCEMENTS', 'DIARY',
+  'TRANSPORT', 'CALENDAR',
+] as const;
+
+export function defaultPrefs(): NotificationPrefs {
+  const out: NotificationPrefs = {};
+  for (const c of PREF_CATEGORIES) out[c] = { inApp: true, push: true };
+  return out;
 }
 
 // =================================================================

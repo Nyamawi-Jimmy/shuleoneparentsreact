@@ -1,65 +1,41 @@
-import React, { useEffect, useState } from 'react';
+// Notifications — inbox + per-category routing preferences, matching the web:
+//   Inbox        — the same feed the web bell shows: unread banner with
+//                  mark-all-read, category-tinted cards, tap marks read and
+//                  follows the deep link.
+//   Preferences  — the backend's canonical per-category routing map
+//                  ({ FEES: { inApp, push }, ... }): one row per category
+//                  with In-app and Push switches, saved on toggle.
+
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, RefreshControl, Switch, Alert,
+  ActivityIndicator, RefreshControl, Switch,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { ParentHeader } from '../../components/ParentHeader';
-import { colors, spacing, radius, typography, shadows } from '../../constants/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useFocusEffect } from 'expo-router';
+import { GradientAppBar } from '../../components/GradientAppBar';
+import { fonts } from '../../constants/theme';
+import { useTheme } from '../../theme/ThemeContext';
+import { ColorPalette } from '../../theme/palettes';
 import { useNotifications } from '../../hooks/useNotifications';
-import { ParentNotification, NotificationPrefs, emptyPrefs } from '../../api/notifications.types';
+import {
+  ParentNotification, NotificationPrefs, PREF_CATEGORIES, defaultPrefs,
+} from '../../api/notifications.types';
 import { getNotificationPrefs, setNotificationPrefs } from '../../api/notifications';
 import { useAuth } from '../../context/AuthContext';
 
 type Tab = 'inbox' | 'prefs';
 
-const CATEGORIES: { key: string; label: string; icon: any; emoji: string }[] = [
-  { key: 'FEES',           label: 'Fees & Payments',  icon: 'cash-outline',           emoji: '💳' },
-  { key: 'ATTENDANCE',     label: 'Attendance',       icon: 'checkmark-circle-outline', emoji: '🚸' },
-  { key: 'ACADEMICS',      label: 'Exam Results',     icon: 'school-outline',         emoji: '📊' },
-  { key: 'COMMUNICATION',  label: 'School Notices',   icon: 'megaphone-outline',      emoji: '📣' },
-  { key: 'TRANSPORT',      label: 'Bus & Transport',  icon: 'bus-outline',            emoji: '🚌' },
-  { key: 'LEARNING',       label: 'Learning Progress',icon: 'book-outline',           emoji: '🧠' },
-  { key: 'MARKETING',      label: 'Tips & Offers',    icon: 'sparkles-outline',       emoji: '✨' },
-];
-
-type Channel = 'push' | 'sms' | 'email' | 'whatsapp';
-const CHANNELS: { key: Channel; label: string; icon: any; color: string }[] = [
-  { key: 'push',     label: 'Push',     icon: 'notifications-outline', color: '#7c5cff' },
-  { key: 'sms',      label: 'SMS',      icon: 'chatbox-outline',       color: '#15c98c' },
-  { key: 'email',    label: 'Email',    icon: 'mail-outline',          color: '#3aa0ff' },
-  { key: 'whatsapp', label: 'WhatsApp', icon: 'logo-whatsapp',         color: '#25d366' },
-];
-
-export const NotificationsScreen: React.FC = () => {
-  const [tab, setTab] = useState<Tab>('inbox');
-
-  return (
-    <View style={styles.safe}>
-      <ParentHeader title="Notifications" showBack />
-
-      {/* Tab switcher */}
-      <View style={styles.tabsWrap}>
-        <View style={styles.tabsRow}>
-          {(['inbox', 'prefs'] as Tab[]).map((t) => (
-            <TouchableOpacity
-              key={t}
-              activeOpacity={0.85}
-              onPress={() => setTab(t)}
-              style={[styles.tab, tab === t && styles.tabActive]}
-            >
-              <Text style={[styles.tabLabel, tab === t && styles.tabLabelActive]}>
-                {t === 'inbox' ? 'Inbox' : 'Preferences'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {tab === 'inbox' ? <InboxView /> : <PrefsView />}
-    </View>
-  );
+// Category metadata — the backend's stable set, in its render order.
+const CATEGORY_META: Record<string, { label: string; desc: string; icon: any }> = {
+  FEES:          { label: 'Fees & payments', desc: 'Balance changes, receipts & due dates', icon: 'wallet-outline' },
+  ATTENDANCE:    { label: 'Attendance', desc: 'Sign-in/out and absence alerts', icon: 'checkmark-done-outline' },
+  MESSAGES:      { label: 'Messages', desc: 'New chats from teachers & staff', icon: 'chatbubbles-outline' },
+  ACADEMICS:     { label: 'Academics', desc: 'Exam results & report cards', icon: 'school-outline' },
+  ANNOUNCEMENTS: { label: 'Announcements', desc: 'School notices & newsletters', icon: 'megaphone-outline' },
+  DIARY:         { label: 'Class diary', desc: 'New weeks & teacher comments', icon: 'book-outline' },
+  TRANSPORT:     { label: 'Transport', desc: 'Bus boarding, arrival & drop-off', icon: 'bus-outline' },
+  CALENDAR:      { label: 'Calendar', desc: 'Events, exams & live classes', icon: 'calendar-outline' },
 };
 
 // Map a notification's web deep link (or its category) to an app route.
@@ -77,410 +53,329 @@ function toMobileRoute(link?: string | null, category?: string | null): string |
   return null;
 }
 
-// =================================================================
-// Inbox tab
-// =================================================================
-const InboxView: React.FC = () => {
+const relTime = (iso?: string | null): string => {
+  if (!iso) return '';
+  const t = new Date(iso).getTime();
+  if (isNaN(t)) return '';
+  const mins = Math.round((Date.now() - t) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+};
+
+export const NotificationsScreen: React.FC = () => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const [tab, setTab] = useState<Tab>('inbox');
   const {
     items, unreadCount, loading, refreshing, refresh, error, markRead, readAll,
   } = useNotifications();
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.scroll}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />
-      }
-    >
-      {unreadCount > 0 && (
-        <View style={styles.unreadBanner}>
-          <View style={styles.unreadDot}>
-            <Text style={styles.unreadDotText}>{unreadCount}</Text>
+    <View style={styles.root}>
+      <GradientAppBar
+        title="Notifications"
+        subtitle={unreadCount > 0 ? `${unreadCount} unread` : 'All caught up'}
+        showBack
+      />
+
+      {/* Floating segmented control */}
+      <View style={styles.segmentWrap}>
+        <View style={styles.segment}>
+          {([
+            { id: 'inbox', label: 'Inbox', icon: 'notifications-outline', count: unreadCount },
+            { id: 'prefs', label: 'Preferences', icon: 'options-outline', count: 0 },
+          ] as { id: Tab; label: string; icon: any; count: number }[]).map((t) => {
+            const active = tab === t.id;
+            return (
+              <TouchableOpacity key={t.id} style={[styles.segmentBtn, active && styles.segmentBtnActive]}
+                activeOpacity={0.8} onPress={() => setTab(t.id)}>
+                <Ionicons name={t.icon} size={14} color={active ? colors.primary : colors.textTertiary} />
+                <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{t.label}</Text>
+                {t.count > 0 && (
+                  <View style={styles.segmentBadge}>
+                    <Text style={styles.segmentBadgeText}>{t.count > 99 ? '99+' : t.count}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {tab === 'inbox' ? (
+        <InboxView styles={styles} colors={colors}
+          items={items} unreadCount={unreadCount} loading={loading} refreshing={refreshing}
+          refresh={refresh} error={error} markRead={markRead} readAll={readAll} />
+      ) : (
+        <PrefsView styles={styles} colors={colors} />
+      )}
+    </View>
+  );
+};
+
+// =================================================================
+// Inbox
+// =================================================================
+const InboxView: React.FC<{
+  styles: any; colors: ColorPalette;
+  items: ParentNotification[]; unreadCount: number; loading: boolean; refreshing: boolean;
+  refresh: () => void; error: string | null; markRead: (id: number) => void; readAll: () => void;
+}> = ({ styles, colors, items, unreadCount, loading, refreshing, refresh, error, markRead, readAll }) => (
+  <ScrollView
+    contentContainerStyle={styles.scroll}
+    showsVerticalScrollIndicator={false}
+    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
+  >
+    {unreadCount > 0 && (
+      <View style={styles.unreadBanner}>
+        <View style={styles.unreadDot}><Text style={styles.unreadDotText}>{unreadCount}</Text></View>
+        <Text style={styles.unreadText}>
+          {unreadCount === 1 ? '1 unread notification' : `${unreadCount} unread notifications`}
+        </Text>
+        <TouchableOpacity onPress={readAll} hitSlop={6}>
+          <Text style={styles.markAllText}>Mark all read</Text>
+        </TouchableOpacity>
+      </View>
+    )}
+
+    {loading && (
+      <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>
+    )}
+
+    {!loading && error && (
+      <View style={styles.errorBanner}>
+        <Ionicons name="warning" size={16} color={colors.danger} />
+        <Text style={styles.errorBannerText}>{error}</Text>
+        <TouchableOpacity onPress={refresh} hitSlop={6}><Text style={styles.retryInline}>Retry</Text></TouchableOpacity>
+      </View>
+    )}
+
+    {!loading && !error && items.length === 0 && (
+      <View style={styles.center}>
+        <View style={styles.emptyIconCircle}>
+          <Ionicons name="notifications-outline" size={28} color={colors.textSecondary} />
+        </View>
+        <Text style={styles.emptyTitle}>You’re all caught up</Text>
+        <Text style={styles.emptyText}>No notifications to show right now.</Text>
+      </View>
+    )}
+
+    {items.map((n, idx) => {
+      const isUnread = !n.readAt;
+      const meta = CATEGORY_META[(n.category ?? '').toUpperCase()];
+      return (
+        <TouchableOpacity
+          key={n.id ?? `n-${idx}`}
+          activeOpacity={0.8}
+          style={[styles.card, isUnread && styles.cardUnread]}
+          onPress={() => {
+            if (n.id) markRead(n.id);
+            // Follow the notification's deep link, like the web bell does.
+            const route = toMobileRoute(n.link, n.category);
+            if (route) router.push(route as any);
+          }}
+        >
+          <View style={[styles.cardIcon, isUnread && { backgroundColor: colors.primary }]}>
+            <Ionicons name={meta?.icon ?? 'notifications-outline'} size={17}
+              color={isUnread ? '#FFF' : colors.primary} />
           </View>
-          <Text style={styles.unreadText}>
-            {unreadCount === 1 ? '1 unread notification' : `${unreadCount} unread notifications`}
-          </Text>
-          <TouchableOpacity onPress={readAll} hitSlop={6}>
-            <Text style={styles.markAllText}>Mark all read</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={styles.cardTopRow}>
+              <Text style={[styles.cardTitle, isUnread && { fontFamily: fonts.extrabold }]} numberOfLines={2}>
+                {n.title ?? 'Notification'}
+              </Text>
+              {isUnread && <View style={styles.unreadPip} />}
+            </View>
+            {!!n.body && <Text style={styles.cardBody} numberOfLines={3}>{n.body}</Text>}
+            <Text style={styles.cardMeta}>
+              {(meta?.label ?? n.category ?? 'General')} · {relTime(n.createdAt)}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    })}
 
-      {loading && (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      )}
+    <View style={{ height: 32 }} />
+  </ScrollView>
+);
 
-      {!loading && error && (
+// =================================================================
+// Preferences — per-category In-app / Push routing, saved on toggle
+// =================================================================
+const PrefsView: React.FC<{ styles: any; colors: ColorPalette }> = ({ styles, colors }) => {
+  const { accessToken } = useAuth();
+  const [prefs, setPrefs] = useState<NotificationPrefs | null>(null);
+  const [saveErr, setSaveErr] = useState(false);
+
+  useFocusEffect(useCallback(() => {
+    if (!accessToken) return;
+    getNotificationPrefs(accessToken).then(setPrefs).catch(() => setPrefs(defaultPrefs()));
+  }, [accessToken]));
+
+  const toggle = (cat: string, channel: 'inApp' | 'push', value: boolean) => {
+    if (!prefs || !accessToken) return;
+    const next: NotificationPrefs = { ...prefs, [cat]: { ...prefs[cat], [channel]: value } };
+    setPrefs(next); // optimistic
+    setSaveErr(false);
+    setNotificationPrefs(accessToken, next)
+      .then(setPrefs)
+      .catch(() => { setPrefs(prefs); setSaveErr(true); });
+  };
+
+  if (!prefs) {
+    return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <Text style={styles.prefsIntro}>
+        Choose where each kind of update reaches you. In-app fills the inbox here; push alerts your phone.
+      </Text>
+      {saveErr && (
         <View style={styles.errorBanner}>
           <Ionicons name="warning" size={16} color={colors.danger} />
-          <Text style={styles.errorBannerText}>{error}</Text>
-          <TouchableOpacity onPress={refresh} hitSlop={6}>
-            <Text style={styles.retryInline}>Retry</Text>
-          </TouchableOpacity>
+          <Text style={styles.errorBannerText}>Could not save that change — it has been undone.</Text>
         </View>
       )}
 
-      {!loading && !error && items.length === 0 && (
-        <View style={styles.center}>
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="notifications-outline" size={28} color={colors.textSecondary} />
-          </View>
-          <Text style={styles.emptyTitle}>You’re all caught up</Text>
-          <Text style={styles.emptyText}>
-            No notifications to show right now.
-          </Text>
+      <View style={styles.prefsCard}>
+        {/* Column legend */}
+        <View style={styles.prefsLegend}>
+          <View style={{ flex: 1 }} />
+          <Text style={styles.legendText}>In-app</Text>
+          <Text style={styles.legendText}>Push</Text>
         </View>
-      )}
 
-      {items.map((n, idx) => (
-        <NotificationCard key={n.id ?? `n-${idx}`} item={n} onPress={() => {
-          if (n.id) markRead(n.id);
-          // Follow the notification's deep link, like the web bell does.
-          const route = toMobileRoute(n.link, n.category);
-          if (route) router.push(route as any);
-        }} />
-      ))}
+        {PREF_CATEGORIES.map((cat, i) => {
+          const meta = CATEGORY_META[cat];
+          const r = prefs[cat] ?? { inApp: true, push: true };
+          return (
+            <View key={cat} style={[styles.prefRow, i > 0 && styles.divider]}>
+              <View style={[styles.prefIcon, { backgroundColor: colors.primarySoft }]}>
+                <Ionicons name={meta?.icon ?? 'notifications-outline'} size={16} color={colors.primary} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.prefLabel}>{meta?.label ?? cat}</Text>
+                <Text style={styles.prefDesc} numberOfLines={1}>{meta?.desc ?? ''}</Text>
+              </View>
+              <View style={styles.switchCol}>
+                <Switch
+                  value={r.inApp}
+                  onValueChange={(v) => toggle(cat, 'inApp', v)}
+                  trackColor={{ false: colors.border, true: colors.primaryLight }}
+                  thumbColor={r.inApp ? colors.primary : '#f4f3f4'}
+                />
+              </View>
+              <View style={styles.switchCol}>
+                <Switch
+                  value={r.push}
+                  onValueChange={(v) => toggle(cat, 'push', v)}
+                  trackColor={{ false: colors.border, true: colors.primaryLight }}
+                  thumbColor={r.push ? colors.primary : '#f4f3f4'}
+                />
+              </View>
+            </View>
+          );
+        })}
+      </View>
 
-      <View style={{ height: spacing.xxxl }} />
+      <Text style={styles.prefsFoot}>
+        Everything is on by default. Changes apply immediately — no save button needed.
+      </Text>
+      <View style={{ height: 32 }} />
     </ScrollView>
   );
 };
 
-const NotificationCard: React.FC<{ item: ParentNotification; onPress: () => void }> = ({ item, onPress }) => {
-  const isUnread = !item.readAt;
-  const category = (item.category ?? '').toUpperCase();
-  const meta = CATEGORIES.find((c) => c.key === category);
-  const iconName = meta?.icon ?? 'notifications-outline';
+function makeStyles(c: ColorPalette) {
+  return StyleSheet.create({
+    root: { flex: 1, backgroundColor: c.background },
+    scroll: { paddingHorizontal: 16, paddingTop: 14 },
+    center: { padding: 44, alignItems: 'center', gap: 10 },
 
-  return (
-    <TouchableOpacity
-      activeOpacity={0.85}
-      onPress={onPress}
-      style={[styles.card, isUnread && styles.cardUnread]}
-    >
-      <View style={styles.cardHeader}>
-        <View style={[styles.cardIcon, isUnread && styles.cardIconUnread]}>
-          <Ionicons name={iconName} size={18} color={isUnread ? '#fff' : colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <View style={styles.cardTopRow}>
-            <Text style={styles.cardTitle} numberOfLines={2}>
-              {item.title ?? 'Notification'}
-            </Text>
-            {isUnread && <View style={styles.unreadPip} />}
-          </View>
-          {!!item.body && (
-            <Text style={styles.cardBody} numberOfLines={3}>{item.body}</Text>
-          )}
-          <Text style={styles.cardMeta}>
-            {meta?.label ?? category} • {formatRelative(item.createdAt)}
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-};
+    // Floating segmented control over the app bar edge
+    segmentWrap: { paddingHorizontal: 16, marginTop: -20 },
+    segment: {
+      flexDirection: 'row', backgroundColor: c.card, borderRadius: 14, padding: 4,
+      borderWidth: 1, borderColor: c.border,
+      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.12, shadowRadius: 14, elevation: 5,
+    },
+    segmentBtn: {
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+      paddingVertical: 10, borderRadius: 11,
+    },
+    segmentBtnActive: { backgroundColor: c.primarySoft },
+    segmentText: { fontSize: 12.5, fontFamily: fonts.semibold, color: c.textSecondary },
+    segmentTextActive: { color: c.primary, fontFamily: fonts.bold },
+    segmentBadge: {
+      minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9,
+      backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center',
+    },
+    segmentBadgeText: { fontSize: 9.5, fontFamily: fonts.extrabold, color: '#FFF' },
 
-// =================================================================
-// Preferences tab
-// =================================================================
-const PrefsView: React.FC = () => {
-  const { accessToken } = useAuth();
-  const [prefs, setPrefs] = useState<NotificationPrefs>(emptyPrefs());
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+    unreadBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: 10,
+      backgroundColor: c.primarySofter, borderWidth: 1, borderColor: c.primary + '26',
+      borderRadius: 13, padding: 12, marginBottom: 12,
+    },
+    unreadDot: {
+      minWidth: 22, height: 22, borderRadius: 11, paddingHorizontal: 5,
+      backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center',
+    },
+    unreadDotText: { color: '#FFF', fontSize: 11, fontFamily: fonts.extrabold },
+    unreadText: { flex: 1, fontSize: 12.5, fontFamily: fonts.semibold, color: c.text },
+    markAllText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.primary },
 
-  useEffect(() => {
-    if (!accessToken) return;
-    (async () => {
-      try {
-        const p = await getNotificationPrefs(accessToken);
-        setPrefs(p);
-      } catch (e: any) {
-        setError(e?.message ?? 'Could not load preferences');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [accessToken]);
+    errorBanner: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      backgroundColor: c.dangerSoft, borderRadius: 12, padding: 12, marginBottom: 12,
+    },
+    errorBannerText: { flex: 1, color: c.danger, fontSize: 12.5, fontFamily: fonts.semibold },
+    retryInline: { color: c.danger, fontFamily: fonts.extrabold, fontSize: 13 },
 
-  const toggle = (channel: Channel, category: string) => {
-    setPrefs((prev) => {
-      const current = prev[channel] || {};
-      // Default to true for unset categories so toggling first time turns them OFF visually
-      const cur = current[category] ?? true;
-      return {
-        ...prev,
-        [channel]: { ...current, [category]: !cur },
-      };
-    });
-    setDirty(true);
-  };
+    emptyIconCircle: {
+      width: 56, height: 56, borderRadius: 28, backgroundColor: c.card,
+      alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.border,
+    },
+    emptyTitle: { fontSize: 15, fontFamily: fonts.bold, color: c.text },
+    emptyText: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, textAlign: 'center', lineHeight: 18 },
 
-  const save = async () => {
-    if (!accessToken) return;
-    setSaving(true);
-    try {
-      const updated = await setNotificationPrefs(accessToken, prefs);
-      setPrefs(updated);
-      setDirty(false);
-      Alert.alert('Saved', 'Your notification preferences have been updated.');
-    } catch (e: any) {
-      Alert.alert('Save failed', e?.message ?? 'Could not save preferences.');
-    } finally {
-      setSaving(false);
-    }
-  };
+    card: {
+      flexDirection: 'row', gap: 12,
+      backgroundColor: c.card, borderRadius: 15, borderWidth: 1, borderColor: c.border,
+      padding: 13, marginBottom: 9,
+    },
+    cardUnread: { borderColor: c.primary + '44', backgroundColor: c.primarySofter },
+    cardIcon: {
+      width: 38, height: 38, borderRadius: 12, backgroundColor: c.primarySoft,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+    cardTitle: { flex: 1, fontSize: 13.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2, lineHeight: 18 },
+    unreadPip: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.primary, marginTop: 4 },
+    cardBody: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 3, lineHeight: 18 },
+    cardMeta: { fontSize: 10.5, fontFamily: fonts.medium, color: c.textTertiary, marginTop: 6 },
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
-  return (
-    <>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.prefsIntro}>
-          Choose which channels deliver each type of alert.
-        </Text>
-
-        <View style={styles.channelsLegend}>
-          {CHANNELS.map((ch) => (
-            <View key={ch.key} style={styles.legendItem}>
-              <Ionicons name={ch.icon} size={13} color={ch.color} />
-              <Text style={styles.legendText}>{ch.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {CATEGORIES.map((cat) => (
-          <View key={cat.key} style={styles.catCard}>
-            <View style={styles.catHeader}>
-              <Text style={styles.catEmoji}>{cat.emoji}</Text>
-              <Text style={styles.catTitle}>{cat.label}</Text>
-            </View>
-            <View style={styles.channelsRow}>
-              {CHANNELS.map((ch) => {
-                const on = prefs[ch.key][cat.key] ?? true;
-                return (
-                  <View key={ch.key} style={styles.channelCell}>
-                    <View style={[styles.channelIcon, on && { backgroundColor: ch.color }]}>
-                      <Ionicons
-                        name={ch.icon}
-                        size={13}
-                        color={on ? '#fff' : '#9b94c4'}
-                      />
-                    </View>
-                    <Switch
-                      value={on}
-                      onValueChange={() => toggle(ch.key, cat.key)}
-                      trackColor={{ false: '#e5e7eb', true: ch.color }}
-                      thumbColor="#fff"
-                      ios_backgroundColor="#e5e7eb"
-                      style={styles.switch}
-                    />
-                  </View>
-                );
-              })}
-            </View>
-          </View>
-        ))}
-
-        {error && (
-          <View style={styles.errorBanner}>
-            <Ionicons name="warning" size={16} color={colors.danger} />
-            <Text style={styles.errorBannerText}>{error}</Text>
-          </View>
-        )}
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
-
-      {dirty && (
-        <View style={styles.saveBar}>
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={save}
-            disabled={saving}
-            style={[styles.saveBtn, saving && { opacity: 0.6 }]}
-          >
-            <Ionicons name="checkmark" size={16} color="#fff" />
-            <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save changes'}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </>
-  );
-};
-
-// =================================================================
-// Helpers
-// =================================================================
-function formatRelative(iso: string | null): string {
-  if (!iso) return '';
-  try {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    const diff = Date.now() - d.getTime();
-    if (diff < 60_000) return 'just now';
-    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-    if (diff < 604_800_000) return `${Math.floor(diff / 86_400_000)}d ago`;
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  } catch { return iso; }
+    // Preferences
+    prefsIntro: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 18, marginBottom: 12 },
+    prefsCard: {
+      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+      paddingHorizontal: 14, overflow: 'hidden',
+    },
+    prefsLegend: { flexDirection: 'row', alignItems: 'center', paddingTop: 12, paddingBottom: 4 },
+    legendText: { width: 56, textAlign: 'center', fontSize: 10, fontFamily: fonts.bold, color: c.textTertiary, letterSpacing: 0.5, textTransform: 'uppercase' },
+    prefRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11 },
+    divider: { borderTopWidth: 1, borderTopColor: c.border },
+    prefIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    prefLabel: { fontSize: 13, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    prefDesc: { fontSize: 10.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 1 },
+    switchCol: { width: 56, alignItems: 'center' },
+    prefsFoot: { fontSize: 11, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 12, lineHeight: 16 },
+  });
 }
-
-// =================================================================
-// Styles
-// =================================================================
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.backgroundAlt },
-  scroll: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
-
-  tabsWrap: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  tabsRow: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderRadius: 12, padding: 4,
-    borderWidth: 1, borderColor: colors.border,
-  },
-  tab: {
-    flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 9,
-  },
-  tabActive: { backgroundColor: colors.primary },
-  tabLabel: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
-  tabLabelActive: { color: '#fff' },
-
-  center: { alignItems: 'center', justifyContent: 'center', paddingVertical: 50 },
-  loadingText: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.sm },
-  emptyIconCircle: {
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: colors.card,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: spacing.md,
-    borderWidth: 1, borderColor: colors.border,
-  },
-  emptyTitle: { ...typography.h3, color: colors.text },
-  emptyText: { ...typography.caption, color: colors.textSecondary, marginTop: 6, textAlign: 'center', lineHeight: 18 },
-
-  unreadBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: colors.primarySoft,
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderRadius: radius.lg, marginBottom: spacing.md,
-  },
-  unreadDot: {
-    backgroundColor: colors.primary,
-    minWidth: 22, paddingHorizontal: 7, paddingVertical: 2,
-    borderRadius: 99, alignItems: 'center', justifyContent: 'center',
-  },
-  unreadDotText: { color: '#fff', fontSize: 11.5, fontWeight: '800' },
-  unreadText: { flex: 1, fontSize: 12.5, color: colors.primary, fontWeight: '700' },
-  markAllText: { color: colors.primary, fontSize: 12.5, fontWeight: '800' },
-
-  errorBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: colors.dangerSoft, borderRadius: radius.lg,
-    padding: spacing.md, marginBottom: spacing.md,
-  },
-  errorBannerText: { flex: 1, color: colors.danger, fontSize: 12.5, fontWeight: '700' },
-  retryInline: { color: colors.danger, fontWeight: '800', fontSize: 13 },
-
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.xl,
-    borderWidth: 1, borderColor: colors.border,
-    padding: spacing.md, marginBottom: spacing.sm,
-    ...shadows.card,
-  },
-  cardUnread: { backgroundColor: '#FFF', borderColor: colors.primarySoft, borderLeftWidth: 3, borderLeftColor: colors.primary },
-  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
-  cardIcon: {
-    width: 38, height: 38, borderRadius: radius.lg,
-    backgroundColor: colors.primarySoft,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  cardIconUnread: { backgroundColor: colors.primary },
-  cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
-  cardTitle: { flex: 1, ...typography.bodyBold, color: colors.text },
-  unreadPip: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, marginTop: 7 },
-  cardBody: { ...typography.body, color: colors.textSecondary, marginTop: 4, lineHeight: 18 },
-  cardMeta: { ...typography.caption, color: colors.textTertiary, marginTop: 6 },
-
-  // Prefs tab
-  prefsIntro: {
-    ...typography.caption, color: colors.textSecondary,
-    marginBottom: spacing.md, lineHeight: 18,
-  },
-  channelsLegend: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    padding: spacing.sm,
-    justifyContent: 'space-around',
-    marginBottom: spacing.lg,
-    borderWidth: 1, borderColor: colors.border,
-  },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  legendText: { fontSize: 10.5, color: colors.textSecondary, fontWeight: '700' },
-
-  catCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.xl,
-    borderWidth: 1, borderColor: colors.border,
-    padding: spacing.md, marginBottom: spacing.sm,
-    ...shadows.card,
-  },
-  catHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    marginBottom: spacing.sm,
-  },
-  catEmoji: { fontSize: 22 },
-  catTitle: { ...typography.bodyBold, color: colors.text, flex: 1 },
-  channelsRow: {
-    flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center',
-    paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: '#f5f3fa',
-  },
-  channelCell: { alignItems: 'center', gap: 4 },
-  channelIcon: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: '#f4f1ff',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  switch: { transform: [{ scaleX: 0.75 }, { scaleY: 0.75 }] },
-
-  saveBar: {
-    position: 'absolute', left: 0, right: 0, bottom: 0,
-    backgroundColor: '#fff',
-    paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl,
-    borderTopWidth: 1, borderTopColor: colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.06, shadowRadius: 10, elevation: 10,
-  },
-  saveBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: colors.primary,
-    paddingVertical: 14, borderRadius: 14,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
-  },
-  saveBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
-});

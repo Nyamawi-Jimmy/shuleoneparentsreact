@@ -4,7 +4,7 @@ import {
   NotificationPrefs,
   ParentReminder,
   SetReminderRequest,
-  emptyPrefs,
+  defaultPrefs,
 } from './notifications.types';
 
 // =================================================================
@@ -43,47 +43,41 @@ export function markAllRead(accessToken: string) {
   );
 }
 
-/** GET /api/parent/notifications/prefs (server stores as JSON string). */
+/**
+ * GET /api/parent/notifications/prefs — the backend returns the canonical
+ * per-category map { FEES: { inApp, push }, ... } with every category present.
+ */
 export async function getNotificationPrefs(accessToken: string): Promise<NotificationPrefs> {
-  const raw = await apiFetch<string>(
+  const raw = await apiFetch<NotificationPrefs>(
     '/api/parent/notifications/prefs',
     { accessToken },
   );
-  return parsePrefs(raw);
+  return normalizePrefs(raw);
 }
 
-/** PUT /api/parent/notifications/prefs */
+/** PUT /api/parent/notifications/prefs — send the full map back. */
 export async function setNotificationPrefs(
   accessToken: string,
   prefs: NotificationPrefs,
 ): Promise<NotificationPrefs> {
-  const body = JSON.stringify(prefs);
-  const raw = await apiFetch<string>(
+  const raw = await apiFetch<NotificationPrefs>(
     '/api/parent/notifications/prefs',
-    {
-      method: 'PUT',
-      accessToken,
-      body,
-      headers: { 'Content-Type': 'application/json' },
-    },
+    { method: 'PUT', accessToken, body: prefs },
   );
-  return parsePrefs(raw);
+  return normalizePrefs(raw);
 }
 
-function parsePrefs(raw: string | NotificationPrefs | null | undefined): NotificationPrefs {
-  if (!raw) return emptyPrefs();
-  if (typeof raw === 'object') return raw as NotificationPrefs;
-  try {
-    const parsed = JSON.parse(raw);
-    return {
-      push: parsed.push ?? {},
-      sms: parsed.sms ?? {},
-      email: parsed.email ?? {},
-      whatsapp: parsed.whatsapp ?? {},
-    };
-  } catch {
-    return emptyPrefs();
+/** Overlay the server map on all-on defaults so every category always renders. */
+function normalizePrefs(raw: NotificationPrefs | null | undefined): NotificationPrefs {
+  const out = defaultPrefs();
+  if (raw && typeof raw === 'object') {
+    for (const [cat, r] of Object.entries(raw)) {
+      if (r && typeof r === 'object') {
+        out[cat] = { inApp: (r as any).inApp !== false, push: (r as any).push !== false };
+      }
+    }
   }
+  return out;
 }
 
 // =================================================================

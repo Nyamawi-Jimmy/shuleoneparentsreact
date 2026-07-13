@@ -1,6 +1,2 @@
-import React from 'react';
-import { NotificationPreferencesScreen } from '../screens/ParentAccount/NotificationPreferencesScreen';
-
-export default function NotificationsRoute() {
-  return <NotificationPreferencesScreen />;
-}
+import { NotificationsScreen } from '../screens/ParentAccount/NotificationsScreen';
+export default function Route() { return <NotificationsScreen />; }
