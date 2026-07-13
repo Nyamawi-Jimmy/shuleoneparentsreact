@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
-import { ParentHeader } from '../../components/ParentHeader';
+import { GradientAppBar } from '../../components/GradientAppBar';
 import { fonts } from '../../constants/theme';
 import { useChildLearning } from '../../hooks/useChildLearning';
 import { useSelectedChild } from '../../context/SelectedChildContext';
@@ -70,24 +70,23 @@ export const LearningScreen: React.FC = () => {
   // exists, otherwise the academic average from the report. (School students carry
   // their several subjects in report.subjects; quests may only cover one or two.)
   const subjectCards = useMemo(() => {
-    const ACCENTS = [colors.primary, colors.info, colors.success, colors.warning, colors.purple, colors.danger];
-    const groups = new Map<string, { total: number; done: number; rep: QuestSummary | null; accent: string | null }>();
+    const groups = new Map<string, { total: number; done: number; rep: QuestSummary | null }>();
     for (const q of quests) {
       const key = q.subject || 'General';
-      const g = groups.get(key) || { total: 0, done: 0, rep: null, accent: null };
+      const g = groups.get(key) || { total: 0, done: 0, rep: null };
       g.total += q.totalStages || 0;
       g.done += q.completedStages || 0;
       if (!g.rep || rankStatus(q.status) < rankStatus(g.rep.status)) g.rep = q;
-      if (!g.accent && q.accentColor) g.accent = q.accentColor;
       groups.set(key, g);
     }
-    // Union of subject names: quests first (they carry accents/latest), then academic.
+    // Union of subject names: quests first (they carry the latest title), then academic.
+    // One brand color throughout — every accent comes from the primary theme.
     const order: string[] = [];
     const seen = new Set<string>();
     const push = (name?: string | null) => { const n = (name || '').trim(); if (n && !seen.has(n)) { seen.add(n); order.push(n); } };
     quests.forEach((q) => push(q.subject));
     subjects.forEach((s) => push(s.subject));
-    return order.map((name, i) => {
+    return order.map((name) => {
       const g = groups.get(name);
       const academic = subjects.find((s) => (s.subject || '').trim() === name);
       const hasQuest = !!g && g.total > 0;
@@ -99,7 +98,7 @@ export const LearningScreen: React.FC = () => {
           ? Math.round((g!.done / g!.total) * 100)
           : Math.max(0, Math.min(100, num(academic?.avgScorePct))),
         metric: hasQuest ? ('complete' as const) : ('score' as const),
-        accent: g?.accent || ACCENTS[i % ACCENTS.length],
+        accent: colors.primary,
         coding: isCoding(name),
       };
     });
@@ -143,7 +142,7 @@ export const LearningScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
-      <ParentHeader title="Learning" showBack={false} rightIcon="none" />
+      <GradientAppBar title="Learning" subtitle={`${firstName}’s progress & practice`} />
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
@@ -167,7 +166,7 @@ export const LearningScreen: React.FC = () => {
               the screen straight into that quest; progress lands on the child's account. */}
           {resumeQuest && resumeQuest.id != null && (
             <TouchableOpacity activeOpacity={0.85} onPress={() => playQuest(resumeQuest.id)}>
-              <LinearGradient colors={['#7C3AED', '#DB2777']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.resumeCard}>
+              <LinearGradient colors={[colors.primary, colors.purpleDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.resumeCard}>
                 <View style={styles.resumePlay}>
                   <Ionicons name="play" size={20} color="#FFF" />
                 </View>
@@ -185,7 +184,7 @@ export const LearningScreen: React.FC = () => {
           )}
 
           {/* Hero — entitlement-aware */}
-          <LinearGradient colors={[colors.primary, colors.purple]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+          <LinearGradient colors={[colors.primary, colors.purpleDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
             <View style={styles.heroTopRow}>
               <View style={styles.heroIcon}>
                 <Ionicons name={subscribed ? 'flag' : 'sparkles'} size={20} color="#FFF" />
@@ -240,10 +239,10 @@ export const LearningScreen: React.FC = () => {
                 <Text style={styles.snapshotHeadText}>Level {num(report!.level) || 1} · {num(report!.totalXp)} XP</Text>
               </View>
               <View style={styles.statGrid}>
-                <StatTile styles={styles} colors={colors} icon="ribbon" tint={colors.purple} value={report!.avgScorePct != null ? `${num(report!.avgScorePct)}%` : '—'} label="Average score" />
-                <StatTile styles={styles} colors={colors} icon="star" tint={colors.warning} value={`${num(report!.masteryCount)}`} label="Skills mastered" />
-                <StatTile styles={styles} colors={colors} icon="flame" tint={colors.danger} value={`${num(report!.currentStreak)}`} label="Day streak" />
-                <StatTile styles={styles} colors={colors} icon="time" tint={colors.info} value={fmtMinutes(report!.minutesInvested)} label="Time invested" />
+                <StatTile styles={styles} colors={colors} icon="ribbon" tint={colors.primary} value={report!.avgScorePct != null ? `${num(report!.avgScorePct)}%` : '—'} label="Average score" />
+                <StatTile styles={styles} colors={colors} icon="star" tint={colors.primary} value={`${num(report!.masteryCount)}`} label="Skills mastered" />
+                <StatTile styles={styles} colors={colors} icon="flame" tint={colors.primary} value={`${num(report!.currentStreak)}`} label="Day streak" />
+                <StatTile styles={styles} colors={colors} icon="time" tint={colors.primary} value={fmtMinutes(report!.minutesInvested)} label="Time invested" />
               </View>
             </>
           )}
@@ -291,8 +290,8 @@ export const LearningScreen: React.FC = () => {
                 {!hasCodingQuest && hasCoding && (
                   <TouchableOpacity style={styles.subjectCard} activeOpacity={0.7} onPress={() => router.push('/coding' as any)}>
                     <View style={styles.subjectCardHead}>
-                      <View style={[styles.subjectIcon, { backgroundColor: '#10B9811F' }]}>
-                        <MaterialCommunityIcons name="code-tags" size={18} color="#059669" />
+                      <View style={[styles.subjectIcon, { backgroundColor: colors.primary + '1F' }]}>
+                        <MaterialCommunityIcons name="code-tags" size={18} color={colors.primary} />
                       </View>
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.subjectName}>Coding & Robotics</Text>
@@ -355,8 +354,8 @@ export const LearningScreen: React.FC = () => {
           {/* Why this focus (Premium + weakest) */}
           {subscribed && weakest && (
             <View style={styles.whyCard}>
-              <View style={[styles.whyIcon, { backgroundColor: colors.purple + '1A' }]}>
-                <Ionicons name="bulb" size={17} color={colors.purple} />
+              <View style={[styles.whyIcon, { backgroundColor: colors.primary + '1A' }]}>
+                <Ionicons name="bulb" size={17} color={colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.whyTitle}>Why this focus</Text>
@@ -395,18 +394,21 @@ const SubjectQuestsView: React.FC<{
   const rows = [...quests].sort((a, b) => rankStatus(a.status) - rankStatus(b.status));
   return (
     <View style={styles.root}>
-      <ParentHeader title={subject} showBack={false} rightIcon="none" />
+      <GradientAppBar
+        title={subject}
+        subtitle={`${childName}’s quests in ${subject}`}
+        right={
+          <TouchableOpacity style={styles.appBarAction} activeOpacity={0.7} onPress={onBack}>
+            <Ionicons name="chevron-back" size={15} color="#FFF" />
+            <Text style={styles.appBarActionText}>Learning</Text>
+          </TouchableOpacity>
+        }
+      />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity style={styles.subjectBackRow} activeOpacity={0.7} onPress={onBack}>
-          <Ionicons name="chevron-back" size={16} color={colors.primary} />
-          <Text style={styles.subjectBackText}>Back to Learning</Text>
-        </TouchableOpacity>
-        <Text style={styles.subjectPageSub}>{childName}’s quests in {subject}</Text>
-
         {rows.map((q) => {
           const pct = q.totalStages > 0 ? Math.round(((q.completedStages || 0) / q.totalStages) * 100) : 0;
           const done = q.status === 'COMPLETED';
-          const accent = q.accentColor || '#EC4899';
+          const accent = colors.primary;
           return (
             <View key={String(q.id ?? q.key)} style={styles.questRowCard}>
               <View style={styles.questRowHead}>
@@ -432,7 +434,7 @@ const SubjectQuestsView: React.FC<{
                 ) : null}
               </View>
               <TouchableOpacity activeOpacity={0.85} onPress={() => onPlay(q.id)}>
-                <LinearGradient colors={['#7C3AED', '#DB2777']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.questPlayBtn}>
+                <LinearGradient colors={[colors.primary, colors.purpleDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.questPlayBtn}>
                   <Ionicons name="play" size={13} color="#FFF" />
                   <Text style={styles.questPlayBtnText}>
                     {done ? 'Replay' : q.status === 'IN_PROGRESS' ? 'Continue' : 'Start'}
@@ -481,7 +483,7 @@ const InsightsCard: React.FC<{ styles: any; colors: ColorPalette; insights: Chil
     if (insights?.content) {
       return (
         <View style={styles.insightCard}>
-          <View style={styles.insightHead}><MaterialCommunityIcons name="lightbulb-on-outline" size={17} color={colors.purple} /><Text style={styles.insightHeadText}>AI insights</Text></View>
+          <View style={styles.insightHead}><MaterialCommunityIcons name="lightbulb-on-outline" size={17} color={colors.primary} /><Text style={styles.insightHeadText}>AI insights</Text></View>
           <Text style={styles.insightSummary}>{insights.content}</Text>
         </View>
       );
@@ -494,7 +496,7 @@ const InsightsCard: React.FC<{ styles: any; colors: ColorPalette; insights: Chil
     <View style={styles.insightCard}>
       <View style={styles.insightHeadRow}>
         <View style={styles.insightHead}>
-          <View style={[styles.insightBadge, { backgroundColor: colors.purple + '1A' }]}><MaterialCommunityIcons name="lightbulb-on" size={15} color={colors.purple} /></View>
+          <View style={[styles.insightBadge, { backgroundColor: colors.primary + '1A' }]}><MaterialCommunityIcons name="lightbulb-on" size={15} color={colors.primary} /></View>
           <Text style={styles.insightHeadText}>AI insights</Text>
         </View>
         <TouchableOpacity onPress={onRefresh} disabled={refreshing} hitSlop={8}>
@@ -508,7 +510,7 @@ const InsightsCard: React.FC<{ styles: any; colors: ColorPalette; insights: Chil
           <Text style={styles.insightGroupLabel}>STRENGTHS</Text>
           {strengths.map((s, i) => (
             <View key={i} style={styles.insightItem}>
-              <Ionicons name="checkmark-circle" size={14} color={colors.success} style={{ marginTop: 1 }} />
+              <Ionicons name="checkmark-circle" size={14} color={colors.primary} style={{ marginTop: 1 }} />
               <Text style={styles.insightItemText}>{s.area ? <Text style={{ fontFamily: fonts.bold, color: colors.text }}>{s.area}. </Text> : null}{s.note}</Text>
             </View>
           ))}
@@ -519,7 +521,7 @@ const InsightsCard: React.FC<{ styles: any; colors: ColorPalette; insights: Chil
           <Text style={styles.insightGroupLabel}>FOCUS AREAS</Text>
           {focusAreas.map((f, i) => (
             <View key={i} style={styles.insightItem}>
-              <Ionicons name="locate" size={14} color={colors.warning} style={{ marginTop: 1 }} />
+              <Ionicons name="locate" size={14} color={colors.primary} style={{ marginTop: 1 }} />
               <Text style={styles.insightItemText}>{f.area ? <Text style={{ fontFamily: fonts.bold, color: colors.text }}>{f.area}. </Text> : null}{f.note}</Text>
             </View>
           ))}
@@ -527,7 +529,7 @@ const InsightsCard: React.FC<{ styles: any; colors: ColorPalette; insights: Chil
       )}
       {!!insights.nextStep && (
         <View style={styles.nextStep}>
-          <Ionicons name="bulb" size={14} color={colors.purple} style={{ marginTop: 1 }} />
+          <Ionicons name="bulb" size={14} color={colors.primary} style={{ marginTop: 1 }} />
           <Text style={styles.insightItemText}><Text style={{ fontFamily: fonts.bold, color: colors.text }}>Next step. </Text>{insights.nextStep}</Text>
         </View>
       )}
@@ -573,7 +575,7 @@ const CoachPanel: React.FC<{ styles: any; colors: ColorPalette; studentId: numbe
   return (
     <View style={styles.coachCard}>
       <TouchableOpacity style={styles.coachHead} activeOpacity={0.7} onPress={toggle}>
-        <View style={[styles.insightBadge, { backgroundColor: colors.purple + '1A' }]}><Ionicons name="chatbubbles" size={15} color={colors.purple} /></View>
+        <View style={[styles.insightBadge, { backgroundColor: colors.primary + '1A' }]}><Ionicons name="chatbubbles" size={15} color={colors.primary} /></View>
         <Text style={styles.coachHeadText}>Ask about {childName}</Text>
         <Text style={styles.coachToggle}>{open ? 'Hide' : 'Open'}</Text>
       </TouchableOpacity>
@@ -630,7 +632,7 @@ function makeStyles(c: ColorPalette) {
     resumeCard: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       borderRadius: 18, padding: 15, marginBottom: 14,
-      shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 6 },
+      shadowColor: c.primary, shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.25, shadowRadius: 14, elevation: 6,
     },
     resumePlay: {
@@ -641,9 +643,12 @@ function makeStyles(c: ColorPalette) {
     resumeTitle: { color: '#FFF', fontSize: 14.5, fontFamily: fonts.extrabold, marginTop: 2, letterSpacing: -0.2 },
     resumeMeta: { color: 'rgba(255,255,255,0.9)', fontSize: 11.5, fontFamily: fonts.regular, marginTop: 1 },
 
-    subjectBackRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 6 },
-    subjectBackText: { fontSize: 13, fontFamily: fonts.bold, color: c.primary },
-    subjectPageSub: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, marginBottom: 14 },
+    appBarAction: {
+      flexDirection: 'row', alignItems: 'center', gap: 2,
+      backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+      borderRadius: 999, paddingLeft: 8, paddingRight: 12, paddingVertical: 7,
+    },
+    appBarActionText: { color: '#FFF', fontSize: 12, fontFamily: fonts.bold },
     questRowCard: {
       backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
       padding: 14, marginBottom: 10,
@@ -731,10 +736,10 @@ function makeStyles(c: ColorPalette) {
     activityIcon: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
     activityTitle: { fontSize: 13.5, fontFamily: fonts.semibold, color: c.text },
     activityMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
-    activityStars: { fontSize: 12, color: c.warning },
+    activityStars: { fontSize: 12, color: c.primary },
     activityScore: { fontSize: 13, fontFamily: fonts.bold, color: c.textSecondary },
 
-    whyCard: { flexDirection: 'row', gap: 12, backgroundColor: c.purple + '0D', borderRadius: 16, borderWidth: 1, borderColor: c.purple + '26', padding: 14, marginBottom: 22 },
+    whyCard: { flexDirection: 'row', gap: 12, backgroundColor: c.primary + '0D', borderRadius: 16, borderWidth: 1, borderColor: c.primary + '26', padding: 14, marginBottom: 22 },
     whyIcon: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
     whyTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text, marginBottom: 4 },
     whyBody: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 19 },
