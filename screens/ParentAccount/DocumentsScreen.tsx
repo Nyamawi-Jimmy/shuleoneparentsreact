@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import { ParentHeader } from '../../components/ParentHeader';
+import { GradientAppBar } from '../../components/GradientAppBar';
 import { fonts } from '../../constants/theme';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
@@ -57,14 +57,12 @@ export const DocumentsScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
-      <ParentHeader title="Documents" showBack rightIcon="none" />
+      <GradientAppBar title="Documents" subtitle="Report cards, fee statements & receipts" showBack />
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
       >
-        <Text style={styles.subtitle}>Report cards, fee statements and receipts</Text>
-
         {/* Fee statements */}
         <Text style={styles.sectionTitle}>Fee statements</Text>
         {loading && !statement ? (
@@ -78,8 +76,8 @@ export const DocumentsScreen: React.FC = () => {
           <View style={styles.card}>
             {statements.map((s, i) => (
               <View key={s.id} style={[styles.docRow, i > 0 && styles.divider]}>
-                <View style={[styles.docIcon, { backgroundColor: colors.infoSoft }]}>
-                  <Ionicons name="document-text-outline" size={19} color={colors.info} />
+                <View style={[styles.docIcon, { backgroundColor: colors.primarySoft }]}>
+                  <Ionicons name="document-text-outline" size={19} color={colors.primary} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.docTitle}>{s.title}</Text>
@@ -127,7 +125,7 @@ export const DocumentsScreen: React.FC = () => {
         <View style={styles.emptyCard}>
           <MaterialCommunityIcons name="school-outline" size={28} color={colors.textTertiary} />
           <Text style={styles.emptyTitle}>No report cards shared yet</Text>
-          <Text style={styles.emptyText}>When the school publishes report cards or sends letters, they'll appear here — never sample files.</Text>
+          <Text style={styles.emptyText}>When the school publishes report cards or sends letters, they’ll appear here — never sample files.</Text>
         </View>
 
         <View style={{ height: 32 }} />
@@ -145,9 +143,8 @@ const DownloadBtn: React.FC<{ styles: any; colors: ColorPalette; busy: boolean; 
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
-    scroll: { paddingHorizontal: 16, paddingTop: 4 },
+    scroll: { paddingHorizontal: 16, paddingTop: 14 },
     center: { padding: 30, alignItems: 'center' },
-    subtitle: { fontSize: 12, fontFamily: fonts.medium, color: c.textTertiary, marginBottom: 16, marginLeft: 2 },
 
     sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
     sectionTitle: { fontSize: 15, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3, marginBottom: 12 },
@@ -159,7 +156,7 @@ function makeStyles(c: ColorPalette) {
     docIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
     docTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
     docDesc: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
-    dlBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 7, minWidth: 92, justifyContent: 'center' },
+    dlBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderColor: c.primary + '55', backgroundColor: c.primarySofter, borderRadius: 11, paddingHorizontal: 11, paddingVertical: 7, minWidth: 92, justifyContent: 'center' },
     dlBtnText: { fontSize: 12, fontFamily: fonts.bold, color: c.primary },
 
     noteBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.backgroundAlt, borderRadius: 12, padding: 14, marginBottom: 24 },

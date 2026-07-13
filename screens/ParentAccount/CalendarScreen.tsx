@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import { ParentHeader } from '../../components/ParentHeader';
+import { GradientAppBar } from '../../components/GradientAppBar';
 import { fonts } from '../../constants/theme';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
@@ -121,7 +121,7 @@ export const CalendarScreen: React.FC = () => {
   if (!selectedChild) {
     return (
       <View style={styles.root}>
-        <ParentHeader title="Calendar" showBack rightIcon="none" />
+        <GradientAppBar title="Calendar" showBack />
         <View style={styles.center}>
           <Ionicons name="person-add-outline" size={30} color={colors.textSecondary} />
           <Text style={styles.emptyText}>Pick a child from Home to view their calendar.</Text>
@@ -132,14 +132,12 @@ export const CalendarScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
-      <ParentHeader title="Calendar" showBack rightIcon="none" />
+      <GradientAppBar title="Calendar" subtitle={`${selectedChild.firstName || selectedChild.fullName}’s schedule, events & live classes`} showBack />
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
       >
-        <Text style={styles.subtitle}>{selectedChild.firstName || selectedChild.fullName}'s schedule, events & live classes</Text>
-
         {/* Filters */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
           {FILTERS.map((f) => {
@@ -153,7 +151,7 @@ export const CalendarScreen: React.FC = () => {
           })}
         </ScrollView>
 
-        {error && <View style={styles.errorBox}><Text style={styles.errorText}>Couldn't load the calendar just now.</Text></View>}
+        {error && <View style={styles.errorBox}><Text style={styles.errorText}>Couldn’t load the calendar just now.</Text></View>}
 
         {/* Week at a glance */}
         <View style={styles.weekHead}>
@@ -239,9 +237,8 @@ export const CalendarScreen: React.FC = () => {
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
-    scroll: { paddingHorizontal: 16, paddingTop: 4 },
+    scroll: { paddingHorizontal: 16, paddingTop: 14 },
     center: { padding: 40, alignItems: 'center', gap: 12 },
-    subtitle: { fontSize: 12, fontFamily: fonts.medium, color: c.textTertiary, marginBottom: 12, marginLeft: 2 },
 
     filterRow: { gap: 8, paddingBottom: 2, marginBottom: 18 },
     filterChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: c.border, borderRadius: 999, paddingHorizontal: 13, paddingVertical: 8 },
@@ -254,8 +251,14 @@ function makeStyles(c: ColorPalette) {
     weekNav: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     weekNavBtn: { width: 30, height: 30, borderRadius: 9, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
     weekLabel: { fontSize: 11.5, fontFamily: fonts.bold, color: c.text, paddingHorizontal: 6 },
-    weekGrid: { flexDirection: 'row', gap: 5, marginBottom: 24 },
-    dayCell: { flex: 1, borderWidth: 1, borderColor: c.border, borderRadius: 11, paddingVertical: 8, alignItems: 'center', minHeight: 68 },
+    weekGrid: {
+      flexDirection: 'row', gap: 5, marginBottom: 24,
+      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+      padding: 8,
+      shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+    },
+    dayCell: { flex: 1, borderWidth: 1, borderColor: 'transparent', borderRadius: 11, paddingVertical: 8, alignItems: 'center', minHeight: 68, backgroundColor: c.backgroundAlt },
     dayCellLabel: { fontSize: 10, fontFamily: fonts.bold, color: c.textTertiary },
     dayCellNum: { fontSize: 14, fontFamily: fonts.extrabold, color: c.text, marginTop: 2 },
     dayDots: { flexDirection: 'row', gap: 2, marginTop: 6, minHeight: 6 },

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { ParentHeader } from '../../components/ParentHeader';
+import { GradientAppBar } from '../../components/GradientAppBar';
 import { useAuth } from '../../context/AuthContext';
 import { useParentProfile } from '../../context/ParentProfileContext';
 import { useSelectedChild } from '../../context/SelectedChildContext';
@@ -44,7 +44,7 @@ export const SettingsScreen: React.FC = () => {
 
   return (
     <View style={styles.safe}>
-      <ParentHeader title="Settings" showBack />
+      <GradientAppBar title="Settings" subtitle="Profile, preferences & account" showBack />
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Profile card */}
@@ -456,18 +456,20 @@ const Field: React.FC<{
 // =================================================================
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: c.backgroundAlt },
-    scroll: { paddingHorizontal: 18, paddingTop: 12 },
+    safe: { flex: 1, backgroundColor: c.background },
+    scroll: { paddingHorizontal: 16 },
 
+    // Profile card floats over the app bar edge
     profileCard: {
       flexDirection: 'row', alignItems: 'center',
       backgroundColor: c.card,
-      padding: 14, borderRadius: 16,
+      padding: 14, borderRadius: 18,
       borderWidth: 1, borderColor: c.border,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: c.scheme === 'dark' ? 0.3 : 0.04,
-      shadowRadius: 4, elevation: 1,
+      marginTop: -20,
+      shadowColor: c.primaryDeep,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.12,
+      shadowRadius: 14, elevation: 5,
     },
     profileAvatar: {
       width: 50, height: 50, borderRadius: 25,

@@ -5,7 +5,9 @@ import {
 } from 'react-native';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { ParentHeader } from '../../components/ParentHeader';
+import { LinearGradient } from 'expo-linear-gradient';
+import { GradientAppBar } from '../../components/GradientAppBar';
+import { fonts } from '../../constants/theme';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { useSelectedChild } from '../../context/SelectedChildContext';
@@ -27,7 +29,7 @@ export const LiveClassesScreen: React.FC = () => {
   if (!selectedChild) {
     return (
       <View style={styles.safe}>
-        <ParentHeader title="Live Classes" showBack rightIcon="none" />
+        <GradientAppBar title="Live Classes" showBack />
         <View style={styles.center}>
           <View style={styles.emptyIconCircle}>
             <Ionicons name="person-add-outline" size={28} color={colors.textSecondary} />
@@ -44,7 +46,7 @@ export const LiveClassesScreen: React.FC = () => {
 
   return (
     <View style={styles.safe}>
-      <ParentHeader title="Live Classes" showBack rightIcon="none" />
+      <GradientAppBar title="Live Classes" subtitle={`${selectedChild.firstName || selectedChild.fullName}’s online lessons`} showBack />
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -80,7 +82,7 @@ export const LiveClassesScreen: React.FC = () => {
               <MaterialCommunityIcons name="video-off-outline" size={28} color={colors.textSecondary} />
             </View>
             <Text style={styles.emptyTitle}>No live classes scheduled</Text>
-            <Text style={styles.emptyText}>When teachers schedule online lessons, they'll appear here.</Text>
+            <Text style={styles.emptyText}>When teachers schedule online lessons, they’ll appear here.</Text>
           </View>
         )}
 
@@ -130,10 +132,20 @@ const ClassCard: React.FC<{
       </View>
 
       {canJoin && (
-        <TouchableOpacity activeOpacity={0.85} style={[styles.joinBtn, isLive && styles.joinBtnLive]} onPress={onJoin} disabled={joining}>
-          {joining
-            ? <ActivityIndicator color="#fff" size="small" />
-            : (<><Ionicons name="videocam" size={16} color="#fff" /><Text style={styles.joinText}>{isLive ? 'Join now' : 'Open class'}</Text></>)}
+        <TouchableOpacity activeOpacity={0.85} onPress={onJoin} disabled={joining}>
+          {isLive ? (
+            <View style={[styles.joinBtn, styles.joinBtnLive]}>
+              {joining
+                ? <ActivityIndicator color="#fff" size="small" />
+                : (<><Ionicons name="videocam" size={16} color="#fff" /><Text style={styles.joinText}>Join now</Text></>)}
+            </View>
+          ) : (
+            <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.joinBtn}>
+              {joining
+                ? <ActivityIndicator color="#fff" size="small" />
+                : (<><Ionicons name="videocam" size={16} color="#fff" /><Text style={styles.joinText}>Open class</Text></>)}
+            </LinearGradient>
+          )}
         </TouchableOpacity>
       )}
     </View>
@@ -153,8 +165,8 @@ function formatWhen(startsOn: string | null, endsOn: string | null): string {
 
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: c.backgroundAlt },
-    scroll: { paddingHorizontal: 18, paddingTop: 12 },
+    safe: { flex: 1, backgroundColor: c.background },
+    scroll: { paddingHorizontal: 16 },
     center: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, paddingHorizontal: 30 },
     loadingText: { fontSize: 11.5, color: c.textSecondary, marginTop: 8, fontWeight: '500' },
     emptyIconCircle: {
@@ -172,15 +184,17 @@ function makeStyles(c: ColorPalette) {
     errorBannerText: { flex: 1, color: c.danger, fontSize: 12.5, fontWeight: '700' },
     retryInline: { color: c.danger, fontWeight: '800', fontSize: 13 },
     childCard: {
-      flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, padding: 12, borderRadius: 16,
-      borderWidth: 1, borderColor: c.border, marginBottom: 16,
+      flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, padding: 13, borderRadius: 18,
+      borderWidth: 1, borderColor: c.border, marginTop: -20, marginBottom: 16,
+      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.12, shadowRadius: 14, elevation: 5,
     },
     childAvatar: {
       width: 42, height: 42, borderRadius: 21, backgroundColor: c.primarySoft,
       alignItems: 'center', justifyContent: 'center', marginRight: 12,
     },
     childInitials: { color: c.primary, fontSize: 14, fontWeight: '800' },
-    childName: { fontSize: 13.5, fontWeight: '700', color: c.text },
+    childName: { fontSize: 13.5, fontFamily: fonts.bold, color: c.text },
     childMeta: { fontSize: 11.5, color: c.textSecondary, marginTop: 1 },
     card: {
       backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
@@ -197,7 +211,7 @@ function makeStyles(c: ColorPalette) {
     statusSoon: { color: c.primary },
     statusDone: { color: c.textSecondary },
     classTag: { fontSize: 11, fontWeight: '700', color: c.textSecondary },
-    title: { fontSize: 15, fontWeight: '800', color: c.text, letterSpacing: -0.2 },
+    title: { fontSize: 15, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.2 },
     desc: { fontSize: 12.5, color: c.textSecondary, marginTop: 4, lineHeight: 18 },
     timeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
     timeText: { fontSize: 12, color: c.textSecondary, fontWeight: '600' },
@@ -206,6 +220,6 @@ function makeStyles(c: ColorPalette) {
       backgroundColor: c.primary, borderRadius: 12, height: 44, marginTop: 12,
     },
     joinBtnLive: { backgroundColor: c.danger },
-    joinText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+    joinText: { color: '#fff', fontFamily: fonts.extrabold, fontSize: 14 },
   });
 }
