@@ -61,9 +61,21 @@ export const LoginScreen: React.FC = () => {
 
   const typeMeta = (t?: string | null) => {
     const k = String(t || '').toUpperCase();
-    if (k === 'PARENT') return { icon: 'people' as const, label: 'Parent account', tint: colors.primary };
-    if (k === 'STUDENT' || k === 'LEARNER') return { icon: 'school' as const, label: 'Student account', tint: '#7C3AED' };
-    return { icon: 'person' as const, label: k || 'Account', tint: colors.textSecondary };
+    if (k === 'PARENT') return {
+      icon: 'people' as const, label: 'Parent', tint: colors.primary,
+      gradient: [colors.primary, colors.primaryDeep] as [string, string],
+      desc: 'Fees, diary, results & the school bus',
+    };
+    if (k === 'STUDENT' || k === 'LEARNER') return {
+      icon: 'school' as const, label: 'Student', tint: '#7C3AED',
+      gradient: ['#8B5CF6', '#6D28D9'] as [string, string],
+      desc: 'Lessons, quests, games & assignments',
+    };
+    return {
+      icon: 'person' as const, label: k || 'Account', tint: colors.textSecondary,
+      gradient: ['#64748B', '#475569'] as [string, string],
+      desc: 'Open this account',
+    };
   };
 
   return (
@@ -80,32 +92,61 @@ export const LoginScreen: React.FC = () => {
 
           {candidates ? (
             <>
-              <Text style={styles.title}>Which account?</Text>
+              {/* Step 2 — choose the account behind these details */}
+              <View style={styles.stepRow}>
+                <TouchableOpacity style={styles.stepBack} hitSlop={10} activeOpacity={0.7}
+                  onPress={() => { setCandidates(null); setError(''); }}>
+                  <Ionicons name="arrow-back" size={16} color={colors.textSecondary} />
+                </TouchableOpacity>
+                <View style={styles.stepDots}>
+                  <View style={[styles.stepDot, { backgroundColor: colors.border }]} />
+                  <View style={[styles.stepDot, styles.stepDotWide, { backgroundColor: colors.primary }]} />
+                </View>
+              </View>
+
+              <Text style={styles.title}>Choose your account</Text>
               <Text style={styles.subtitle}>
-                Those details match more than one account — pick the one to open.
+                <Text style={styles.identChip}>{identifier.trim()}</Text> is linked to {candidates.length} accounts — pick the one to open.
               </Text>
+
               {candidates.map((c) => {
                 const m = typeMeta(c.userType);
                 const isBusy = choosing === String(c.accountId);
                 return (
-                  <TouchableOpacity key={`${c.userType}-${c.accountId}`} style={styles.candidate}
-                    activeOpacity={0.8} disabled={choosing != null}
+                  <TouchableOpacity key={`${c.userType}-${c.accountId}`}
+                    style={[styles.accountCard, isBusy && { borderColor: m.tint }]}
+                    activeOpacity={0.85} disabled={choosing != null}
                     onPress={() => attempt(c.userType, c.accountId)}>
-                    <View style={[styles.candidateIcon, { backgroundColor: m.tint + '1A' }]}>
-                      <Ionicons name={m.icon} size={18} color={m.tint} />
-                    </View>
+                    <LinearGradient colors={m.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.accountBadge}>
+                      <Ionicons name={m.icon} size={20} color="#FFF" />
+                    </LinearGradient>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.candidateLabel}>{c.name || c.label || m.label}</Text>
-                      <Text style={styles.candidateSub}>{m.label}</Text>
+                      <View style={styles.accountNameRow}>
+                        <Text style={styles.accountName} numberOfLines={1}>{c.name || c.label || `${m.label} account`}</Text>
+                        <View style={[styles.accountTypePill, { backgroundColor: m.tint + '16' }]}>
+                          <Text style={[styles.accountTypeText, { color: m.tint }]}>{m.label}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.accountDesc} numberOfLines={1}>{m.desc}</Text>
                     </View>
-                    {isBusy
-                      ? <ActivityIndicator size="small" color={colors.primary} />
-                      : <Ionicons name="chevron-forward" size={17} color={colors.textTertiary} />}
+                    <View style={[styles.accountGo, { backgroundColor: m.tint + '14' }]}>
+                      {isBusy
+                        ? <ActivityIndicator size="small" color={m.tint} />
+                        : <Ionicons name="arrow-forward" size={15} color={m.tint} />}
+                    </View>
                   </TouchableOpacity>
                 );
               })}
+
+              {!!error && (
+                <View style={styles.errorRow}>
+                  <Ionicons name="alert-circle" size={14} color={colors.danger} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
+
               <TouchableOpacity onPress={() => { setCandidates(null); setError(''); }}>
-                <Text style={styles.link}>← Use different details</Text>
+                <Text style={styles.link}>Not you? Use different details</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -215,14 +256,39 @@ function makeStyles(c: ColorPalette) {
     signInText: { color: '#FFF', fontSize: 15, fontFamily: fonts.extrabold },
     link: { textAlign: 'center', fontSize: 12.5, fontFamily: fonts.bold, color: c.primary, marginTop: 16 },
 
-    candidate: {
-      flexDirection: 'row', alignItems: 'center', gap: 12,
-      backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 14,
-      padding: 13, marginBottom: 9,
+    // Step 2 — account picker
+    stepRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+    stepBack: {
+      width: 34, height: 34, borderRadius: 17,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      alignItems: 'center', justifyContent: 'center',
     },
-    candidateIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    candidateLabel: { fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
-    candidateSub: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 1 },
+    stepDots: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    stepDot: { width: 7, height: 7, borderRadius: 4 },
+    stepDotWide: { width: 20 },
+    identChip: { fontFamily: fonts.bold, color: c.text },
+    accountCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 13,
+      backgroundColor: c.card, borderWidth: 1.5, borderColor: c.border, borderRadius: 18,
+      padding: 14, marginBottom: 11,
+      shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+    },
+    accountBadge: {
+      width: 46, height: 46, borderRadius: 15,
+      alignItems: 'center', justifyContent: 'center',
+      shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.18, shadowRadius: 6, elevation: 3,
+    },
+    accountNameRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+    accountName: { flexShrink: 1, fontSize: 14.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    accountTypePill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2.5 },
+    accountTypeText: { fontSize: 10, fontFamily: fonts.extrabold, letterSpacing: 0.3 },
+    accountDesc: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 3 },
+    accountGo: {
+      width: 34, height: 34, borderRadius: 17,
+      alignItems: 'center', justifyContent: 'center',
+    },
 
     foot: { textAlign: 'center', color: c.textTertiary, fontSize: 11, fontFamily: fonts.medium, marginTop: 30 },
   });
