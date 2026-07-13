@@ -64,26 +64,44 @@ export const LearningScreen: React.FC = () => {
     return [...subs].sort((a, b) => num(a.avgScorePct) - num(b.avgScorePct))[0];
   }, [subjects]);
 
-  // "By subject": group the child's quests by subject (real completion %).
+  // "By subject": every subject the child has — quest completion % where a quest
+  // exists, otherwise the academic average from the report. (School students carry
+  // their several subjects in report.subjects; quests may only cover one or two.)
   const subjectCards = useMemo(() => {
-    const groups = new Map<string, { subject: string; total: number; done: number; rep: QuestSummary | null; accent: string | null }>();
+    const ACCENTS = [colors.primary, colors.info, colors.success, colors.warning, colors.purple, colors.danger];
+    const groups = new Map<string, { total: number; done: number; rep: QuestSummary | null; accent: string | null }>();
     for (const q of quests) {
       const key = q.subject || 'General';
-      const g = groups.get(key) || { subject: key, total: 0, done: 0, rep: null, accent: null };
+      const g = groups.get(key) || { total: 0, done: 0, rep: null, accent: null };
       g.total += q.totalStages || 0;
       g.done += q.completedStages || 0;
       if (!g.rep || rankStatus(q.status) < rankStatus(g.rep.status)) g.rep = q;
       if (!g.accent && q.accentColor) g.accent = q.accentColor;
       groups.set(key, g);
     }
-    return [...groups.values()].map((g) => ({
-      subject: g.subject,
-      latest: g.rep?.title || null,
-      pct: g.total > 0 ? Math.round((g.done / g.total) * 100) : 0,
-      accent: g.accent,
-      coding: isCoding(g.subject),
-    }));
-  }, [quests]);
+    // Union of subject names: quests first (they carry accents/latest), then academic.
+    const order: string[] = [];
+    const seen = new Set<string>();
+    const push = (name?: string | null) => { const n = (name || '').trim(); if (n && !seen.has(n)) { seen.add(n); order.push(n); } };
+    quests.forEach((q) => push(q.subject));
+    subjects.forEach((s) => push(s.subject));
+    return order.map((name, i) => {
+      const g = groups.get(name);
+      const academic = subjects.find((s) => (s.subject || '').trim() === name);
+      const hasQuest = !!g && g.total > 0;
+      return {
+        subject: name,
+        latest: g?.rep?.title || null,
+        completed: num(academic?.completed),
+        pct: hasQuest
+          ? Math.round((g!.done / g!.total) * 100)
+          : Math.max(0, Math.min(100, num(academic?.avgScorePct))),
+        metric: hasQuest ? ('complete' as const) : ('score' as const),
+        accent: g?.accent || ACCENTS[i % ACCENTS.length],
+        coding: isCoding(name),
+      };
+    });
+  }, [quests, subjects, colors]);
   const academicCards = subjectCards.filter((s) => !s.coding);
   const hasCodingQuest = subjectCards.some((s) => s.coding);
 
@@ -191,11 +209,13 @@ export const LearningScreen: React.FC = () => {
                         </View>
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text style={styles.subjectName} numberOfLines={1}>{s.subject}</Text>
-                          {!!s.latest && <Text style={styles.subjectLatest} numberOfLines={1}>Latest: {s.latest}</Text>}
+                          {s.latest
+                            ? <Text style={styles.subjectLatest} numberOfLines={1}>Latest: {s.latest}</Text>
+                            : s.completed > 0 ? <Text style={styles.subjectLatest} numberOfLines={1}>{s.completed} {s.completed === 1 ? 'lesson' : 'lessons'} completed</Text> : null}
                         </View>
                       </View>
                       <View style={styles.subjectPctRow}>
-                        <Text style={styles.subjectPctText}>{s.pct}% complete</Text>
+                        <Text style={styles.subjectPctText}>{s.pct}% {s.metric === 'complete' ? 'complete' : 'avg score'}</Text>
                       </View>
                       <View style={styles.track}>
                         <View style={[styles.fill, { width: `${Math.max(0, Math.min(100, s.pct))}%`, backgroundColor: accent }]} />
