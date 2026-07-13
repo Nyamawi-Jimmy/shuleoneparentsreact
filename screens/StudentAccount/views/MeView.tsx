@@ -102,7 +102,7 @@ export const MeView: React.FC = () => {
         streak={streak}
         stars={totalXp}
         onAvatarPress={() => router.push('/(student-tabs)/me' as any)}
-        onBellPress={() => router.push('/notifications' as any)}
+        onBellPress={() => router.push('/student/notifications' as any)}
       />
 
       <ScrollView

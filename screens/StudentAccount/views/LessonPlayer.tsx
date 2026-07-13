@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
@@ -8,16 +8,17 @@ import { router, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { LearningHeader } from '../components/LearningHeader';
 import { useAuth } from '../../../context/AuthContext';
-import { getLesson, completeStage } from '../../../api/quests';
+import { getStageLesson, completeStage, StageAnswer } from '../../../api/quests';
 import { Lesson, LessonActivity, StageCompletionResult } from '../../../api/quest.types';
 import { ApiError } from '../../../config/api';
 
 // =================================================================
-// Lesson screen. Receives lessonId from /student/lesson?lessonId=X
-// (plus optional questId+stageId so we can mark stage complete).
+// Lesson screen. Opened as /student/lesson?questId=X&stageId=Y — the
+// lesson is fetched THROUGH its stage (the backend authorises stage
+// access; the old /api/lessons/{id} endpoint is gone).
 // =================================================================
 export const LessonPlayer: React.FC = () => {
-  const { lessonId, questId, stageId } = useLocalSearchParams<{
+  const { questId, stageId } = useLocalSearchParams<{
     lessonId?: string; questId?: string; stageId?: string;
   }>();
   const { accessToken } = useAuth();
@@ -32,17 +33,24 @@ export const LessonPlayer: React.FC = () => {
   const [completionResult, setCompletionResult] = useState<StageCompletionResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // ── Fetch lesson ──────────────────────────────────────
+  // Time-on-lesson for the completion payload (stamped once on mount).
+  const startedAtRef = useRef<number | null>(null);
+  useEffect(() => { startedAtRef.current = Date.now(); }, []);
+
+  // ── Fetch lesson (stage-scoped) ───────────────────────
   useEffect(() => {
-    if (!lessonId) {
-      setError('No lesson selected.');
-      setLoading(false);
-      return;
-    }
     let cancelled = false;
     (async () => {
+      if (!questId || !stageId) {
+        if (!cancelled) { setError('No lesson selected.'); setLoading(false); }
+        return;
+      }
+      if (!accessToken) {
+        if (!cancelled) { setError('Please sign in again.'); setLoading(false); }
+        return;
+      }
       try {
-        const data = await getLesson(accessToken, Number(lessonId));
+        const data = await getStageLesson(accessToken, Number(questId), Number(stageId));
         if (!cancelled) setLesson(data);
       } catch (e) {
         if (!cancelled) {
@@ -53,7 +61,7 @@ export const LessonPlayer: React.FC = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [lessonId, accessToken]);
+  }, [questId, stageId, accessToken]);
 
   // Stop TTS on step change / unmount
   useEffect(() => {
@@ -138,7 +146,20 @@ export const LessonPlayer: React.FC = () => {
     }
     setSubmitting(true);
     try {
-      const result = await completeStage(accessToken, Number(questId), Number(stageId));
+      // Same payload as the web player: time spent + one recorded answer per
+      // solved activity; the server re-scores from the activity config.
+      const secondsSpent = startedAtRef.current != null
+        ? Math.max(0, Math.round((Date.now() - startedAtRef.current) / 1000))
+        : 0;
+      const recorded = lesson.activities
+        .map((a, i): StageAnswer | null => (answers[i] !== undefined
+          ? { activityId: a.id, kind: a.kind, answer: { choiceIndex: answers[i] } }
+          : null))
+        .filter((x): x is StageAnswer => x !== null);
+      const result = await completeStage(accessToken, Number(questId), Number(stageId), {
+        secondsSpent,
+        answers: recorded,
+      });
       setCompletionResult(result);
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : 'Could not submit completion.';
@@ -158,9 +179,20 @@ export const LessonPlayer: React.FC = () => {
   // ── Render ────────────────────────────────────────────
   return (
     <View style={styles.safe}>
+      {/* Lesson details in the bar, like the web player's header:
+          title + "subject · difficulty · ⏱ min", step counter on the right. */}
       <LearningHeader
         title={lesson.title}
-        subtitle={`${step + 1} of ${totalSlides}`}
+        subtitle={[
+          lesson.subject,
+          lesson.difficulty,
+          lesson.estimatedMinutes ? `⏱ ${lesson.estimatedMinutes}m` : null,
+        ].filter(Boolean).join(' · ')}
+        right={
+          <View style={styles.stepChip}>
+            <Text style={styles.stepChipText}>{step + 1}/{totalSlides}</Text>
+          </View>
+        }
       />
 
       {/* Progress dots */}
@@ -346,7 +378,7 @@ const ActivityRenderer: React.FC<{
         <View style={styles.placeholder}>
           <Ionicons name="construct-outline" size={20} color="#f4a716" />
           <Text style={styles.placeholderText}>
-            "{activity.kind}" activity coming soon. Tap Next to continue.
+            “{activity.kind}” activity coming soon. Tap Next to continue.
           </Text>
         </View>
       )}
@@ -371,6 +403,11 @@ const ResultScreen: React.FC<{ lesson: Lesson; result: StageCompletionResult }> 
           <Text style={styles.resultEmoji}>{emojiForSubject(lesson.subject)}</Text>
           <Text style={styles.resultLessonName}>{lesson.title}</Text>
           <Text style={styles.resultMessage}>{message}</Text>
+          {result.score != null && result.maxScore != null && result.maxScore > 0 && (
+            <Text style={styles.resultScore}>
+              You scored {result.score}/{result.maxScore} ({Math.round((result.score / result.maxScore) * 100)}%)
+            </Text>
+          )}
 
           <View style={styles.starsRow}>
             {[1, 2, 3].map((s) => (
@@ -445,6 +482,13 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 13, color: '#6f679c', fontWeight: '600', marginTop: 6, textAlign: 'center' },
   backBtn: { marginTop: 18, backgroundColor: '#7c5cff', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 99 },
   backBtnText: { color: '#fff', fontWeight: '800' },
+
+  stepChip: {
+    minWidth: 40, alignItems: 'center',
+    backgroundColor: '#efeaff', borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 6,
+  },
+  stepChipText: { color: '#7c5cff', fontWeight: '800', fontSize: 12 },
 
   progressRow: { flexDirection: 'row', gap: 4, paddingHorizontal: 16, marginBottom: 10 },
   dot: { flex: 1, height: 5, borderRadius: 99, backgroundColor: '#ece8fb' },
@@ -532,6 +576,11 @@ const styles = StyleSheet.create({
   resultEmoji: { fontSize: 70 },
   resultLessonName: { color: '#fff', fontSize: 20, fontWeight: '800', marginTop: 8 },
   resultMessage: { color: '#fff', fontSize: 14, fontWeight: '600', marginTop: 4, opacity: 0.95 },
+  resultScore: {
+    color: '#fff', fontSize: 13, fontWeight: '800', marginTop: 10,
+    backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 99,
+    paddingHorizontal: 14, paddingVertical: 6, overflow: 'hidden',
+  },
   starsRow: { flexDirection: 'row', gap: 12, marginTop: 22 },
   starBig: { fontSize: 50 },
   starDim: { opacity: 0.25 },

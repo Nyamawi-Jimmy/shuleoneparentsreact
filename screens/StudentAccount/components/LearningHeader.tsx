@@ -15,10 +15,12 @@ interface Props {
   title: string;
   subtitle?: string;
   onBack?: () => void;
+  /** Optional element on the right (e.g. a step counter chip). */
+  right?: React.ReactNode;
 }
 
 /** Compact header used on all pushed learning screens. */
-export const LearningHeader: React.FC<Props> = ({ title, subtitle, onBack }) => {
+export const LearningHeader: React.FC<Props> = ({ title, subtitle, onBack, right }) => {
   const insets = useSafeAreaInsets();
   const topPad =
     insets.top > 0
@@ -42,7 +44,7 @@ export const LearningHeader: React.FC<Props> = ({ title, subtitle, onBack }) => 
         {subtitle && <Text style={styles.subtitle} numberOfLines={1}>{subtitle}</Text>}
       </View>
 
-      <View style={{ width: 40 }} />
+      {right ?? <View style={{ width: 40 }} />}
     </View>
   );
 };

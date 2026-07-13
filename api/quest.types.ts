@@ -105,4 +105,7 @@ export interface StageCompletionResult {
   unlockedStageId: number | null;
   questStatus: ProgressStatus;
   totalEarnedXp: number;
+  /** Present when the server (re-)scored the attempt. */
+  score?: number | null;
+  maxScore?: number | null;
 }

@@ -3,11 +3,11 @@ import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator,
   Image,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+
 import Svg, { Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { TopBar } from '../components/TopBar';
@@ -191,7 +191,7 @@ const QuestCard: React.FC<{ quest: QuestSummary; onPress: () => void }> = ({ que
           {quest.coverImageUrl ? (
             <Image
               source={{ uri: quest.coverImageUrl }}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               resizeMode="cover"
             />
           ) : null}
@@ -199,7 +199,7 @@ const QuestCard: React.FC<{ quest: QuestSummary; onPress: () => void }> = ({ que
             colors={[accent + 'CC', accent + '88']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
           />
           <View style={styles.questCoverInner}>
             <View style={styles.themePill}>
@@ -209,12 +209,12 @@ const QuestCard: React.FC<{ quest: QuestSummary; onPress: () => void }> = ({ que
           </View>
         </View>
 
-        {/* Body */}
+        {/* Body — compact: title, one-line description, stats, then
+            progress + action on a single row. */}
         <View style={styles.questBody}>
           <Text style={styles.questTitle} numberOfLines={1}>{quest.title}</Text>
-          <Text style={styles.questDesc} numberOfLines={2}>{quest.description}</Text>
+          <Text style={styles.questDesc} numberOfLines={1}>{quest.description}</Text>
 
-          {/* Stage + XP stats */}
           <View style={styles.statsRow}>
             <View style={styles.statChip}>
               <Ionicons name="flag" size={11} color={accent} />
@@ -230,18 +230,15 @@ const QuestCard: React.FC<{ quest: QuestSummary; onPress: () => void }> = ({ que
             </View>
           </View>
 
-          {/* Progress bar */}
-          <View style={styles.progressBar}>
-            <LinearGradient
-              colors={[accent, accent + 'AA']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={[styles.progressFill, { width: `${progressPct}%` }]}
-            />
-          </View>
-
-          {/* Action footer */}
-          <View style={styles.actionRow}>
+          <View style={styles.progressActionRow}>
+            <View style={styles.progressBar}>
+              <LinearGradient
+                colors={[accent, accent + 'AA']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.progressFill, { width: `${progressPct}%` }]}
+              />
+            </View>
             <Text style={[styles.actionLabel, { color: accent }]}>
               {isLocked ? '🔒 Locked' :
                 quest.status === 'COMPLETED' ? '✓ Completed' :
@@ -337,7 +334,7 @@ const QuestMapView: React.FC<{
             <Svg
               width="100%" height="100%"
               viewBox="0 0 100 100" preserveAspectRatio="none"
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
             >
               <Path d={pathD} fill="none" stroke="#ffffff" strokeWidth={4} strokeLinecap="round" />
               <Path d={pathD} fill="none" stroke="#c9b8ff" strokeWidth={1.6} strokeLinecap="round" strokeDasharray="0.1 3" />
@@ -354,7 +351,7 @@ const QuestMapView: React.FC<{
                   <View style={[styles.lbl, stage.status === 'AVAILABLE' && styles.lblCur]}>
                     <Text
                       style={[styles.lblText, stage.status === 'AVAILABLE' && styles.lblTextCur]}
-                      numberOfLines={1}
+                      numberOfLines={2}
                     >
                       {stage.title}
                     </Text>
@@ -389,7 +386,7 @@ const QuestMapView: React.FC<{
 // =================================================================
 // Helpers
 // =================================================================
-function buildPath(points: Array<{ x: number; y: number }>): string {
+function buildPath(points: { x: number; y: number }[]): string {
   if (points.length < 2) return '';
   let d = `M ${points[0].x} ${points[0].y}`;
   for (let i = 1; i < points.length; i++) {
@@ -482,11 +479,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12, shadowRadius: 12, elevation: 4,
   },
   questCover: {
-    height: 110,
+    height: 64,
     position: 'relative',
   },
   questCoverInner: {
-    flex: 1, padding: 12,
+    flex: 1, padding: 10,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
   },
   themePill: {
@@ -498,11 +495,11 @@ const styles = StyleSheet.create({
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 99 },
   statusBadgeText: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.3 },
 
-  questBody: { padding: 14 },
-  questTitle: { fontSize: 17, fontWeight: '800', color: '#2c2550' },
-  questDesc: { fontSize: 12.5, color: '#6f679c', fontWeight: '500', marginTop: 4, lineHeight: 17 },
+  questBody: { padding: 12 },
+  questTitle: { fontSize: 15.5, fontWeight: '800', color: '#2c2550' },
+  questDesc: { fontSize: 12, color: '#6f679c', fontWeight: '500', marginTop: 3 },
 
-  statsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  statsRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   statChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: '#f4f1ff',
@@ -511,15 +508,14 @@ const styles = StyleSheet.create({
   },
   statChipText: { fontSize: 11, fontWeight: '800' },
 
+  progressActionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10 },
   progressBar: {
+    flex: 1,
     height: 8, borderRadius: 99,
     backgroundColor: '#ece8fb', overflow: 'hidden',
-    marginTop: 10,
   },
   progressFill: { height: '100%', borderRadius: 99 },
-
-  actionRow: { marginTop: 10, alignItems: 'flex-end' },
-  actionLabel: { fontSize: 13, fontWeight: '800' },
+  actionLabel: { fontSize: 12.5, fontWeight: '800' },
 
   // Detail/map view
   detailHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
@@ -567,9 +563,9 @@ const styles = StyleSheet.create({
 
   node: {
     position: 'absolute',
-    width: 120,
+    width: 150,
     alignItems: 'center',
-    transform: [{ translateX: -60 }, { translateY: -37 }],
+    transform: [{ translateX: -75 }, { translateY: -37 }],
   },
   bub: {
     width: 74, height: 74, borderRadius: 37,
@@ -584,15 +580,15 @@ const styles = StyleSheet.create({
   bubTextBoss: { fontSize: 42 },
   lbl: {
     backgroundColor: '#fff',
-    paddingHorizontal: 12, paddingVertical: 5,
-    borderRadius: 999, marginTop: 6,
+    paddingHorizontal: 10, paddingVertical: 5,
+    borderRadius: 14, marginTop: 6,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1, shadowRadius: 4, elevation: 2,
-    maxWidth: 120,
+    maxWidth: 150,
   },
   lblCur: { backgroundColor: '#ff9d2e' },
-  lblText: { fontWeight: '700', fontSize: 13, color: '#2c2550' },
+  lblText: { fontWeight: '700', fontSize: 11.5, lineHeight: 15, color: '#2c2550', textAlign: 'center' },
   lblTextCur: { color: '#fff' },
 
   legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 18, paddingHorizontal: 4 },
