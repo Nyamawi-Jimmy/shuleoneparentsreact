@@ -32,15 +32,20 @@ const MODALITY: Record<string, { icon: string; label: string; c1: string; c2: st
   NONE: { icon: '📘', label: 'Lesson', c1: '#e91e63', c2: '#ff8fc0' },
 };
 
-// Mobile playground routes per sandbox kind (the phone-friendly workspace).
+// Every sandbox kind opens the in-app playground runner (real engines).
 const PLAYGROUND_ROUTE: Record<string, string> = {
-  SCRATCH: '/student/code/scratch',
-  BLOCKS: '/student/code/blockly',
-  PYTHON: '/student/code/python',
-  WEB: '/student/code/mobile',
-  ROBOT: '/student/code/robotics',
-  MICROBIT: '/student/code/robotics',
-  ARDUINO: '/student/code/robotics',
+  SCRATCH: '/student/playground?kind=SCRATCH',
+  BLOCKS: '/student/playground?kind=BLOCKS',
+  PYTHON: '/student/playground?kind=PYTHON',
+  JS: '/student/playground?kind=JS',
+  JAVASCRIPT: '/student/playground?kind=JS',
+  WEB: '/student/playground?kind=WEB',
+  SQL: '/student/playground?kind=SQL',
+  BASH: '/student/playground?kind=BASH',
+  TERMINAL: '/student/playground?kind=BASH',
+  ROBOT: '/student/playground?kind=ROBOT',
+  MICROBIT: '/student/playground?kind=MICROBIT',
+  ARDUINO: '/student/playground?kind=ARDUINO',
 };
 
 interface Props {
@@ -282,6 +287,7 @@ const PairBar: React.FC<{ lessonId: number; grade: number | null; playful: boole
   const [mates, setMates] = useState<Classmate[] | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (!accessToken) return;
@@ -308,7 +314,9 @@ const PairBar: React.FC<{ lessonId: number; grade: number | null; playful: boole
       .finally(() => setBusy(false));
   };
 
-  const options = (mates ?? []).filter((m) => !members.some((x) => x.id === m.id));
+  const options = (mates ?? [])
+    .filter((m) => !members.some((x) => x.id === m.id))
+    .filter((m) => !search.trim() || m.name.toLowerCase().includes(search.trim().toLowerCase()));
 
   return (
     <View style={styles.pairBar}>
@@ -338,19 +346,43 @@ const PairBar: React.FC<{ lessonId: number; grade: number | null; playful: boole
       {open && (
         mates === null ? (
           <Text style={styles.pairHint}>Loading classmates…</Text>
-        ) : options.length === 0 ? (
-          <Text style={styles.pairHint}>
-            {mates.length === 0 ? 'No classmates found for your class yet.' : 'Everyone’s already in!'}
-          </Text>
+        ) : mates.length === 0 ? (
+          <Text style={styles.pairHint}>No classmates found for your class yet.</Text>
         ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mateRow}>
-            {options.map((m) => (
-              <TouchableOpacity key={m.id} style={styles.mateChip} disabled={busy}
-                onPress={() => save([...members, m])} activeOpacity={0.8}>
-                <Text style={styles.mateChipText}>+ {m.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+          <>
+            {/* Search a long class list instead of scrolling it */}
+            <View style={styles.searchRow}>
+              <Ionicons name="search" size={14} color="#9b94c4" />
+              <TextInput
+                style={styles.searchInput}
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search a classmate…"
+                placeholderTextColor="#9b94c4"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {search.length > 0 && (
+                <TouchableOpacity hitSlop={8} onPress={() => setSearch('')}>
+                  <Ionicons name="close-circle" size={15} color="#9b94c4" />
+                </TouchableOpacity>
+              )}
+            </View>
+            {options.length === 0 ? (
+              <Text style={styles.pairHint}>
+                {search.trim() ? `No classmate matches “${search.trim()}”.` : 'Everyone’s already in!'}
+              </Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mateRow}>
+                {options.map((m) => (
+                  <TouchableOpacity key={m.id} style={styles.mateChip} disabled={busy}
+                    onPress={() => { save([...members, m]); setSearch(''); }} activeOpacity={0.8}>
+                    <Text style={styles.mateChipText}>+ {m.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </>
         )
       )}
     </View>
@@ -482,6 +514,7 @@ const LessonQuizRN: React.FC<{
     const resultFor = (qid: number) => (result.questions ?? []).find((r) => r.questionId === qid);
     return (
       <View style={styles.card}>
+        <Text style={styles.secHeading}>🏆 Challenge</Text>
         <View style={[styles.scoreCircle, { borderColor: result.passed ? '#15c08a' : '#ff8a3d' }]}>
           <Text style={styles.scorePct}>{result.scorePercent}%</Text>
           <Text style={styles.scorePts}>{result.scorePoints}/{result.maxPoints}</Text>
@@ -537,6 +570,7 @@ const LessonQuizRN: React.FC<{
   const outOfAttempts = quiz.maxAttempts != null && attemptsLeft <= 0;
   return (
     <View style={styles.card}>
+      <Text style={styles.secHeading}>🏆 Challenge</Text>
       <View style={styles.quizChips}>
         <Text style={styles.quizChip}>📝 {quiz.questions.length} questions</Text>
         <Text style={styles.quizChip}>🎯 pass {quiz.passPercent}%</Text>
@@ -701,6 +735,12 @@ const styles = StyleSheet.create({
   pairChipText: { fontSize: 11.5, fontWeight: '800', color: '#5b45c9' },
   pairChipX: { fontSize: 15, fontWeight: '800', color: '#8b7fd0' },
   pairHint: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 9 },
+  searchRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    backgroundColor: '#f4f1ff', borderRadius: 12,
+    paddingHorizontal: 11, paddingVertical: 8, marginTop: 10,
+  },
+  searchInput: { flex: 1, fontSize: 12.5, fontWeight: '600', color: '#2c2550', padding: 0 },
   mateRow: { gap: 7, marginTop: 9, paddingRight: 8 },
   mateChip: {
     backgroundColor: '#f4f1ff', borderWidth: 1.5, borderColor: '#ded7f8',

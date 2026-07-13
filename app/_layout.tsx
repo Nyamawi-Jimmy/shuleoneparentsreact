@@ -116,6 +116,7 @@ function ThemedAppShell() {
         <Stack.Screen name="student/assignments" />
         <Stack.Screen name="student/portfolio" />
         <Stack.Screen name="student/notifications" />
+        <Stack.Screen name="student/playground" />
         <Stack.Screen name="student/code/scratch" />
         <Stack.Screen name="student/code/blockly" />
         <Stack.Screen name="student/code/python" />

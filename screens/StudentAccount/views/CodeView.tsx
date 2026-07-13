@@ -34,18 +34,19 @@ const SECTIONS = [
 type SectionKey = typeof SECTIONS[number]['key'];
 
 // Playground languages — the exact catalogue the web PlaygroundTab offers.
-// `route` = the app's own editor screen where one exists; the rest note that
-// the full editor runs on the classroom computer.
+// Every kind opens the in-app runner, where Python/JS/SQL/Web/Terminal
+// genuinely RUN (same engines as the web) and Scratch/MakeCode open their
+// real editors.
 const PG_KINDS = [
-  { kind: 'PYTHON', icon: '🐍', label: 'Python', language: 'Python', colors: ['#1fc99a', '#0f9e8e'] as [string, string], route: '/student/code/python' },
-  { kind: 'WEB', icon: '🌐', label: 'Web', language: 'HTML / CSS', colors: ['#3a8bff', '#e91e63'] as [string, string], route: null },
-  { kind: 'JS', icon: '🟨', label: 'JavaScript', language: 'JavaScript', colors: ['#f4a716', '#ffd766'] as [string, string], route: null },
-  { kind: 'SQL', icon: '🗄️', label: 'SQL', language: 'SQL (SQLite)', colors: ['#5b6cff', '#9aa6ff'] as [string, string], route: null },
-  { kind: 'BASH', icon: '💻', label: 'Terminal', language: 'Bash + Git (emulated)', colors: ['#475569', '#64748b'] as [string, string], route: null },
-  { kind: 'SCRATCH', icon: '🐱', label: 'Scratch', language: 'Scratch', colors: ['#ff8a3d', '#ff5e9c'] as [string, string], route: '/student/code/scratch' },
-  { kind: 'MICROBIT', icon: '📟', label: 'micro:bit', language: 'micro:bit (MakeCode)', colors: ['#00b8d4', '#3a8bff'] as [string, string], route: null },
-  { kind: 'ARDUINO', icon: '🔌', label: 'Arduino', language: 'Arduino (C++)', colors: ['#19b39b', '#1577c2'] as [string, string], route: null },
-  { kind: 'ROBOT', icon: '🤖', label: 'Robot', language: 'mBot2', colors: ['#e91e63', '#ff8fc0'] as [string, string], route: '/student/code/robotics' },
+  { kind: 'PYTHON', icon: '🐍', label: 'Python', language: 'Python', colors: ['#1fc99a', '#0f9e8e'] as [string, string] },
+  { kind: 'WEB', icon: '🌐', label: 'Web', language: 'HTML / CSS / JS', colors: ['#3a8bff', '#e91e63'] as [string, string] },
+  { kind: 'JS', icon: '🟨', label: 'JavaScript', language: 'JavaScript', colors: ['#f4a716', '#d97706'] as [string, string] },
+  { kind: 'SQL', icon: '🗄️', label: 'SQL', language: 'SQL (SQLite)', colors: ['#5b6cff', '#9aa6ff'] as [string, string] },
+  { kind: 'BASH', icon: '💻', label: 'Terminal', language: 'Bash + Git (emulated)', colors: ['#475569', '#64748b'] as [string, string] },
+  { kind: 'SCRATCH', icon: '🐱', label: 'Scratch', language: 'Shule One Scratch', colors: ['#ff8a3d', '#ff5e9c'] as [string, string] },
+  { kind: 'MICROBIT', icon: '📟', label: 'micro:bit', language: 'micro:bit (MakeCode)', colors: ['#00b8d4', '#3a8bff'] as [string, string] },
+  { kind: 'ARDUINO', icon: '🔌', label: 'Arduino', language: 'Arduino (C++)', colors: ['#19b39b', '#1577c2'] as [string, string] },
+  { kind: 'ROBOT', icon: '🤖', label: 'Robot', language: 'mBot2', colors: ['#e91e63', '#ff8fc0'] as [string, string] },
 ];
 
 export const CodeView: React.FC = () => {
@@ -342,15 +343,13 @@ const PlaygroundSection: React.FC<{ radius: number }> = ({ radius }) => {
         <Text style={{ fontSize: 44 }}>{k.icon}</Text>
         <Text style={styles.pgWsTitle}>{k.label} workspace</Text>
         <Text style={styles.pgWsLang}>{k.language}</Text>
-        {k.route ? (
-          <TouchableOpacity activeOpacity={0.85} onPress={() => router.push(k.route as any)} style={styles.pgOpenBtn}>
-            <Text style={[styles.pgOpenText, { color: k.colors[0] }]}>Open the editor ▶</Text>
-          </TouchableOpacity>
-        ) : (
-          <Text style={styles.pgWsNote}>
-            The full {k.label} editor runs in the classroom — use it there or on a computer at home.
-          </Text>
-        )}
+        <TouchableOpacity
+          activeOpacity={0.85}
+          onPress={() => router.push(`/student/playground?kind=${k.kind}` as any)}
+          style={styles.pgOpenBtn}
+        >
+          <Text style={[styles.pgOpenText, { color: k.colors[0] }]}>Open the editor ▶</Text>
+        </TouchableOpacity>
       </LinearGradient>
     </View>
   );

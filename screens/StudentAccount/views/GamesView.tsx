@@ -394,7 +394,10 @@ const GameHead: React.FC<{ icon: string; title: string; onExit: () => void; chil
       <TouchableOpacity style={styles.exitBtn} hitSlop={8} onPress={onExit}>
         <Ionicons name="chevron-back" size={18} color="#2c2550" />
       </TouchableOpacity>
-      <Text style={styles.gameHeadTitle} numberOfLines={1}>{icon} {title}</Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.gameHeadEyebrow}>🧠 BRAIN GAMES</Text>
+        <Text style={styles.gameHeadTitle} numberOfLines={1}>{icon} {title}</Text>
+      </View>
       <View style={styles.gameHeadRight}>{children}</View>
     </View>
   );
@@ -477,7 +480,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
     alignItems: 'center', justifyContent: 'center',
   },
-  gameHeadTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: '#2c2550' },
+  gameHeadEyebrow: { fontSize: 8.5, fontWeight: '800', letterSpacing: 0.7, color: '#9b94c4' },
+  gameHeadTitle: { fontSize: 16, fontWeight: '800', color: '#2c2550' },
   gameHeadRight: { flexDirection: 'row', gap: 6 },
   headChip: {
     backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
