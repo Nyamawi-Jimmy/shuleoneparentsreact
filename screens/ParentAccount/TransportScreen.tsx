@@ -1,421 +1,355 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Modal, TextInput, Alert, Linking, KeyboardAvoidingView, Platform,
+  RefreshControl, TextInput, Linking, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { ParentHeader } from '../../components/ParentHeader';
+import { fonts } from '../../constants/theme';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { useTransport, useOptOuts } from '../../hooks/useTransport';
 import { useSelectedChild } from '../../context/SelectedChildContext';
-import { ChildTransport } from '../../api/transport.types';
+import { useAuth } from '../../context/AuthContext';
+import { getChildTransportTrips } from '../../api/transport';
+import { TransportTrip, OptOut } from '../../api/transport.types';
+
+const SEAT_LABEL: Record<string, string> = {
+  PENDING: 'Awaiting pickup', BOARDED: 'On the bus', ARRIVED: 'Arrived at school',
+  DROPPED: 'Dropped off', ABSENT: 'Marked absent', NOT_USING_TODAY: 'Not using today', LATE: 'Marked late',
+};
+const TRIP_LABEL: Record<string, string> = {
+  SCHEDULED: 'Scheduled', IN_PROGRESS: 'On the road', COMPLETED: 'Completed', CANCELLED: 'Cancelled',
+};
+const seatColor = (s: string | null | undefined, c: ColorPalette): string => {
+  const k = String(s || '').toUpperCase();
+  if (['BOARDED', 'ARRIVED', 'DROPPED'].includes(k)) return c.success;
+  if (['PENDING', 'LATE'].includes(k)) return c.warning;
+  if (k === 'ABSENT') return c.danger;
+  return c.textTertiary;
+};
+const dirLabel = (d: string | null | undefined) => (d === 'PICKUP' || d === 'TO_SCHOOL' ? 'Morning' : d ? 'Evening' : '—');
+const hhmm = (v?: string | null) => (v ? String(v).slice(11, 16) : '');
+const todayIso = () => {
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+};
+const dateChips = (n = 14) => {
+  const out: { iso: string; label: string; sub: string }[] = [];
+  const base = new Date(); base.setHours(0, 0, 0, 0);
+  for (let i = 0; i < n; i++) {
+    const d = new Date(base.getTime() + i * 86400000);
+    const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const label = i === 0 ? 'Today' : i === 1 ? 'Tmrw' : d.toLocaleDateString('en-GB', { weekday: 'short' });
+    out.push({ iso, label, sub: d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) });
+  }
+  return out;
+};
 
 export const TransportScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   const { children, loading, refreshing, refresh, error } = useTransport();
-  const { selectedChild, selectChild } = useSelectedChild();
+  const { selectedChild } = useSelectedChild();
+  const { accessToken } = useAuth();
+  const { items: optOuts, submitOptOut, removeOptOut, refresh: refreshOptOuts } = useOptOuts();
 
   const transportChildren = children.filter((c) => c.studentId != null);
-  const active = transportChildren.find((c) => c.studentId === selectedChild?.studentId)
-    ?? transportChildren[0] ?? null;
+  const child = transportChildren.find((c) => c.studentId === selectedChild?.studentId) ?? transportChildren[0] ?? null;
+  const live = child?.tripStatus === 'IN_PROGRESS';
 
-  const [optOutOpen, setOptOutOpen] = useState(false);
+  const [trips, setTrips] = useState<TransportTrip[]>([]);
+  const [optDate, setOptDate] = useState(todayIso());
+  const [optNote, setOptNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState('');
 
-  return (
-    <View style={styles.safe}>
-      <ParentHeader title="Transport" showBack />
+  const studentId = child?.studentId ?? null;
+  useFocusEffect(useCallback(() => {
+    if (!accessToken || studentId == null) { setTrips([]); return; }
+    getChildTransportTrips(accessToken, studentId).then((t) => setTrips(Array.isArray(t) ? t : [])).catch(() => setTrips([]));
+  }, [accessToken, studentId]));
 
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
-      >
-        {loading && (
-          <View style={styles.center}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={styles.loadingText}>Loading…</Text>
-          </View>
-        )}
+  const upcoming = (child?.upcomingOptOuts?.length ? child.upcomingOptOuts : optOuts) as OptOut[];
 
-        {!loading && error && (
-          <View style={styles.errorBanner}>
-            <Ionicons name="warning" size={16} color={colors.danger} />
-            <Text style={styles.errorBannerText}>{error}</Text>
-            <TouchableOpacity onPress={refresh}><Text style={styles.retryInline}>Retry</Text></TouchableOpacity>
-          </View>
-        )}
-
-        {!loading && !error && transportChildren.length === 0 && (
-          <View style={styles.center}>
-            <View style={styles.emptyIconCircle}>
-              <MaterialCommunityIcons name="bus" size={28} color={colors.textSecondary} />
-            </View>
-            <Text style={styles.emptyTitle}>No transport routes</Text>
-            <Text style={styles.emptyText}>None of your children are currently on a school transport route.</Text>
-          </View>
-        )}
-
-        {transportChildren.length > 1 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            {transportChildren.map((c) => {
-              const isActive = c.studentId === active?.studentId;
-              return (
-                <TouchableOpacity
-                  key={c.studentId}
-                  activeOpacity={0.85}
-                  onPress={() => c.studentId != null && selectChild(c.studentId)}
-                  style={[styles.chip, isActive && styles.chipActive]}
-                >
-                  <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
-                    {firstName(c.studentName)}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
-
-        {!loading && active && (
-          <TransportCard
-            colors={colors} styles={styles}
-            child={active}
-            onOpenTracking={() => active.trackingUrl && Linking.openURL(active.trackingUrl)}
-            onOptOut={() => setOptOutOpen(true)}
-          />
-        )}
-
-        {!loading && active?.studentId && <OptOutSection colors={colors} styles={styles} />}
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
-
-      {active?.studentId && (
-        <OptOutModal
-          colors={colors} styles={styles}
-          visible={optOutOpen}
-          onClose={() => setOptOutOpen(false)}
-          studentId={active.studentId}
-          studentName={active.studentName ?? 'child'}
-        />
-      )}
-    </View>
-  );
-};
-
-const TransportCard: React.FC<{
-  child: ChildTransport; onOpenTracking: () => void; onOptOut: () => void;
-  colors: ColorPalette; styles: any;
-}> = ({ child, onOpenTracking, onOptOut, colors, styles }) => {
-  const tripStatus = (child.tripStatus ?? '').toUpperCase();
-  const inProgress = tripStatus === 'IN_PROGRESS';
-  const direction = (child.tripDirection ?? '').toUpperCase();
-
-  return (
-    <View style={styles.card}>
-      <View style={[
-        styles.statusBanner,
-        inProgress && styles.statusBannerLive,
-        child.optedOutToday && styles.statusBannerOptedOut,
-      ]}>
-        <View style={styles.statusIconWrap}>
-          <MaterialCommunityIcons
-            name={child.optedOutToday ? 'bus-stop' : 'bus'}
-            size={20}
-            color={child.optedOutToday ? colors.warning : (inProgress ? colors.success : colors.primary)}
-          />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.statusTitle}>
-            {child.optedOutToday ? 'Opted out today'
-              : inProgress ? `On bus — ${direction === 'TO_SCHOOL' ? 'heading to school' : 'heading home'}`
-              : tripStatus === 'COMPLETED' ? 'Trip completed'
-              : tripStatus === 'SCHEDULED' ? 'Scheduled'
-              : (child.onTransport ? 'On transport' : 'Not on transport')}
-          </Text>
-          <Text style={styles.statusSubtitle}>{child.studentName ?? '—'}</Text>
-        </View>
-      </View>
-
-      <View style={styles.infoGrid}>
-        <InfoCell colors={colors} styles={styles} icon="map-marker-path" label="Route" value={child.routeName ?? child.routeCode ?? '—'} />
-        <InfoCell colors={colors} styles={styles} icon="map-marker" label="Pickup" value={child.pickupPointName ?? '—'} />
-        <InfoCell colors={colors} styles={styles} icon="bus" label="Vehicle" value={child.vehiclePlate ?? '—'} />
-        <InfoCell colors={colors} styles={styles} icon="seat" label="Seat" value={prettySeatStatus(child.seatStatus)} />
-      </View>
-
-      <View style={styles.actions}>
-        {child.trackingUrl && inProgress && (
-          <TouchableOpacity activeOpacity={0.85} style={styles.primaryBtn} onPress={onOpenTracking}>
-            <Feather name="map-pin" size={14} color="#fff" />
-            <Text style={styles.primaryBtnText}>Track bus</Text>
-          </TouchableOpacity>
-        )}
-        {!child.optedOutToday && (
-          <TouchableOpacity activeOpacity={0.85} style={styles.secondaryBtn} onPress={onOptOut}>
-            <Feather name="x-circle" size={14} color={colors.warning} />
-            <Text style={styles.secondaryBtnText}>Opt out for a day</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
-};
-
-const InfoCell: React.FC<{ icon: any; label: string; value: string; colors: ColorPalette; styles: any }> = ({ icon, label, value, colors, styles }) => (
-  <View style={styles.infoCell}>
-    <MaterialCommunityIcons name={icon} size={16} color={colors.primary} />
-    <View style={{ flex: 1, marginLeft: 8 }}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue} numberOfLines={1}>{value}</Text>
-    </View>
-  </View>
-);
-
-const OptOutSection: React.FC<{ colors: ColorPalette; styles: any }> = ({ colors, styles }) => {
-  const { items, loading, removeOptOut } = useOptOuts();
-  if (loading || items.length === 0) return null;
-
-  return (
-    <View style={{ marginTop: 18 }}>
-      <Text style={styles.sectionTitle}>UPCOMING OPT-OUTS</Text>
-      <View style={styles.optOutsCard}>
-        {items.map((o, idx) => (
-          <View key={o.id ?? idx} style={[styles.optOutRow, idx < items.length - 1 && styles.optOutRowDivider]}>
-            <View style={styles.optOutDateBox}>
-              <Text style={styles.optOutDay}>{formatDay(o.date)}</Text>
-              <Text style={styles.optOutMonth}>{formatMonth(o.date)}</Text>
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.optOutDate}>{formatFullDate(o.date)}</Text>
-              {!!o.note && <Text style={styles.optOutNote} numberOfLines={2}>{o.note}</Text>}
-            </View>
-            <TouchableOpacity
-              hitSlop={6}
-              onPress={() => {
-                if (!o.id) return;
-                Alert.alert('Cancel opt-out?', `Your child will be expected on the bus on ${formatFullDate(o.date)}.`, [
-                  { text: 'Keep', style: 'cancel' },
-                  { text: 'Cancel opt-out', style: 'destructive', onPress: () => removeOptOut(o.id!) },
-                ]);
-              }}
-              style={styles.cancelOptOutBtn}
-            >
-              <Feather name="x" size={14} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-};
-
-const OptOutModal: React.FC<{
-  colors: ColorPalette; styles: any;
-  visible: boolean; onClose: () => void;
-  studentId: number; studentName: string;
-}> = ({ colors, styles, visible, onClose, studentId, studentName }) => {
-  const { submitOptOut } = useOptOuts();
-  const [date, setDate] = useState(todayISO());
-  const [note, setNote] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSubmit = async () => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { Alert.alert('Invalid date', 'Use YYYY-MM-DD format.'); return; }
-    setSubmitting(true);
+  const flagDate = async () => {
+    if (!optDate || saving) return;
+    setSaving(true); setActionError('');
     try {
-      await submitOptOut({ date, note: note || null });
-      setNote(''); onClose();
-    } catch (e: any) { Alert.alert('Could not opt out', e?.message ?? 'Please try again.'); }
-    finally { setSubmitting(false); }
+      await submitOptOut({ date: optDate, note: optNote || null });
+      setOptNote('');
+      refresh(); refreshOptOuts();
+    } catch (e: any) {
+      setActionError(e?.message || 'Could not save.');
+    } finally { setSaving(false); }
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.sheetHeader}>
-          <Text style={styles.sheetTitle}>Opt out of transport</Text>
-          <TouchableOpacity hitSlop={8} onPress={onClose}>
-            <Ionicons name="close" size={22} color={colors.text} />
-          </TouchableOpacity>
-        </View>
-        <View style={{ padding: 18, flex: 1 }}>
-          <Text style={styles.sheetSubtitle}>Let the bus team know {studentName} won't need transport on this day.</Text>
+    <View style={styles.root}>
+      <ParentHeader title="Transport" showBack rightIcon="none" />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
+        >
+          {loading ? (
+            <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
+          ) : error ? (
+            <View style={styles.errorBox}><Text style={[styles.errorText, { marginTop: 0 }]}>{error}</Text></View>
+          ) : !child ? (
+            <View style={styles.emptyCard}>
+              <MaterialCommunityIcons name="bus-school" size={30} color={colors.textTertiary} />
+              <Text style={styles.emptyTitle}>No transport info</Text>
+              <Text style={styles.emptyText}>Select a child to see their school transport.</Text>
+            </View>
+          ) : !child.onTransport ? (
+            <View style={styles.emptyCard}>
+              <MaterialCommunityIcons name="bus-school" size={30} color={colors.textTertiary} />
+              <Text style={styles.emptyTitle}>Not on school transport</Text>
+              <Text style={styles.emptyText}>{child.studentName || 'This child'} has no active bus assignment. If that's unexpected, contact the school's transport office.</Text>
+            </View>
+          ) : (
+            <>
+              {/* Route hero */}
+              <View style={styles.hero}>
+                <View style={styles.heroTop}>
+                  <View style={[styles.busIcon, { backgroundColor: colors.primarySofter }]}>
+                    <MaterialCommunityIcons name="bus" size={24} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.routeCode}>{child.routeCode || 'ROUTE'}</Text>
+                    <Text style={styles.routeName} numberOfLines={1}>{child.routeName || 'School bus'}</Text>
+                  </View>
+                </View>
+                <View style={styles.heroMeta}>
+                  <View style={styles.heroMetaItem}>
+                    <Ionicons name="location-outline" size={14} color={colors.textTertiary} />
+                    <Text style={styles.heroMetaText} numberOfLines={1}>{child.pickupPointName || 'Pickup point —'}</Text>
+                  </View>
+                  {!!child.vehiclePlate && (
+                    <View style={styles.heroMetaItem}>
+                      <MaterialCommunityIcons name="card-text-outline" size={14} color={colors.textTertiary} />
+                      <Text style={styles.heroMetaText}>{child.vehiclePlate}</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.heroChips}>
+                  {child.tripStatus ? (
+                    <View style={[styles.chip, { backgroundColor: live ? colors.successSoft : colors.backgroundAlt }]}>
+                      {live && <View style={[styles.liveDot, { backgroundColor: colors.success }]} />}
+                      <Text style={[styles.chipText, { color: live ? colors.success : colors.textSecondary }]}>
+                        {TRIP_LABEL[child.tripStatus] || child.tripStatus}{child.tripDirection ? ` · ${dirLabel(child.tripDirection)}` : ''}
+                      </Text>
+                    </View>
+                  ) : (
+                    <View style={[styles.chip, { backgroundColor: colors.backgroundAlt }]}><Text style={[styles.chipText, { color: colors.textSecondary }]}>No trip today yet</Text></View>
+                  )}
+                  {!!child.seatStatus && (
+                    <View style={[styles.chip, { backgroundColor: seatColor(child.seatStatus, colors) + '1A' }]}>
+                      <Text style={[styles.chipText, { color: seatColor(child.seatStatus, colors) }]}>{SEAT_LABEL[child.seatStatus] || child.seatStatus}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
 
-          <Text style={styles.label}>Date</Text>
-          <View style={styles.inputWrap}>
-            <Feather name="calendar" size={14} color={colors.textSecondary} style={{ marginRight: 8 }} />
-            <TextInput
-              style={styles.input}
-              value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.textTertiary}
-              autoCapitalize="none"
-            />
-          </View>
+              {/* Status tiles */}
+              <View style={styles.tileRow}>
+                <StatTile styles={styles} label="Today" value={child.seatStatus ? (SEAT_LABEL[child.seatStatus] || child.seatStatus) : 'No status'} color={seatColor(child.seatStatus, colors)} />
+                <StatTile styles={styles} label="Trip" value={child.tripStatus ? (TRIP_LABEL[child.tripStatus] || child.tripStatus) : 'None yet'} />
+              </View>
+              <View style={styles.tileRow}>
+                <StatTile styles={styles} label="Direction" value={child.tripDirection ? dirLabel(child.tripDirection) : '—'} />
+                <StatTile styles={styles} label="Bus" value={child.vehiclePlate || '—'} />
+              </View>
 
-          <Text style={[styles.label, { marginTop: 16 }]}>Reason (optional)</Text>
-          <View style={[styles.inputWrap, { alignItems: 'flex-start' }]}>
-            <TextInput
-              style={[styles.input, { paddingTop: 12, minHeight: 80 }]}
-              value={note}
-              onChangeText={setNote}
-              placeholder="e.g. Doctor's appointment"
-              placeholderTextColor={colors.textTertiary}
-              multiline
-              maxLength={300}
-            />
-          </View>
+              {/* Live tracking / parked */}
+              {live ? (
+                <View style={styles.trackCard}>
+                  <View style={styles.trackHead}>
+                    <View style={[styles.liveDot, { backgroundColor: colors.success }]} />
+                    <Text style={styles.trackTitle}>Bus is on the road</Text>
+                  </View>
+                  {child.trackingUrl ? (
+                    <TouchableOpacity style={styles.trackBtn} activeOpacity={0.85} onPress={() => Linking.openURL(child.trackingUrl!)}>
+                      <Ionicons name="navigate" size={16} color="#FFF" />
+                      <Text style={styles.trackBtnText}>Open live tracking</Text>
+                      <Feather name="external-link" size={14} color="#FFF" />
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.trackNote}>A live tracking link is sent when the trip nears your stop — it will also appear here.</Text>
+                  )}
+                </View>
+              ) : (
+                <View style={styles.parkedCard}>
+                  <MaterialCommunityIcons name="bus-stop" size={30} color={colors.textTertiary} />
+                  <Text style={styles.parkedTitle}>The bus is parked{child.routeName ? ` on the ${child.routeName} route` : ''}</Text>
+                  <Text style={styles.parkedText}>
+                    {child.tripStatus ? 'No trip is on the road right now. Live tracking takes over this space while the bus is moving.'
+                      : 'No trip scheduled yet today. Live tracking and status appear here once the school starts the trip.'}
+                  </Text>
+                </View>
+              )}
 
-          <View style={{ flex: 1 }} />
+              {/* Recent trips */}
+              {trips.length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>Recent trips</Text>
+                  <View style={styles.card}>
+                    {trips.map((r, i) => {
+                      const times = [r.boardedAt && `boarded ${hhmm(r.boardedAt)}`, r.arrivedAt && `arrived ${hhmm(r.arrivedAt)}`, r.droppedAt && `dropped ${hhmm(r.droppedAt)}`].filter(Boolean).join(' · ');
+                      return (
+                        <View key={i} style={[styles.tripRow, i > 0 && styles.divider]}>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={styles.tripDate}>{String(r.tripDate).slice(0, 10)} · {dirLabel(r.direction)}</Text>
+                            <Text style={styles.tripMeta} numberOfLines={1}>{[r.plateNo, times].filter(Boolean).join(' · ') || '—'}</Text>
+                          </View>
+                          <View style={[styles.miniChip, { backgroundColor: seatColor(r.seatStatus, colors) + '1A' }]}>
+                            <Text style={[styles.miniChipText, { color: seatColor(r.seatStatus, colors) }]}>{SEAT_LABEL[String(r.seatStatus)] || r.seatStatus || '—'}</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
 
-          <TouchableOpacity activeOpacity={0.85} onPress={handleSubmit} disabled={submitting}
-            style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}>
-            <Text style={styles.primaryBtnText}>{submitting ? 'Submitting…' : 'Submit opt-out'}</Text>
-          </TouchableOpacity>
-        </View>
+              {/* Not using transport */}
+              <Text style={styles.sectionTitle}>Not using transport</Text>
+              <View style={styles.card2}>
+                <Text style={styles.optIntro}>Travelling separately on a given day? Flag it — the driver's list updates and the bus won't wait at your stop.</Text>
+                {child.optedOutToday && (
+                  <View style={styles.optBanner}>
+                    <Ionicons name="information-circle" size={15} color={colors.warning} />
+                    <Text style={styles.optBannerText}>Flagged as not using transport today.</Text>
+                  </View>
+                )}
+                <Text style={styles.optLabel}>Pick a date</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateStrip}>
+                  {dateChips(14).map((d) => {
+                    const active = d.iso === optDate;
+                    return (
+                      <TouchableOpacity key={d.iso} style={[styles.dateChip, active && { backgroundColor: colors.primary, borderColor: colors.primary }]} activeOpacity={0.8} onPress={() => setOptDate(d.iso)}>
+                        <Text style={[styles.dateChipLabel, active && { color: '#FFF' }]}>{d.label}</Text>
+                        <Text style={[styles.dateChipSub, active && { color: 'rgba(255,255,255,0.85)' }]}>{d.sub}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+                <TextInput
+                  style={styles.optInput}
+                  value={optNote}
+                  onChangeText={setOptNote}
+                  placeholder="Note (optional) — e.g. Doctor's appointment"
+                  placeholderTextColor={colors.textTertiary}
+                  maxLength={255}
+                />
+                {!!actionError && <Text style={styles.errorText}>{actionError}</Text>}
+                <TouchableOpacity style={[styles.flagBtn, saving && { opacity: 0.6 }]} activeOpacity={0.85} disabled={saving} onPress={flagDate}>
+                  {saving ? <ActivityIndicator size="small" color="#FFF" /> : <><MaterialCommunityIcons name="calendar-remove" size={16} color="#FFF" /><Text style={styles.flagBtnText}>Flag this date</Text></>}
+                </TouchableOpacity>
+
+                {upcoming.length > 0 && (
+                  <View style={styles.optList}>
+                    {upcoming.map((o, i) => (
+                      <View key={o.id ?? i} style={[styles.optRow, i > 0 && styles.divider]}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.optRowDate}>{o.date}</Text>
+                          {!!o.note && <Text style={styles.optRowNote} numberOfLines={1}>{o.note}</Text>}
+                        </View>
+                        <TouchableOpacity hitSlop={8} onPress={() => o.id != null && removeOptOut(o.id)}>
+                          <Text style={styles.optCancel}>Cancel</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </>
+          )}
+          <View style={{ height: 32 }} />
+        </ScrollView>
       </KeyboardAvoidingView>
-    </Modal>
+    </View>
   );
 };
 
-function firstName(name: string | null): string {
-  if (!name) return '?';
-  return name.split(/\s+/)[0] ?? name;
-}
-function prettySeatStatus(s: string | null): string {
-  if (!s) return '—';
-  const u = s.toUpperCase();
-  if (u === 'ASSIGNED') return 'Assigned';
-  if (u === 'UNASSIGNED') return 'Unassigned';
-  return s;
-}
-function todayISO(): string { return new Date().toISOString().slice(0, 10); }
-function formatFullDate(iso: string | null): string {
-  if (!iso) return '—';
-  try { return new Date(iso).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' }); }
-  catch { return iso; }
-}
-function formatDay(iso: string | null): string {
-  if (!iso) return '—';
-  try { return String(new Date(iso).getDate()).padStart(2, '0'); } catch { return ''; }
-}
-function formatMonth(iso: string | null): string {
-  if (!iso) return '';
-  try { return new Date(iso).toLocaleDateString('en-GB', { month: 'short' }).toUpperCase(); } catch { return ''; }
-}
+const StatTile: React.FC<{ styles: any; label: string; value: string; color?: string }> = ({ styles, label, value, color }) => (
+  <View style={styles.statTile}>
+    <Text style={styles.statTileLabel}>{label}</Text>
+    <Text style={[styles.statTileValue, color ? { color } : null]} numberOfLines={1}>{value}</Text>
+  </View>
+);
 
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: c.backgroundAlt },
-    scroll: { paddingHorizontal: 18, paddingTop: 12 },
-    center: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-    loadingText: { fontSize: 11.5, color: c.textSecondary, marginTop: 8, fontWeight: '500' },
-    emptyIconCircle: {
-      width: 56, height: 56, borderRadius: 28,
-      backgroundColor: c.card, alignItems: 'center', justifyContent: 'center',
-      marginBottom: 12, borderWidth: 1, borderColor: c.border,
-    },
-    emptyTitle: { fontSize: 15, fontWeight: '700', color: c.text },
-    emptyText: { fontSize: 11.5, color: c.textSecondary, marginTop: 6, textAlign: 'center' },
+    root: { flex: 1, backgroundColor: c.background },
+    scroll: { paddingHorizontal: 16, paddingTop: 8 },
+    center: { padding: 44, alignItems: 'center' },
 
-    errorBanner: {
-      flexDirection: 'row', alignItems: 'center', gap: 8,
-      backgroundColor: c.dangerSoft, borderRadius: 12,
-      padding: 12, marginBottom: 12,
-    },
-    errorBannerText: { flex: 1, color: c.danger, fontSize: 12.5, fontWeight: '700' },
-    retryInline: { color: c.danger, fontWeight: '800', fontSize: 13 },
+    errorBox: { backgroundColor: c.dangerSoft, borderRadius: 12, padding: 14, marginTop: 8 },
+    errorText: { fontSize: 12.5, fontFamily: fonts.medium, color: c.danger, marginTop: 8 },
+    emptyCard: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 34, alignItems: 'center', marginTop: 8 },
+    emptyTitle: { fontSize: 15.5, fontFamily: fonts.bold, color: c.text, marginTop: 12 },
+    emptyText: { fontSize: 13, fontFamily: fonts.regular, color: c.textSecondary, textAlign: 'center', marginTop: 5, lineHeight: 19 },
 
-    chipRow: { flexDirection: 'row', gap: 8, paddingBottom: 12, paddingTop: 4 },
-    chip: {
-      backgroundColor: c.card, borderRadius: 999,
-      paddingHorizontal: 14, paddingVertical: 8,
-      borderWidth: 1, borderColor: c.border,
-    },
-    chipActive: { backgroundColor: c.primary, borderColor: c.primary },
-    chipText: { fontSize: 12.5, fontWeight: '700', color: c.textSecondary },
-    chipTextActive: { color: '#fff' },
+    hero: { backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.border, padding: 16, marginBottom: 14 },
+    heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    busIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+    routeCode: { fontSize: 10.5, fontFamily: fonts.bold, color: c.textTertiary, letterSpacing: 1 },
+    routeName: { fontSize: 17, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3, marginTop: 1 },
+    heroMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 12 },
+    heroMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    heroMetaText: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary },
+    heroChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+    chip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 },
+    chipText: { fontSize: 12, fontFamily: fonts.bold },
+    liveDot: { width: 7, height: 7, borderRadius: 4 },
 
-    card: {
-      backgroundColor: c.card, borderRadius: 16,
-      borderWidth: 1, borderColor: c.border, padding: 12,
-    },
-    statusBanner: {
-      flexDirection: 'row', alignItems: 'center', gap: 10,
-      backgroundColor: c.primarySoft,
-      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, marginBottom: 12,
-    },
-    statusBannerLive: { backgroundColor: c.successSoft },
-    statusBannerOptedOut: { backgroundColor: c.warningSoft },
-    statusIconWrap: {
-      width: 38, height: 38, borderRadius: 19,
-      backgroundColor: c.card,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    statusTitle: { fontSize: 13.5, fontWeight: '700', color: c.text },
-    statusSubtitle: { fontSize: 11.5, color: c.textSecondary, marginTop: 1 },
+    tileRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+    statTile: { flex: 1, backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, padding: 13 },
+    statTileLabel: { fontSize: 11, fontFamily: fonts.medium, color: c.textTertiary },
+    statTileValue: { fontSize: 14.5, fontFamily: fonts.bold, color: c.text, marginTop: 4 },
 
-    infoGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6 },
-    infoCell: { flexDirection: 'row', alignItems: 'center', width: '50%', paddingHorizontal: 6, marginBottom: 12 },
-    infoLabel: { fontSize: 10, color: c.textSecondary, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
-    infoValue: { fontSize: 13, fontWeight: '700', color: c.text, marginTop: 2 },
+    trackCard: { backgroundColor: c.successSoft, borderRadius: 16, padding: 16, marginTop: 10, marginBottom: 20 },
+    trackHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+    trackTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text },
+    trackBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.primary, borderRadius: 12, paddingVertical: 13 },
+    trackBtnText: { color: '#FFF', fontSize: 14, fontFamily: fonts.bold },
+    trackNote: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 18 },
 
-    actions: { flexDirection: 'row', gap: 8, marginTop: 8 },
-    primaryBtn: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      backgroundColor: c.primary, paddingVertical: 11, borderRadius: 12,
-    },
-    primaryBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
-    secondaryBtn: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      backgroundColor: c.warningSoft, paddingVertical: 11, borderRadius: 12,
-    },
-    secondaryBtnText: { color: c.warning, fontWeight: '800', fontSize: 13 },
+    parkedCard: { backgroundColor: c.backgroundAlt, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 24, marginTop: 10, marginBottom: 20, alignItems: 'center' },
+    parkedTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text, marginTop: 12, textAlign: 'center' },
+    parkedText: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, textAlign: 'center', marginTop: 5, lineHeight: 18 },
 
-    sectionTitle: {
-      fontSize: 11.5, fontWeight: '800', color: c.primary,
-      letterSpacing: 0.6, marginBottom: 8, marginLeft: 2,
-    },
-    optOutsCard: {
-      backgroundColor: c.card, borderRadius: 16,
-      borderWidth: 1, borderColor: c.border, overflow: 'hidden',
-    },
-    optOutRow: { flexDirection: 'row', alignItems: 'center', padding: 12 },
-    optOutRowDivider: { borderBottomWidth: 1, borderBottomColor: c.border },
-    optOutDateBox: {
-      width: 44, height: 50, borderRadius: 8,
-      backgroundColor: c.primarySoft,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    optOutDay: { fontSize: 17, fontWeight: '800', color: c.primary, lineHeight: 22 },
-    optOutMonth: { fontSize: 9.5, fontWeight: '800', color: c.primary, letterSpacing: 0.5 },
-    optOutDate: { fontSize: 13.5, fontWeight: '700', color: c.text },
-    optOutNote: { fontSize: 11.5, color: c.textSecondary, marginTop: 2 },
-    cancelOptOutBtn: {
-      width: 28, height: 28, borderRadius: 14,
-      backgroundColor: c.backgroundAlt,
-      alignItems: 'center', justifyContent: 'center',
-    },
+    sectionTitle: { fontSize: 14.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3, marginBottom: 12 },
+    card: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, marginBottom: 22 },
+    card2: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 14, marginBottom: 22 },
+    divider: { borderTopWidth: 1, borderTopColor: c.border },
+    tripRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
+    tripDate: { fontSize: 13.5, fontFamily: fonts.semibold, color: c.text },
+    tripMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
+    miniChip: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+    miniChipText: { fontSize: 10.5, fontFamily: fonts.bold },
 
-    sheetHeader: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: 18, paddingTop: 18, paddingBottom: 12,
-      backgroundColor: c.background,
-      borderBottomWidth: 1, borderBottomColor: c.border,
-    },
-    sheetTitle: { fontSize: 17, fontWeight: '700', color: c.text },
-    sheetSubtitle: { fontSize: 13.5, color: c.textSecondary, marginBottom: 18, lineHeight: 20 },
-    label: { fontSize: 11.5, fontWeight: '700', color: c.textSecondary, marginBottom: 6 },
-    inputWrap: {
-      flexDirection: 'row', alignItems: 'center',
-      backgroundColor: c.card,
-      borderRadius: 12, borderWidth: 1, borderColor: c.border,
-      paddingHorizontal: 12,
-    },
-    input: { flex: 1, fontSize: 13.5, color: c.text, paddingVertical: 12 },
+    optIntro: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 18 },
+    optBanner: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: c.warning + '1A', borderRadius: 10, padding: 10, marginTop: 12 },
+    optBannerText: { fontSize: 12, fontFamily: fonts.semibold, color: c.warning, flex: 1 },
+    optLabel: { fontSize: 11.5, fontFamily: fonts.bold, color: c.textSecondary, marginTop: 14, marginBottom: 8 },
+    dateStrip: { gap: 8, paddingBottom: 2 },
+    dateChip: { alignItems: 'center', borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, minWidth: 58 },
+    dateChipLabel: { fontSize: 12, fontFamily: fonts.bold, color: c.text },
+    dateChipSub: { fontSize: 10, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
+    optInput: { borderWidth: 1, borderColor: c.border, borderRadius: 12, backgroundColor: c.background, paddingHorizontal: 12, height: 46, fontSize: 13.5, fontFamily: fonts.regular, color: c.text, marginTop: 12 },
+    flagBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: c.primary, borderRadius: 12, paddingVertical: 13, marginTop: 12 },
+    flagBtnText: { color: '#FFF', fontSize: 14, fontFamily: fonts.bold },
+    optList: { marginTop: 14, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 4 },
+    optRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11 },
+    optRowDate: { fontSize: 13, fontFamily: fonts.bold, color: c.text },
+    optRowNote: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
+    optCancel: { fontSize: 12.5, fontFamily: fonts.bold, color: c.danger },
   });
 }

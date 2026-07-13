@@ -17,6 +17,18 @@ export interface OptOutRequest {
   note?: string | null;
 }
 
+export interface TransportTrip {
+  tripDate: string | null;        // ISO yyyy-MM-dd
+  direction: string | null;       // PICKUP | DROPOFF
+  tripStatus: string | null;
+  plateNo: string | null;
+  routeCode: string | null;
+  seatStatus: string | null;
+  boardedAt: string | null;
+  arrivedAt: string | null;
+  droppedAt: string | null;
+}
+
 export interface ChildTransport {
   studentId: number | null;
   studentName: string | null;

@@ -60,7 +60,7 @@ export const MoreScreen: React.FC = () => {
     },
     {
       label: 'Documents', desc: 'Fee statements & payment receipts', tint: 'warning',
-      icon: <Ionicons name="folder-open-outline" size={20} color={colors.warning} />, onPress: go('/finance'),
+      icon: <Ionicons name="folder-open-outline" size={20} color={colors.warning} />, onPress: go('/documents'),
     },
   ];
 

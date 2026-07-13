@@ -125,8 +125,7 @@ export function setReminder(
     {
       method: 'POST',
       accessToken,
-      body: JSON.stringify(body),
-      headers: { 'Content-Type': 'application/json' },
+      body,
     },
   );
 }

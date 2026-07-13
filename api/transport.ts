@@ -1,9 +1,17 @@
 import { apiFetch } from '../config/api';
-import { ChildTransport, OptOut, OptOutRequest } from './transport.types';
+import { ChildTransport, OptOut, OptOutRequest, TransportTrip } from './transport.types';
 
 /** GET /api/parent/transport/children */
 export function getTransportChildren(accessToken: string) {
   return apiFetch<ChildTransport[]>('/api/parent/transport/children', { accessToken });
+}
+
+/** GET /api/parent/children/{studentId}/transport/trips?days=14 (Premium — may 402). */
+export function getChildTransportTrips(accessToken: string, studentId: number, days = 14) {
+  return apiFetch<TransportTrip[]>(
+    `/api/parent/children/${studentId}/transport/trips?days=${days}`,
+    { accessToken },
+  );
 }
 
 /** GET /api/parent/children/{studentId}/transport/opt-outs */

@@ -127,7 +127,20 @@ screen, redesigned for mobile with the indigo/Inter design system (`fonts` from
       `/children/{id}/academics/report-pdf?examId=`). **Attendance**: rate donut card +
       present-streak, Present/Late/Absent/Excused count tiles, month heat-grid (recorded days
       only), recent-days list. Both match the web pages.
-- [ ] Transport, Calendar, Documents, Settings.
+- [x] **Transport (`TransportScreen`)** — indigo/Inter rebuild: route hero, status tiles
+      (Today/Trip/Direction/Bus), live-tracking card (open `trackingUrl`) vs parked card,
+      **recent trips** (new `getChildTransportTrips` → `/transport/trips?days=14`), and the
+      not-using-transport opt-out flow (date-chip picker + note + upcoming list).
+- [x] **Calendar (`CalendarScreen`)** — category filters (All / School / Live), week-nav
+      **"this week at a glance"** dot grid, unified **upcoming agenda** (term events +
+      live classes) with **Join** (`useLiveClasses.join`) and **reminder bell**
+      (`listChildReminders`/`setReminder`/`cancelReminder`). Fixed `setReminder` double-encode.
+- [x] **Documents (`DocumentsScreen`, NEW + `app/documents.tsx`)** — fee statements
+      (term/full PDF via `buildStatementPdfUrl`), receipts list from `getChildFeePayments`
+      (+ `buildReceiptPdfUrl`), honest report-cards empty. Fixed More→Documents link (was `/finance`).
+- [x] **Settings (`SettingsScreen`)** — already had Profile/edit, change password, linked
+      children, notifications, language, appearance (light/dark/system), help, sign-out.
+      Added **Documents** and **Plans & subscriptions** rows. (`/subscriptions` already existed.)
 
 ## 5b. Corrected gap analysis (parent side is more complete than first assumed)
 

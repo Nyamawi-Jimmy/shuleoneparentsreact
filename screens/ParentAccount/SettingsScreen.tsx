@@ -91,6 +91,20 @@ export const SettingsScreen: React.FC = () => {
             onPress={() => router.push('/choose-child' as any)}
             divider
           />
+          <Row colors={colors} styles={styles}
+            icon={<Ionicons name="folder-open" size={18} color={colors.success} />}
+            iconBg={colors.successSoft}
+            label="Documents" sub="Statements, receipts & report cards"
+            onPress={() => router.push('/documents' as any)}
+            divider
+          />
+          <Row colors={colors} styles={styles}
+            icon={<Ionicons name="diamond" size={18} color={colors.purple} />}
+            iconBg={colors.purpleLight}
+            label="Plans & subscriptions" sub="AI Learning, Coding, live bus tracking"
+            onPress={() => router.push('/subscriptions' as any)}
+            divider
+          />
         </View>
 
         <Text style={styles.sectionLabel}>PREFERENCES</Text>
