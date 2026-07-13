@@ -1,236 +1,328 @@
-import React, { useState } from 'react';
+// Tasks — the student's real assessments from /api/student/assignments,
+// grouped like the web AssignmentsView: category chips (Assignments / CATs /
+// Term Papers), due-window sections (Overdue · Due today · This week · Later),
+// then Done and Missed. Tapping a task opens the in-app TaskPlayer.
+
+import React, { useCallback, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  ActivityIndicator, RefreshControl,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
-import { LearningHeader } from '../components/LearningHeader';
+import { TopBar } from '../components/TopBar';
 import { AgeSwitcher } from '../components/AgeSwitcher';
-import { mockAssignments, filterByTier, Assignment } from '../learningData';
+import { useAuth } from '../../../context/AuthContext';
+import { getStudentAssignments } from '../../../api/student';
+import { StudentAssignment, AssignmentSubmitResult } from '../../../api/student.types';
+import { TaskPlayer } from './TaskPlayer';
 
-const STATUS_META: Record<Assignment['status'], { label: string; color: string; bg: string }> = {
-  pending: { label: 'To do', color: '#7c5cff', bg: '#efeaff' },
-  submitted: { label: 'Submitted', color: '#3aa0ff', bg: '#dbeafe' },
-  graded: { label: 'Graded', color: '#15c98c', bg: '#eafef3' },
-  overdue: { label: 'Overdue', color: '#ef4444', bg: '#fee2e2' },
+const fmtDate = (iso: string | null | undefined) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 };
 
-const TYPE_ICONS: Record<Assignment['submissionType'], string> = {
-  text: '📝', photo: '📸', document: '📄', project: '🎁',
-};
+const categoryKey = (a: StudentAssignment) => String(a.category || 'Assignment').trim().toLowerCase();
 
-type Filter = 'all' | Assignment['status'];
+function categoryMeta(category: string | null | undefined) {
+  const c = String(category || 'Assignment').trim().toLowerCase();
+  if (c === 'cat') return { label: 'CAT', fg: '#7c3aed', bg: '#efeaff' };
+  if (c === 'term paper') return { label: 'Term Paper', fg: '#4f46e5', bg: '#e7e9ff' };
+  if (c === 'assignment') return { label: 'Assignment', fg: '#b45309', bg: '#fff3da' };
+  return { label: String(category).trim(), fg: '#6f679c', bg: '#f0edfb' };
+}
+
+function statusMeta(a: StudentAssignment) {
+  switch (a.status) {
+    case 'OVERDUE':
+      return { label: 'Late · still open', emoji: '⏰', tint: '#ef4444', bg: '#fee2e2' };
+    case 'MISSED':
+      return { label: 'Missed', emoji: '🚫', tint: '#64748b', bg: '#eef1f5' };
+    case 'SUBMITTED':
+      return { label: 'Submitted', emoji: '📬', tint: '#3aa0ff', bg: '#e3f1ff' };
+    case 'GRADED':
+      return {
+        label: a.score != null && a.maxScore != null ? `${a.score}/${a.maxScore}` : 'Graded',
+        emoji: '🏅', tint: '#0fae78', bg: '#eafef3',
+      };
+    default:
+      return { label: 'To do', emoji: '✏️', tint: '#b45309', bg: '#fff3da' };
+  }
+}
 
 export const AssignmentsView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
-  const [filter, setFilter] = useState<Filter>('all');
+  const { accessToken } = useAuth();
 
-  const all = filterByTier(mockAssignments, tier);
-  const items = filter === 'all' ? all : all.filter((a) => a.status === filter);
+  const [items, setItems] = useState<StudentAssignment[] | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [cat, setCat] = useState('all');
+  const [openId, setOpenId] = useState<number | null>(null);
+  // "Now" is captured at fetch time so due-window bucketing stays pure in render.
+  const [nowMs, setNowMs] = useState<number | null>(null);
 
-  const pending = all.filter((a) => a.status === 'pending').length;
-  const overdue = all.filter((a) => a.status === 'overdue').length;
+  const load = useCallback(async (isRefresh = false) => {
+    if (!accessToken) return;
+    if (isRefresh) setRefreshing(true);
+    try {
+      const list = await getStudentAssignments(accessToken);
+      setItems(Array.isArray(list) ? list : []);
+      setNowMs(Date.now());
+    } catch {
+      setItems((prev) => prev ?? []);
+    }
+    setRefreshing(false);
+  }, [accessToken]);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Patch a card on submit so the list updates instantly (the web's single-source rule).
+  const handleSubmitted = (examId: number, result: AssignmentSubmitResult) => {
+    setItems((prev) => (prev ?? []).map((a) => a.id === examId ? {
+      ...a,
+      status: result?.pendingMarking ? 'SUBMITTED' : (result?.score != null ? 'GRADED' : 'SUBMITTED'),
+      score: result?.score ?? a.score,
+      maxScore: result?.maxScore ?? a.maxScore,
+      submittedAt: new Date().toISOString(),
+    } : a));
+  };
 
   const title = pickByTier(tier, {
-    base: '📝 Assignments',
+    base: '📝 Tasks',
     sprout: '📝 My Homework',
-    explorer: '📝 Homework',
+    explorer: '📝 My Homework',
+    scholar: '📝 Assessments',
+    campus: '📝 Assessments',
   });
+
+  // ── Player open ───────────────────────────────────────
+  if (openId != null) {
+    return (
+      <View style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
+        <TopBar />
+        <TaskPlayer
+          examId={openId}
+          onClose={() => setOpenId(null)}
+          onSubmitted={(r) => handleSubmitted(openId, r)}
+        />
+      </View>
+    );
+  }
+
+  if (items === null) {
+    return (
+      <View style={[styles.safe, styles.center, { backgroundColor: tokens.bgColor }]}>
+        <ActivityIndicator size="large" color={tokens.accent1} />
+        <Text style={styles.loadingText}>Fetching your tasks…</Text>
+      </View>
+    );
+  }
+
+  const list = items;
+  // Category chips: only the categories that exist, fixed friendly order.
+  const ORDER = ['assignment', 'cat', 'term paper'];
+  const present = [...new Set(list.map(categoryKey))];
+  const cats = ORDER.filter((c) => present.includes(c)).concat(present.filter((c) => !ORDER.includes(c)));
+  const showChips = cats.length > 1;
+  const visible = cat === 'all' ? list : list.filter((a) => categoryKey(a) === cat);
+
+  // Due-window grouping: "what's due TODAY" is the question a student asks.
+  const base = nowMs ?? 0;
+  const baseDate = new Date(base);
+  const endToday = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 23, 59, 59).getTime();
+  const endWeekDate = new Date(endToday);
+  endWeekDate.setDate(endWeekDate.getDate() + ((7 - endWeekDate.getDay()) % 7 || 7));
+  const endWeek = endWeekDate.getTime();
+  const bucketOf = (a: StudentAssignment) => {
+    if (a.status === 'OVERDUE') return 'Overdue';
+    const t = a.dueAt ? new Date(a.dueAt).getTime() : NaN;
+    if (isNaN(t)) return 'Later';
+    if (t <= endToday) return 'Due today';
+    if (t <= endWeek) return 'This week';
+    return 'Later';
+  };
+
+  const todo = visible.filter((a) => a.status === 'DUE' || a.status === 'OVERDUE');
+  const done = visible.filter((a) => a.status === 'SUBMITTED' || a.status === 'GRADED');
+  const missed = visible.filter((a) => a.status === 'MISSED');
+  const buckets: { name: string; tone: string; rows: StudentAssignment[] }[] = [
+    { name: 'Overdue', tone: '#ef4444', rows: todo.filter((a) => bucketOf(a) === 'Overdue') },
+    { name: 'Due today', tone: '#f4a716', rows: todo.filter((a) => bucketOf(a) === 'Due today') },
+    { name: 'This week', tone: '#3aa0ff', rows: todo.filter((a) => bucketOf(a) === 'This week') },
+    { name: 'Later', tone: '#9b94c4', rows: todo.filter((a) => bucketOf(a) === 'Later') },
+  ];
 
   return (
     <View style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
-      <LearningHeader
-        title={title}
-        subtitle={`${pending} pending${overdue > 0 ? ` • ${overdue} overdue` : ''}`}
-      />
-
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Summary stats */}
-        <View style={styles.summaryRow}>
-          <SummaryStat n={pending} label="To do" color="#7c5cff" />
-          <SummaryStat n={all.filter((a) => a.status === 'submitted').length} label="Submitted" color="#3aa0ff" />
-          <SummaryStat n={all.filter((a) => a.status === 'graded').length} label="Graded" color="#15c98c" />
-          <SummaryStat n={overdue} label="Overdue" color="#ef4444" />
+      <TopBar />
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={tokens.accent1} />}
+      >
+        <View style={styles.secH}>
+          <Text style={styles.secHTitle}>{title}</Text>
+          <View style={styles.secHLine} />
         </View>
+        <Text style={styles.subline}>
+          {todo.length} to do{done.length ? ` · ${done.length} done` : ''}
+        </Text>
 
-        {/* Filter chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}
-        >
-          {(['all', 'pending', 'submitted', 'graded', 'overdue'] as Filter[]).map((key) => {
-            const active = filter === key;
-            return (
-              <TouchableOpacity key={key} activeOpacity={0.85} onPress={() => setFilter(key)}>
-                {active ? (
-                  <LinearGradient colors={[tokens.accent1, tokens.accent2]} style={styles.chip}>
-                    <Text style={[styles.chipText, { color: '#fff' }]}>
-                      {key === 'all' ? 'All' : STATUS_META[key as Assignment['status']].label}
-                    </Text>
-                  </LinearGradient>
-                ) : (
-                  <View style={styles.chip}>
-                    <Text style={styles.chipText}>
-                      {key === 'all' ? 'All' : STATUS_META[key as Assignment['status']].label}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        {items.map((a) => {
-          const meta = STATUS_META[a.status];
-          const overdue = a.status === 'overdue';
-          return (
-            <TouchableOpacity key={a.id} activeOpacity={0.85} style={styles.card}>
-              <View style={styles.cardTop}>
-                <View style={[styles.typeIcon, { backgroundColor: meta.bg }]}>
-                  <Text style={{ fontSize: 18 }}>{TYPE_ICONS[a.submissionType]}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.cardTitle}>{a.title}</Text>
-                  <Text style={styles.cardMeta}>{a.subject} • {a.assignedBy}</Text>
-                </View>
-                <View style={[styles.statusPill, { backgroundColor: meta.bg }]}>
-                  <Text style={[styles.statusText, { color: meta.color }]}>{meta.label}</Text>
-                </View>
-              </View>
-
-              <View style={styles.cardBottom}>
-                <View style={styles.dueRow}>
-                  <Ionicons
-                    name={overdue ? 'warning' : 'calendar-outline'}
-                    size={12}
-                    color={overdue ? '#ef4444' : '#6f679c'}
-                  />
-                  <Text style={[styles.dueText, overdue && { color: '#ef4444' }]}>
-                    Due {a.dueDate}
-                  </Text>
-                </View>
-                {a.priority === 'high' && a.status !== 'graded' && a.status !== 'submitted' && (
-                  <View style={styles.priorityBadge}>
-                    <Text style={styles.priorityText}>HIGH PRIORITY</Text>
-                  </View>
-                )}
-                <Text style={styles.maxScore}>{a.score ?? '—'} / {a.maxScore}</Text>
-              </View>
-
-              {a.feedback && (
-                <View style={styles.feedback}>
-                  <Ionicons name="chatbubble" size={11} color="#7c5cff" />
-                  <Text style={styles.feedbackText}>{a.feedback}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        })}
-
-        {items.length === 0 && (
+        {list.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>🎉</Text>
-            <Text style={styles.emptyText}>Nothing here. All done!</Text>
+            <Text style={{ fontSize: 48 }}>🏆</Text>
+            <Text style={styles.emptyTitle}>You’re all caught up</Text>
+            <Text style={styles.emptyText}>Nothing due right now — nice work.</Text>
           </View>
+        ) : (
+          <>
+            {showChips && (
+              <View style={styles.chipRow}>
+                {['all', ...cats].map((c) => {
+                  const on = cat === c;
+                  const n = c === 'all' ? list.length : list.filter((a) => categoryKey(a) === c).length;
+                  return (
+                    <TouchableOpacity key={c} activeOpacity={0.8} onPress={() => setCat(c)}
+                      style={[styles.chip, on && { backgroundColor: tokens.accent1, borderColor: tokens.accent1 }]}>
+                      <Text style={[styles.chipText, on && { color: '#fff' }]}>
+                        {c === 'all' ? 'All' : `${categoryMeta(c).label}s`} {n}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {buckets.map((b) => b.rows.length > 0 && (
+              <Section key={b.name} name={b.name} tone={b.tone} rows={b.rows} radius={tokens.radius} onOpen={setOpenId} />
+            ))}
+            {done.length > 0 && (
+              <Section name="Done" tone="#15c98c" rows={done} radius={tokens.radius} onOpen={setOpenId} />
+            )}
+            {missed.length > 0 && (
+              <Section name="Missed" tone="#9b94c4" rows={missed} radius={tokens.radius} onOpen={setOpenId} />
+            )}
+            {visible.length === 0 && (
+              <View style={styles.empty}>
+                <Text style={styles.emptyText}>Nothing in this category yet.</Text>
+              </View>
+            )}
+          </>
         )}
 
-        <View style={{ height: 120 }} />
+        <View style={{ height: 110 }} />
       </ScrollView>
       <AgeSwitcher />
     </View>
   );
 };
 
-const SummaryStat: React.FC<{ n: number; label: string; color: string }> = ({ n, label, color }) => (
-  <View style={styles.summaryStat}>
-    <Text style={[styles.summaryNum, { color }]}>{n}</Text>
-    <Text style={styles.summaryLabel}>{label}</Text>
+// =================================================================
+const Section: React.FC<{
+  name: string; tone: string; rows: StudentAssignment[]; radius: number;
+  onOpen: (id: number) => void;
+}> = ({ name, tone, rows, radius, onOpen }) => (
+  <View style={{ marginBottom: 16 }}>
+    <View style={styles.sectionHead}>
+      <View style={[styles.sectionDot, { backgroundColor: tone }]} />
+      <Text style={styles.sectionTitle}>{name}</Text>
+      <View style={styles.countBadge}><Text style={styles.countBadgeText}>{rows.length}</Text></View>
+    </View>
+    {rows.map((a) => {
+      const s = statusMeta(a);
+      const c = categoryMeta(a.category);
+      const isDone = a.status === 'GRADED' || a.status === 'SUBMITTED';
+      const due = fmtDate(a.dueAt);
+      const sub = fmtDate(a.submittedAt);
+      return (
+        <TouchableOpacity key={a.id} activeOpacity={0.8} onPress={() => onOpen(a.id)}
+          style={[styles.card, { borderRadius: radius }]}>
+          <View style={[styles.tile, { backgroundColor: s.bg }]}>
+            <Text style={{ fontSize: 19 }}>{s.emoji}</Text>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={styles.titleRow}>
+              <Text style={styles.cardTitle} numberOfLines={1}>{a.title ?? 'Task'}</Text>
+              <View style={[styles.catPill, { backgroundColor: c.bg }]}>
+                <Text style={[styles.catPillText, { color: c.fg }]}>{c.label}</Text>
+              </View>
+            </View>
+            {(a.subject || a.teacher) && (
+              <Text style={styles.cardMeta} numberOfLines={1}>
+                {a.subject ?? ''}{a.subject && a.teacher ? ' · ' : ''}{a.teacher ?? ''}
+              </Text>
+            )}
+            <Text style={styles.cardWhen}>
+              {isDone ? (sub ? `Submitted ${sub}` : 'Submitted') : (due ? `Due ${due}` : 'No due date')}
+            </Text>
+          </View>
+          <View style={{ alignItems: 'flex-end', gap: 6 }}>
+            <View style={[styles.statusPill, { backgroundColor: s.bg }]}>
+              <Text style={[styles.statusPillText, { color: s.tint }]}>{s.label}</Text>
+            </View>
+            <Text style={styles.go}>{isDone ? 'View ›' : 'Start ›'}</Text>
+          </View>
+        </TouchableOpacity>
+      );
+    })}
   </View>
 );
 
+// =================================================================
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  center: { alignItems: 'center', justifyContent: 'center' },
+  loadingText: { color: '#6f679c', marginTop: 14, fontWeight: '600' },
   scroll: { padding: 16 },
 
-  summaryRow: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 14,
-    shadowColor: '#5038A0',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  summaryStat: { flex: 1, alignItems: 'center' },
-  summaryNum: { fontSize: 20, fontWeight: '800' },
-  summaryLabel: { fontSize: 10.5, color: '#6f679c', fontWeight: '600', marginTop: 2 },
+  secH: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  secHTitle: { fontSize: 17, fontWeight: '800', color: '#2c2550' },
+  secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: '#ece8fb' },
+  subline: { fontSize: 12, color: '#6f679c', fontWeight: '700', marginBottom: 14 },
 
-  chipsRow: { gap: 8, paddingBottom: 14 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   chip: {
-    paddingHorizontal: 14, paddingVertical: 8,
-    borderRadius: 999, backgroundColor: '#fff',
-    borderWidth: 1.5, borderColor: '#ece8fb',
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7,
   },
-  chipText: { fontSize: 12, fontWeight: '700', color: '#6f679c' },
+  chipText: { fontSize: 12, fontWeight: '800', color: '#6f679c' },
+
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 9 },
+  sectionDot: { width: 8, height: 8, borderRadius: 4 },
+  sectionTitle: { fontSize: 13, fontWeight: '800', color: '#2c2550' },
+  countBadge: {
+    minWidth: 20, height: 18, borderRadius: 9, paddingHorizontal: 6,
+    backgroundColor: '#e4defc', alignItems: 'center', justifyContent: 'center',
+  },
+  countBadgeText: { fontSize: 10, fontWeight: '800', color: '#7c5cff' },
 
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#ece8fb',
+    padding: 13, marginBottom: 9,
     shadowColor: '#5038A0',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.07, shadowRadius: 7, elevation: 2,
   },
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  typeIcon: {
-    width: 40, height: 40, borderRadius: 12,
+  tile: {
+    width: 42, height: 42, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center',
   },
-  cardTitle: { fontSize: 13.5, fontWeight: '800', color: '#2c2550' },
-  cardMeta: { fontSize: 11, color: '#6f679c', fontWeight: '600', marginTop: 2 },
-  statusPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 99 },
-  statusText: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.3 },
-
-  cardBottom: {
-    flexDirection: 'row', alignItems: 'center',
-    marginTop: 10, gap: 8,
-  },
-  dueRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  dueText: { fontSize: 11, color: '#6f679c', fontWeight: '700' },
-  priorityBadge: {
-    backgroundColor: '#fee2e2',
-    paddingHorizontal: 7, paddingVertical: 3,
-    borderRadius: 6,
-  },
-  priorityText: { color: '#dc2626', fontSize: 8.5, fontWeight: '800', letterSpacing: 0.5 },
-  maxScore: { marginLeft: 'auto', fontSize: 12, fontWeight: '800', color: '#2c2550' },
-
-  feedback: {
-    flexDirection: 'row',
-    backgroundColor: '#f4f1ff',
-    borderRadius: 10,
-    padding: 10,
-    marginTop: 10,
-    gap: 6,
-    alignItems: 'flex-start',
-  },
-  feedbackText: { flex: 1, fontSize: 11.5, color: '#2c2550', fontWeight: '500', lineHeight: 16 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  cardTitle: { flexShrink: 1, fontSize: 13.5, fontWeight: '800', color: '#2c2550' },
+  catPill: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2.5 },
+  catPillText: { fontSize: 9.5, fontWeight: '800' },
+  cardMeta: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 2 },
+  cardWhen: { fontSize: 10.5, color: '#9b94c4', fontWeight: '700', marginTop: 3 },
+  statusPill: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+  statusPillText: { fontSize: 10.5, fontWeight: '800' },
+  go: { fontSize: 11.5, fontWeight: '800', color: '#7c5cff' },
 
   empty: { alignItems: 'center', paddingVertical: 40 },
-  emptyIcon: { fontSize: 48, marginBottom: 8 },
-  emptyText: { color: '#6f679c', fontWeight: '600', fontSize: 13 },
+  emptyTitle: { fontSize: 16.5, fontWeight: '800', color: '#2c2550', marginTop: 10 },
+  emptyText: { fontSize: 12.5, color: '#6f679c', fontWeight: '600', marginTop: 4, textAlign: 'center' },
 });

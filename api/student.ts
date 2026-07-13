@@ -2,6 +2,7 @@ import { apiFetch } from '../config/api';
 import {
   StudentProfile, StudentCalendarItem, StudentFeeSummary,
   StudentAssignment, StudentLiveClass,
+  AssignmentExam, AssignmentSubmitResult, AssignmentReview,
 } from './student.types';
 
 // =================================================================
@@ -22,6 +23,32 @@ export async function getStudentAssignments(accessToken: string): Promise<Studen
 
 export async function getStudentLiveClasses(accessToken: string): Promise<StudentLiveClass[]> {
   return apiFetch<StudentLiveClass[]>('/api/student/live-classes', { accessToken });
+}
+
+/** Mint a join URL (Jitsi token) for one live class. */
+export async function joinStudentLiveClass(accessToken: string, id: number) {
+  return apiFetch<{ joinUrl?: string | null; status?: string | null }>(
+    `/api/student/live-classes/${id}/join`, { accessToken },
+  );
+}
+
+// ── Assignment player: open → submit → review ────────────────────
+export function getAssignmentExam(accessToken: string, examId: number) {
+  return apiFetch<AssignmentExam>(`/api/student/assignments/${examId}`, { accessToken });
+}
+
+export function submitAssignmentExam(
+  accessToken: string, examId: number,
+  body: { startedAt: string | null; durationSpentSeconds: number; answers: ({ questionId: number; choiceId: number } | { questionId: number; text: string })[] },
+) {
+  return apiFetch<AssignmentSubmitResult>(`/api/student/assignments/${examId}/submit`, {
+    method: 'POST', accessToken, body,
+  });
+}
+
+export function getAssignmentReview(accessToken: string, examId: number, take?: number | null) {
+  const qs = take != null ? `?take=${take}` : '';
+  return apiFetch<AssignmentReview>(`/api/student/assignments/${examId}/review${qs}`, { accessToken });
 }
 
 export async function getStudentCalendar(

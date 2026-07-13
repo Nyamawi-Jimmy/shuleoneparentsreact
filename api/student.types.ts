@@ -65,6 +65,68 @@ export interface StudentLiveClass {
   [key: string]: unknown;
 }
 
+// ── Assignment player (take an assessment in-app) ────────────────
+export interface AssignmentChoice { id: number; label: string; text: string; }
+export interface AssignmentQuestion {
+  id: number;
+  sequenceNumber?: number | null;
+  type: string;                       // 'Multiple choices' | written
+  questionText: string;
+  maxMarks?: number | null;
+  mediaUrl?: string | null;
+  choices?: AssignmentChoice[] | null;
+}
+export interface AssignmentAttemptState {
+  canAttempt?: boolean | null;
+  submitted?: boolean | null;
+  submittedAt?: string | null;
+  status?: string | null;
+  reason?: string | null;             // e.g. CLOSED | NOT_OPEN
+  attemptNumber?: number | null;
+}
+export interface AssignmentExam {
+  id?: number;
+  title: string | null;
+  category?: string | null;
+  questionCount?: number | null;
+  totalMarks?: number | null;
+  durationMinutes?: number | null;
+  lockBrowser?: boolean | null;
+  allowRetakes?: boolean | null;
+  maxTakes?: number | null;
+  attempt?: AssignmentAttemptState | null;
+  questions?: AssignmentQuestion[] | null;
+}
+export interface AssignmentSubmitResult {
+  score?: number | null;
+  maxScore?: number | null;
+  pendingMarking?: boolean | null;
+}
+export interface AssignmentReviewChoice extends AssignmentChoice {
+  chosen?: boolean | null;
+  isCorrect?: boolean | null;
+}
+export interface AssignmentReviewItem {
+  questionId: number;
+  sequenceNumber?: number | null;
+  type: string;
+  questionText: string;
+  maxMarks?: number | null;
+  awardedMarks?: number | null;
+  correct?: boolean | null;
+  yourAnswer?: string | null;
+  markingScheme?: string | null;
+  choices?: AssignmentReviewChoice[] | null;
+}
+export interface AssignmentReview {
+  released?: boolean | null;
+  pendingMarking?: boolean | null;
+  score?: number | null;
+  maxScore?: number | null;
+  attemptNumber?: number | null;
+  items?: AssignmentReviewItem[] | null;
+}
+
 /** Web's dueItems(): what still needs doing. */
 export function dueAssignments(items: StudentAssignment[] | null | undefined): StudentAssignment[] {
   return (items ?? []).filter((a) => a.status === 'DUE' || a.status === 'OVERDUE');

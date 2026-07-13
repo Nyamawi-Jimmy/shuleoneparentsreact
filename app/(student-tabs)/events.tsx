@@ -1,2 +1,2 @@
-import { LiveClassesView } from '../../screens/StudentAccount/views/LiveClassesView';
-export default LiveClassesView;
+import { EventsView } from '../../screens/StudentAccount/views/EventsView';
+export default EventsView;
