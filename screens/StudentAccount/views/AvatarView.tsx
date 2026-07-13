@@ -1,26 +1,60 @@
-import React from 'react';
+// My Profile ("My Backpack" for the play tiers) — real data end to end:
+// identity from /student/me, level/XP/streak and the badge shelf from
+// /gamification/me, and a redesigned account section with a proper
+// sign-out flow.
+
+import React, { useCallback, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
+  ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { TopBar } from '../components/TopBar';
 import { AgeSwitcher } from '../components/AgeSwitcher';
-import { mockProfile } from '../mockData';
 import { useAuth } from '../../../context/AuthContext';
+import { getStudentProfile } from '../../../api/student';
+import { getGamificationState } from '../../../api/gamification';
+import { StudentProfile, initialsFor } from '../../../api/student.types';
+import { GamificationState } from '../../../api/gamification.types';
+
+const titleCase = (s: string | null | undefined) =>
+  (s ?? '').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
+const fmtEarned = (iso: string | null) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+};
 
 export const AvatarView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
-  const { signOut, user } = useAuth();
+  const { signOut, user, accessToken } = useAuth();
+
+  const [profile, setProfile] = useState<StudentProfile | null>(null);
+  const [game, setGame] = useState<GamificationState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async (isRefresh = false) => {
+    if (!accessToken) { setLoading(false); return; }
+    if (isRefresh) setRefreshing(true);
+    const [p, g] = await Promise.allSettled([
+      getStudentProfile(accessToken),
+      getGamificationState(accessToken),
+    ]);
+    if (p.status === 'fulfilled') setProfile(p.value);
+    if (g.status === 'fulfilled') setGame(g.value);
+    setLoading(false);
+    setRefreshing(false);
+  }, [accessToken]);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const title = pickByTier(tier, {
     base: '🎒 My Profile',
@@ -29,11 +63,11 @@ export const AvatarView: React.FC = () => {
     campus: '👤 My Profile',
   });
   const badgesTitle = pickByTier(tier, {
-    base: 'Achievements',
-    sprout: 'My Trophies',
-    explorer: 'My Trophies',
-    scholar: 'Certificates & badges',
-    campus: 'Certificates & badges',
+    base: '🏅 Achievements',
+    sprout: '🏅 My Trophies',
+    explorer: '🏅 My Trophies',
+    scholar: '🏅 Certificates & badges',
+    campus: '🏅 Certificates & badges',
   });
 
   const handleSignOut = () => {
@@ -47,79 +81,160 @@ export const AvatarView: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             await signOut();
-            router.replace('/chooser' as any);
+            router.replace('/login' as any);
           },
         },
       ],
     );
   };
 
+  if (loading) {
+    return (
+      <View style={[styles.safe, styles.center, { backgroundColor: tokens.bgColor }]}>
+        <ActivityIndicator size="large" color={tokens.accent1} />
+      </View>
+    );
+  }
+
+  const name = titleCase(profile?.fullName) || user?.username || 'Learner';
+  const chips = [
+    profile?.className ? `${profile.className}${profile.streamName ? ' · ' + profile.streamName : ''}` : null,
+    profile?.admNo ? `ADM ${profile.admNo}` : null,
+    profile?.tier ? titleCase(profile.tier) : null,
+  ].filter(Boolean) as string[];
+
+  const level = game?.level ?? 1;
+  const xp = game?.totalXp ?? 0;
+  const streak = game?.streak?.current ?? 0;
+  const longest = game?.streak?.longest ?? 0;
+
+  const badges = game?.badges ?? [];
+  const earned = badges.filter((b) => b.earnedAt);
+  const locked = badges.filter((b) => !b.earnedAt);
+
   return (
     <View style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
       <TopBar />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={tokens.accent1} />}
+      >
         <View style={styles.secH}>
           <Text style={styles.secHTitle}>{title}</Text>
           <View style={styles.secHLine} />
         </View>
 
-        {/* Profile hero */}
+        {/* ── Identity hero ─────────────────────────────────── */}
         <LinearGradient
           colors={[tokens.accent1, tokens.accent2]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.meTop, { borderRadius: tokens.radius }]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={[styles.hero, { borderRadius: tokens.radius }]}
         >
-          <LinearGradient colors={['#3aa0ff', '#ff5e9c']} style={styles.meAv}>
-            <Text style={{ fontSize: 48 }}>{mockProfile.avatar}</Text>
-          </LinearGradient>
-          <View style={{ flex: 1, marginLeft: 14 }}>
-            <Text style={styles.meName}>{mockProfile.name}</Text>
-            <View style={styles.chips}>
-              {mockProfile.chips.map((c) => (
-                <View key={c} style={styles.chip}>
-                  <Text style={styles.chipText}>{c}</Text>
-                </View>
-              ))}
+          <View style={styles.heroRow}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initialsFor(profile)}</Text>
             </View>
+            <View style={{ flex: 1, minWidth: 0, marginLeft: 14 }}>
+              <Text style={styles.name} numberOfLines={1}>{name}</Text>
+              <View style={styles.chips}>
+                {chips.map((c) => (
+                  <View key={c} style={styles.chip}>
+                    <Text style={styles.chipText}>{c}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+
+          {/* Stat band — real level / XP / streaks */}
+          <View style={styles.statBand}>
+            <HeroStat emoji="💎" value={`Lvl ${level}`} label="Level" />
+            <View style={styles.statDivider} />
+            <HeroStat emoji="⭐" value={String(xp)} label="Total XP" />
+            <View style={styles.statDivider} />
+            <HeroStat emoji="🔥" value={String(streak)} label="Streak" />
+            <View style={styles.statDivider} />
+            <HeroStat emoji="🏆" value={`${longest}d`} label="Best streak" />
           </View>
         </LinearGradient>
 
-        {/* Badges */}
+        {/* ── Achievements ──────────────────────────────────── */}
         <View style={styles.secH}>
           <Text style={styles.secHTitle}>{badgesTitle}</Text>
           <View style={styles.secHLine} />
-        </View>
-        <View style={styles.badges}>
-          {mockProfile.badges.map((b, i) => (
-            <View key={i} style={[styles.badge, !b.earned && styles.badgeLocked]}>
-              <Text style={[styles.badgeIcon, !b.earned && { opacity: 0.4 }]}>{b.icon}</Text>
-              <Text style={styles.badgeLabel}>{b.label}</Text>
+          {badges.length > 0 && (
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>{earned.length}/{badges.length}</Text>
             </View>
-          ))}
+          )}
         </View>
 
-        {/* Account section */}
+        {badges.length === 0 ? (
+          <View style={styles.emptyBadges}>
+            <Text style={{ fontSize: 38 }}>🌱</Text>
+            <Text style={styles.emptyTitle}>No trophies yet</Text>
+            <Text style={styles.emptyText}>Finish lessons and quests to start your collection!</Text>
+          </View>
+        ) : (
+          <View style={styles.badges}>
+            {[...earned, ...locked].map((b, i) => (
+              <View key={b.code ?? i} style={[styles.badge, !b.earnedAt && styles.badgeLocked]}>
+                <Text style={[styles.badgeIcon, !b.earnedAt && { opacity: 0.35 }]}>{b.icon ?? '🏅'}</Text>
+                <Text style={styles.badgeLabel} numberOfLines={2}>{b.title ?? 'Badge'}</Text>
+                <Text style={styles.badgeSub} numberOfLines={1}>
+                  {b.earnedAt ? (fmtEarned(b.earnedAt) ?? 'Earned ✓') : '🔒 Locked'}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* ── Account ───────────────────────────────────────── */}
         <View style={styles.secH}>
-          <Text style={styles.secHTitle}>Account</Text>
+          <Text style={styles.secHTitle}>⚙️ Account</Text>
           <View style={styles.secHLine} />
         </View>
 
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={handleSignOut}
-          style={styles.signOutCard}
-        >
-          <View style={styles.signOutIcon}>
-            <Ionicons name="log-out" size={20} color="#ef4444" />
+        <View style={styles.accountCard}>
+          <View style={styles.accountRow}>
+            <View style={[styles.rowIcon, { backgroundColor: '#efeaff' }]}>
+              <Ionicons name="person" size={17} color="#7c5cff" />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.rowTitle}>Signed in as</Text>
+              <Text style={styles.rowSub} numberOfLines={1}>{user?.username ?? '—'}</Text>
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.signOutTitle}>Sign out</Text>
-            <Text style={styles.signOutSub}>
-              {user ? `Logged in as ${user.username}` : 'End your learning session'}
-            </Text>
+
+          {!!profile?.className && (
+            <View style={[styles.accountRow, styles.accountRowLine]}>
+              <View style={[styles.rowIcon, { backgroundColor: '#e3f1ff' }]}>
+                <Ionicons name="school" size={16} color="#3aa0ff" />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.rowTitle}>My class</Text>
+                <Text style={styles.rowSub} numberOfLines={1}>
+                  {profile.className}{profile.streamName ? ` · Stream ${profile.streamName}` : ''}
+                  {profile.admNo ? `  ·  ADM ${profile.admNo}` : ''}
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Sign out — its own clear, deliberate card */}
+        <TouchableOpacity activeOpacity={0.85} onPress={handleSignOut}>
+          <View style={styles.signOutCard}>
+            <View style={styles.signOutIcon}>
+              <Ionicons name="log-out-outline" size={19} color="#ef4444" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.signOutTitle}>Sign out</Text>
+              <Text style={styles.signOutSub}>End your learning session on this device</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={17} color="#fda4af" />
           </View>
-          <Ionicons name="chevron-forward" size={18} color="#ef4444" />
         </TouchableOpacity>
 
         <View style={{ height: 120 }} />
@@ -129,67 +244,115 @@ export const AvatarView: React.FC = () => {
   );
 };
 
+const HeroStat: React.FC<{ emoji: string; value: string; label: string }> = ({ emoji, value, label }) => (
+  <View style={styles.heroStat}>
+    <Text style={{ fontSize: 15 }}>{emoji}</Text>
+    <Text style={styles.heroStatValue}>{value}</Text>
+    <Text style={styles.heroStatLabel}>{label}</Text>
+  </View>
+);
+
 const styles = StyleSheet.create({
   safe: { flex: 1 },
+  center: { alignItems: 'center', justifyContent: 'center' },
   scroll: { padding: 16 },
   secH: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 6 },
   secHTitle: { fontSize: 17, fontWeight: '800', color: '#2c2550' },
   secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: '#ece8fb' },
+  countBadge: {
+    backgroundColor: '#e4defc', borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 3,
+  },
+  countBadgeText: { fontSize: 10.5, fontWeight: '800', color: '#7c5cff' },
 
-  meTop: {
-    flexDirection: 'row', alignItems: 'center', padding: 18,
-    marginBottom: 16,
+  hero: {
+    padding: 16, marginBottom: 18,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25, shadowRadius: 16, elevation: 5,
   },
-  meAv: {
-    width: 84, height: 84, borderRadius: 24,
+  heroRow: { flexDirection: 'row', alignItems: 'center' },
+  avatar: {
+    width: 74, height: 74, borderRadius: 37,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    borderWidth: 3, borderColor: 'rgba(255,255,255,0.55)',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 4, borderColor: 'rgba(255,255,255,0.5)',
   },
-  meName: { color: '#fff', fontSize: 22, fontWeight: '800' },
+  avatarText: { color: '#fff', fontSize: 26, fontWeight: '800' },
+  name: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   chip: {
     backgroundColor: 'rgba(255,255,255,0.22)',
-    paddingHorizontal: 10, paddingVertical: 5,
+    paddingHorizontal: 10, paddingVertical: 4,
     borderRadius: 999,
   },
-  chipText: { color: '#fff', fontWeight: '700', fontSize: 11 },
+  chipText: { color: '#fff', fontWeight: '700', fontSize: 10.5 },
+
+  statBand: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderRadius: 16, paddingVertical: 10, marginTop: 14,
+  },
+  heroStat: { flex: 1, alignItems: 'center' },
+  heroStatValue: { color: '#fff', fontSize: 13.5, fontWeight: '800', marginTop: 2 },
+  heroStatLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 8.5, fontWeight: '700', marginTop: 1, letterSpacing: 0.3 },
+  statDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.25)' },
+
+  emptyBadges: {
+    backgroundColor: '#fff', borderRadius: 18,
+    borderWidth: 1.5, borderColor: '#ece8fb',
+    alignItems: 'center', paddingVertical: 26, marginBottom: 6,
+  },
+  emptyTitle: { fontSize: 14.5, fontWeight: '800', color: '#2c2550', marginTop: 8 },
+  emptyText: { fontSize: 12, color: '#6f679c', fontWeight: '600', marginTop: 3, textAlign: 'center', paddingHorizontal: 30 },
 
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   badge: {
-    flexBasis: '30%', flexGrow: 1,
-    backgroundColor: '#fff', padding: 14, borderRadius: 18,
+    flexBasis: '30%', flexGrow: 1, maxWidth: '48%',
+    backgroundColor: '#fff', padding: 13, borderRadius: 18,
     alignItems: 'center',
-    borderWidth: 2, borderColor: '#fff',
+    borderWidth: 1.5, borderColor: '#ece8fb',
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1, shadowRadius: 8, elevation: 2,
+    shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
-  badgeLocked: { opacity: 0.5 },
-  badgeIcon: { fontSize: 32 },
+  badgeLocked: { borderStyle: 'dashed', backgroundColor: '#faf9ff' },
+  badgeIcon: { fontSize: 30 },
   badgeLabel: {
-    fontSize: 10, fontWeight: '700', color: '#6f679c',
-    marginTop: 6, textAlign: 'center',
+    fontSize: 10.5, fontWeight: '800', color: '#2c2550',
+    marginTop: 6, textAlign: 'center', lineHeight: 14,
   },
+  badgeSub: { fontSize: 9, fontWeight: '700', color: '#9b94c4', marginTop: 3 },
 
-  // Sign out card
-  signOutCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#fff', padding: 16,
-    borderRadius: 16,
-    borderWidth: 1.5, borderColor: '#fee2e2',
-    gap: 12,
-    shadowColor: '#ef4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1, shadowRadius: 8, elevation: 2,
+  accountCard: {
+    backgroundColor: '#fff', borderRadius: 18,
+    borderWidth: 1.5, borderColor: '#ece8fb',
+    paddingHorizontal: 14,
+    shadowColor: '#5038A0',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
+    marginBottom: 12,
   },
-  signOutIcon: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: '#fee2e2',
+  accountRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  accountRowLine: { borderTopWidth: 1, borderTopColor: '#f2effc' },
+  rowIcon: {
+    width: 36, height: 36, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center',
   },
-  signOutTitle: { fontSize: 14, fontWeight: '800', color: '#ef4444' },
-  signOutSub: { fontSize: 11.5, color: '#6f679c', fontWeight: '600', marginTop: 2 },
+  rowTitle: { fontSize: 10.5, fontWeight: '800', color: '#9b94c4', letterSpacing: 0.3, textTransform: 'uppercase' },
+  rowSub: { fontSize: 13, fontWeight: '700', color: '#2c2550', marginTop: 2 },
+
+  signOutCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#fff', padding: 14,
+    borderRadius: 18,
+    borderWidth: 1.5, borderColor: '#fecdd3',
+  },
+  signOutIcon: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#ffe4e6',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  signOutTitle: { fontSize: 13.5, fontWeight: '800', color: '#e11d48' },
+  signOutSub: { fontSize: 11, color: '#9b94c4', fontWeight: '600', marginTop: 2 },
 });
