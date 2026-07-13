@@ -43,6 +43,10 @@ export const MoreScreen: React.FC = () => {
 
   const forChild: Row[] = [
     {
+      label: 'Coding & Robotics', desc: 'Classes, progress & projects', tint: 'success',
+      icon: <MaterialCommunityIcons name="code-tags" size={20} color={colors.success} />, onPress: go('/coding'),
+    },
+    {
       label: 'Academics', desc: 'Exam results, grades & report cards', tint: 'primary',
       icon: <Ionicons name="school-outline" size={20} color={colors.primary} />, onPress: go('/academics'),
     },

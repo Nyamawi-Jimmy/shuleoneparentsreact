@@ -38,6 +38,24 @@ interface ApiFetchOptions extends Omit<RequestInit, 'body'> {
   accessToken?: string | null;
 }
 
+// ── "Learn as my child" (parent-device learning) ─────────────────────────────
+// While a child plays quests on the parent's phone, every request carries the
+// X-Learn-As-Child header with the child's id. The backend verifies the
+// parent_child link on EVERY request and records quest progress against the
+// CHILD's own rows (QuestController.LEARN_AS_CHILD_HEADER); endpoints that
+// don't know the header simply ignore it. Mirrors the web app's
+// localStorage('s1.learnAsChild') mechanism.
+let learnAsChildId: number | null = null;
+
+/** Arm/disarm kid-learn mode. Pass null when the parent takes the device back. */
+export function setLearnAsChild(studentId: number | null): void {
+  learnAsChildId = studentId;
+}
+
+export function getLearnAsChild(): number | null {
+  return learnAsChildId;
+}
+
 /**
  * Thin wrapper over fetch. Always JSON, always throws on non-2xx.
  * Backend errors come back as JSON like { error: "Bad credentials", ... }
@@ -56,6 +74,9 @@ export async function apiFetch<T>(
   };
   if (accessToken) {
     finalHeaders.Authorization = `Bearer ${accessToken}`;
+  }
+  if (learnAsChildId != null) {
+    finalHeaders['X-Learn-As-Child'] = String(learnAsChildId);
   }
 
   let res: Response;

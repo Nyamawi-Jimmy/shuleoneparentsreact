@@ -1,10 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { ParentHeader } from '../../components/ParentHeader';
@@ -18,6 +18,8 @@ import { useChildAttendance } from '../../hooks/useAcademics';
 import { useChildUpcoming, UpcomingItem } from '../../hooks/useChildUpcoming';
 import { moneyToNumber } from '../../api/fees.types';
 import { ParentHomeAction, ParentHomeSignal } from '../../api/home';
+import { useAuth } from '../../context/AuthContext';
+import { CodingClassReport, getChildCodingReports } from '../../api/guardian';
 
 const formatKsh = (n: number): string => `KSh ${n.toLocaleString('en-KE')}`;
 
@@ -147,6 +149,9 @@ export const HomeScreen: React.FC = () => {
           </View>
         )}
 
+        {/* Coding class report — only when the child's class was delivered recently */}
+        <CodingClassReportCard styles={styles} colors={colors} studentId={child?.studentId ?? null} />
+
         {/* Needs your attention */}
         {actions.length > 0 && (
           <>
@@ -243,6 +248,56 @@ export const HomeScreen: React.FC = () => {
 
       <ChildSwitcherModal visible={switcherOpen} onClose={() => setSwitcherOpen(false)} />
     </View>
+  );
+};
+
+// "Coding class report" banner — appears ONLY when the child's coding/robotics class was
+// delivered recently (a finalized tutor write-up within the last 7 days). Self-contained
+// fetch that renders nothing when there's no data, so the home screen stays exactly as it
+// was for families without the programme. Mirrors the web dashboard's card.
+const CodingClassReportCard: React.FC<{ styles: any; colors: ColorPalette; studentId: number | null }> =
+  ({ styles, colors, studentId }) => {
+  const { accessToken } = useAuth();
+  const [report, setReport] = useState<CodingClassReport | null>(null);
+
+  useFocusEffect(useCallback(() => {
+    if (!accessToken || studentId == null) { setReport(null); return; }
+    let stop = false;
+    getChildCodingReports(accessToken, studentId, 1)
+      .then((rows) => {
+        if (stop) return;
+        const r = Array.isArray(rows) && rows[0] ? rows[0] : null;
+        // Only surface a FRESH report — the card is "what happened in class", not an archive.
+        if (r && r.sessionDate) {
+          const age = (Date.now() - new Date(r.sessionDate).getTime()) / 86400000;
+          setReport(age <= 7 ? r : null);
+        } else {
+          setReport(null);
+        }
+      })
+      .catch(() => { if (!stop) setReport(null); });
+    return () => { stop = true; };
+  }, [accessToken, studentId]));
+
+  if (!report) return null;
+  const d = new Date(`${report.sessionDate}T00:00:00`);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
+  const when = diff === 0 ? 'Today' : diff === -1 ? 'Yesterday'
+    : d.toLocaleDateString('en-KE', { weekday: 'long' });
+
+  return (
+    <TouchableOpacity style={styles.codingCard} activeOpacity={0.75} onPress={() => router.push('/coding' as any)}>
+      <LinearGradient colors={['#10B981', '#059669']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.codingIcon}>
+        <MaterialCommunityIcons name="code-tags" size={19} color="#FFF" />
+      </LinearGradient>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.codingKicker}>{when}’s coding & robotics class</Text>
+        <Text style={styles.codingTopic} numberOfLines={1}>{report.topic}</Text>
+        {!!report.summary && <Text style={styles.codingSummary} numberOfLines={1}>{report.summary}</Text>}
+      </View>
+      <Feather name="chevron-right" size={18} color={colors.textTertiary} />
+    </TouchableOpacity>
   );
 };
 
@@ -387,6 +442,16 @@ function makeStyles(c: ColorPalette) {
     signalTime: { fontSize: 11, color: c.textTertiary, fontFamily: fonts.semibold, width: 48 },
     signalDot: { width: 8, height: 8, borderRadius: 4 },
     signalTitle: { flex: 1, fontSize: 13, color: c.text, fontFamily: fonts.medium, lineHeight: 18 },
+
+    codingCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+      padding: 14, marginBottom: 24, marginTop: -8,
+    },
+    codingIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    codingKicker: { fontSize: 10, fontFamily: fonts.bold, color: '#059669', letterSpacing: 0.6, textTransform: 'uppercase' },
+    codingTopic: { fontSize: 13.5, fontFamily: fonts.bold, color: c.text, marginTop: 2, letterSpacing: -0.2 },
+    codingSummary: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 1 },
 
     empty: { alignItems: 'center', padding: 32, gap: 8 },
     emptyTitle: { fontSize: 15.5, fontFamily: fonts.extrabold, color: c.text, marginTop: 4, letterSpacing: -0.3 },

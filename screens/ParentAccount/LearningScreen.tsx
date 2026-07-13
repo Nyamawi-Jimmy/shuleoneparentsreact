@@ -49,6 +49,8 @@ export const LearningScreen: React.FC = () => {
   } = useChildLearning();
 
   const firstName = child?.firstName || report?.learnerName || 'your child';
+  const hasCoding = !!child && (child.codingSchool || child.codingOnly);
+  const codingSource = child?.codingSchool ? 'school' : 'direct';
 
   // Premium signal: backend marks insights LOCKED for non-Premium children.
   const locked = insights?.state === 'LOCKED';
@@ -108,6 +110,37 @@ export const LearningScreen: React.FC = () => {
   const hasReport = !!report && num(report.stagesCompleted) > 0;
   const hasStreak = !!report && report.currentStreak != null;
 
+  // "Continue where you left off": the most recently touched in-progress quest — the
+  // clock is server-side (lastActivityAt over the child's progress rows), so a quest
+  // half-finished on the student app resumes here, and vice versa.
+  const resumeQuest = useMemo(() => {
+    const list = quests.filter((q) => q.status === 'IN_PROGRESS');
+    if (!list.length) return null;
+    return [...list].sort((a, b) => String(b.lastActivityAt || '').localeCompare(String(a.lastActivityAt || '')))[0];
+  }, [quests]);
+
+  // Subject drill-down: tapping a subject card lists that subject's quests, each with a
+  // Play button that hands the device to the child (kid-learn mode, deep-linked).
+  const [openSubject, setOpenSubject] = useState<string | null>(null);
+
+  const playQuest = (questId: number | null) => {
+    router.push((questId != null ? `/kid-learn?questId=${questId}` : '/kid-learn') as any);
+  };
+
+  if (openSubject) {
+    return (
+      <SubjectQuestsView
+        styles={styles}
+        colors={colors}
+        subject={openSubject}
+        quests={quests.filter((q) => (q.subject || 'General') === openSubject)}
+        childName={firstName}
+        onBack={() => setOpenSubject(null)}
+        onPlay={playQuest}
+      />
+    );
+  }
+
   return (
     <View style={styles.root}>
       <ParentHeader title="Learning" showBack={false} rightIcon="none" />
@@ -130,6 +163,27 @@ export const LearningScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
         >
+          {/* Pick up exactly where the child stopped — on any device. Tapping hands over
+              the screen straight into that quest; progress lands on the child's account. */}
+          {resumeQuest && resumeQuest.id != null && (
+            <TouchableOpacity activeOpacity={0.85} onPress={() => playQuest(resumeQuest.id)}>
+              <LinearGradient colors={['#7C3AED', '#DB2777']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.resumeCard}>
+                <View style={styles.resumePlay}>
+                  <Ionicons name="play" size={20} color="#FFF" />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.resumeKicker}>CONTINUE WHERE {firstName.toUpperCase()} LEFT OFF</Text>
+                  <Text style={styles.resumeTitle} numberOfLines={1}>{resumeQuest.title}</Text>
+                  <Text style={styles.resumeMeta} numberOfLines={1}>
+                    {resumeQuest.completedStages || 0} of {resumeQuest.totalStages || 0} stages done
+                    {resumeQuest.subject ? ` · ${resumeQuest.subject}` : ''}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#FFF" />
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
           {/* Hero — entitlement-aware */}
           <LinearGradient colors={[colors.primary, colors.purple]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
             <View style={styles.heroTopRow}>
@@ -195,14 +249,18 @@ export const LearningScreen: React.FC = () => {
           )}
 
           {/* By subject (quests) */}
-          {(academicCards.length > 0 || hasCodingQuest) && (
+          {(academicCards.length > 0 || hasCoding || hasCodingQuest) && (
             <>
               <Text style={styles.sectionTitle}>By subject</Text>
               <View style={styles.subjectGrid}>
                 {academicCards.map((s) => {
                   const accent = s.accent || colors.primary;
+                  const questCount = quests.filter((q) => (q.subject || 'General') === s.subject).length;
                   return (
-                    <View key={s.subject} style={styles.subjectCard}>
+                    <TouchableOpacity
+                      key={s.subject} style={styles.subjectCard} activeOpacity={questCount > 0 ? 0.7 : 1}
+                      onPress={questCount > 0 ? () => setOpenSubject(s.subject) : undefined}
+                    >
                       <View style={styles.subjectCardHead}>
                         <View style={[styles.subjectIcon, { backgroundColor: accent + '1F' }]}>
                           <MaterialCommunityIcons name={subjectIconName(s.subject)} size={18} color={accent} />
@@ -213,16 +271,61 @@ export const LearningScreen: React.FC = () => {
                             ? <Text style={styles.subjectLatest} numberOfLines={1}>Latest: {s.latest}</Text>
                             : s.completed > 0 ? <Text style={styles.subjectLatest} numberOfLines={1}>{s.completed} {s.completed === 1 ? 'lesson' : 'lessons'} completed</Text> : null}
                         </View>
+                        {questCount > 0 && <Feather name="chevron-right" size={16} color={colors.textTertiary} />}
                       </View>
                       <View style={styles.subjectPctRow}>
                         <Text style={styles.subjectPctText}>{s.pct}% {s.metric === 'complete' ? 'complete' : 'avg score'}</Text>
+                        {questCount > 0 && (
+                          <Text style={styles.subjectPctText}>{questCount} {questCount === 1 ? 'quest' : 'quests'}</Text>
+                        )}
                       </View>
                       <View style={styles.track}>
                         <View style={[styles.fill, { width: `${Math.max(0, Math.min(100, s.pct))}%`, backgroundColor: accent }]} />
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
+
+                {/* Coding & Robotics — only when it isn't already a real quest subject.
+                    Honest about its source; never shows a fabricated percentage. */}
+                {!hasCodingQuest && hasCoding && (
+                  <TouchableOpacity style={styles.subjectCard} activeOpacity={0.7} onPress={() => router.push('/coding' as any)}>
+                    <View style={styles.subjectCardHead}>
+                      <View style={[styles.subjectIcon, { backgroundColor: '#10B9811F' }]}>
+                        <MaterialCommunityIcons name="code-tags" size={18} color="#059669" />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.subjectName}>Coding & Robotics</Text>
+                        <Text style={styles.subjectLatest} numberOfLines={1}>
+                          {codingSource === 'school' ? 'With Educraft tutors at school' : 'Educraft programme'}
+                        </Text>
+                      </View>
+                      <Feather name="chevron-right" size={16} color={colors.textTertiary} />
+                    </View>
+                    <Text style={styles.subjectPctText}>
+                      {codingSource === 'school'
+                        ? `${firstName} takes coding & robotics with Educraft tutors at school.`
+                        : `Coding & robotics activities are available for ${firstName}.`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Not available — soft upsell, no fake data. */}
+                {!hasCodingQuest && !hasCoding && (
+                  <TouchableOpacity style={styles.subjectCard} activeOpacity={0.7} onPress={() => router.push('/subscriptions' as any)}>
+                    <View style={styles.subjectCardHead}>
+                      <View style={[styles.subjectIcon, { backgroundColor: colors.backgroundAlt }]}>
+                        <Ionicons name="lock-closed" size={17} color={colors.textTertiary} />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.subjectName}>Coding & Robotics</Text>
+                        <Text style={styles.subjectLatest}>Not active yet</Text>
+                      </View>
+                      <Feather name="chevron-right" size={16} color={colors.textTertiary} />
+                    </View>
+                    <Text style={styles.subjectPctText}>Add coding & robotics to {firstName}’s learning.</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </>
           )}
@@ -277,6 +380,78 @@ export const LearningScreen: React.FC = () => {
           <View style={{ height: 32 }} />
         </ScrollView>
       )}
+    </View>
+  );
+};
+
+// ── Subject drill-down ───────────────────────────────────────────────────────
+// The real quests behind one subject card — each with its live progress, a status
+// line, and a Play button that drops straight into kid-learn mode deep-linked to
+// that quest. Parent stays read-only; Play is the hand-the-device-over action.
+const SubjectQuestsView: React.FC<{
+  styles: any; colors: ColorPalette; subject: string; quests: QuestSummary[];
+  childName: string; onBack: () => void; onPlay: (questId: number | null) => void;
+}> = ({ styles, colors, subject, quests, childName, onBack, onPlay }) => {
+  const rows = [...quests].sort((a, b) => rankStatus(a.status) - rankStatus(b.status));
+  return (
+    <View style={styles.root}>
+      <ParentHeader title={subject} showBack={false} rightIcon="none" />
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity style={styles.subjectBackRow} activeOpacity={0.7} onPress={onBack}>
+          <Ionicons name="chevron-back" size={16} color={colors.primary} />
+          <Text style={styles.subjectBackText}>Back to Learning</Text>
+        </TouchableOpacity>
+        <Text style={styles.subjectPageSub}>{childName}’s quests in {subject}</Text>
+
+        {rows.map((q) => {
+          const pct = q.totalStages > 0 ? Math.round(((q.completedStages || 0) / q.totalStages) * 100) : 0;
+          const done = q.status === 'COMPLETED';
+          const accent = q.accentColor || '#EC4899';
+          return (
+            <View key={String(q.id ?? q.key)} style={styles.questRowCard}>
+              <View style={styles.questRowHead}>
+                <View style={[styles.subjectIcon, { backgroundColor: accent + '1F' }]}>
+                  <MaterialCommunityIcons name={subjectIconName(subject)} size={18} color={accent} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.questRowTitle} numberOfLines={2}>{q.title}</Text>
+                  <View style={styles.questRowMetaRow}>
+                    <View style={[styles.track, { flex: 1 }]}>
+                      <View style={[styles.fill, { width: `${pct}%`, backgroundColor: accent }]} />
+                    </View>
+                    <Text style={styles.questRowStages}>{q.completedStages || 0}/{q.totalStages || 0}</Text>
+                  </View>
+                </View>
+                {done ? (
+                  <View style={styles.doneChip}>
+                    <Ionicons name="checkmark-circle" size={13} color={colors.success} />
+                    <Text style={[styles.doneChipText, { color: colors.success }]}>Done</Text>
+                  </View>
+                ) : q.status === 'IN_PROGRESS' ? (
+                  <Text style={[styles.doneChipText, { color: colors.primary }]}>{pct}%</Text>
+                ) : null}
+              </View>
+              <TouchableOpacity activeOpacity={0.85} onPress={() => onPlay(q.id)}>
+                <LinearGradient colors={['#7C3AED', '#DB2777']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.questPlayBtn}>
+                  <Ionicons name="play" size={13} color="#FFF" />
+                  <Text style={styles.questPlayBtnText}>
+                    {done ? 'Replay' : q.status === 'IN_PROGRESS' ? 'Continue' : 'Start'}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
+        {rows.length === 0 && (
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyText}>No quests in this subject yet.</Text>
+          </View>
+        )}
+        <Text style={styles.handOverNote}>
+          Tapping Start or Continue hands the device to {childName} — everything they do counts on their own account.
+        </Text>
+        <View style={{ height: 32 }} />
+      </ScrollView>
     </View>
   );
 };
@@ -406,7 +581,7 @@ const CoachPanel: React.FC<{ styles: any; colors: ColorPalette; studentId: numbe
         <View style={{ marginTop: 12 }}>
           {messages.length === 0 ? (
             <>
-              <Text style={styles.coachHint}>Ask anything about {childName}'s learning — answers come from their real progress.</Text>
+              <Text style={styles.coachHint}>Ask anything about {childName}’s learning — answers come from their real progress.</Text>
               <View style={styles.suggestRow}>
                 {SUGGESTIONS.map((q, i) => (
                   <TouchableOpacity key={i} style={styles.suggestChip} activeOpacity={0.7} onPress={() => send(q)}>
@@ -451,6 +626,40 @@ function makeStyles(c: ColorPalette) {
     root: { flex: 1, backgroundColor: c.background },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 12 },
     scroll: { paddingHorizontal: 16, paddingTop: 4 },
+
+    resumeCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      borderRadius: 18, padding: 15, marginBottom: 14,
+      shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.25, shadowRadius: 14, elevation: 6,
+    },
+    resumePlay: {
+      width: 42, height: 42, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.2)',
+      alignItems: 'center', justifyContent: 'center',
+    },
+    resumeKicker: { color: 'rgba(255,255,255,0.85)', fontSize: 9.5, fontFamily: fonts.bold, letterSpacing: 0.8 },
+    resumeTitle: { color: '#FFF', fontSize: 14.5, fontFamily: fonts.extrabold, marginTop: 2, letterSpacing: -0.2 },
+    resumeMeta: { color: 'rgba(255,255,255,0.9)', fontSize: 11.5, fontFamily: fonts.regular, marginTop: 1 },
+
+    subjectBackRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 6 },
+    subjectBackText: { fontSize: 13, fontFamily: fonts.bold, color: c.primary },
+    subjectPageSub: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, marginBottom: 14 },
+    questRowCard: {
+      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+      padding: 14, marginBottom: 10,
+    },
+    questRowHead: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+    questRowTitle: { fontSize: 13.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2, lineHeight: 18 },
+    questRowMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 7 },
+    questRowStages: { fontSize: 11, fontFamily: fonts.semibold, color: c.textTertiary },
+    doneChip: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+    doneChipText: { fontSize: 11.5, fontFamily: fonts.bold },
+    questPlayBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      borderRadius: 12, paddingVertical: 10, marginTop: 12,
+    },
+    questPlayBtnText: { color: '#FFF', fontSize: 12.5, fontFamily: fonts.bold },
+    handOverNote: { fontSize: 11, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 8, lineHeight: 16 },
 
     hero: { borderRadius: 20, padding: 18, marginBottom: 16, shadowColor: c.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 18, elevation: 8 },
     heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
