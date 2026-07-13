@@ -140,7 +140,7 @@ export default function ForgotPasswordScreen() {
             {step === 'done' && (
               <>
                 <Text style={styles.info}>Your password has been changed. You can now sign in with your new password.</Text>
-                <PrimaryButton label="Back to sign in" loading={false} onPress={() => router.replace('/parent-login' as any)} />
+                <PrimaryButton label="Back to sign in" loading={false} onPress={() => router.replace('/login' as any)} />
               </>
             )}
           </View>

@@ -183,36 +183,43 @@ export const LearningScreen: React.FC = () => {
             </TouchableOpacity>
           )}
 
-          {/* Focus strip — one compact line instead of a full hero */}
+          {/* Focus card — the web hero's content on a quiet card */}
           {subscribed ? (
-            weakest && (
-              <View style={styles.focusStrip}>
+            <View style={styles.focusCard}>
+              <View style={styles.focusHead}>
                 <View style={[styles.focusIcon, { backgroundColor: colors.primarySoft }]}>
                   <Ionicons name="flag" size={15} color={colors.primary} />
                 </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.focusKicker}>FOCUS AREA</Text>
-                  <Text style={styles.focusTitle} numberOfLines={1}>
-                    More practice in {weakest.subject}
-                    {weakest.avgScorePct != null ? ` · ${num(weakest.avgScorePct)}% avg` : ''}
-                  </Text>
-                </View>
+                <Text style={styles.focusKicker}>FOCUS AREA</Text>
                 <View style={styles.planChipMini}><Text style={styles.planChipMiniText}>Premium</Text></View>
               </View>
-            )
+              <Text style={styles.focusTitle}>
+                {weakest ? `More practice in ${weakest.subject}` : `${firstName} is on track`}
+              </Text>
+              <Text style={styles.focusBody}>
+                {weakest
+                  ? `${firstName} averages ${num(weakest.avgScorePct)}% in ${weakest.subject}${weakest.completed ? ` across ${num(weakest.completed)} ${num(weakest.completed) === 1 ? 'lesson' : 'lessons'}` : ''}. A little regular practice here moves the needle most.`
+                  : `Keep the momentum going — short, steady practice keeps ${firstName} progressing.`}
+              </Text>
+            </View>
           ) : (
-            <TouchableOpacity activeOpacity={0.85} onPress={() => router.push('/subscriptions' as any)}>
-              <View style={styles.focusStrip}>
+            <View style={styles.focusCard}>
+              <View style={styles.focusHead}>
                 <View style={[styles.focusIcon, { backgroundColor: colors.primarySoft }]}>
                   <Ionicons name="sparkles" size={15} color={colors.primary} />
                 </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.focusKicker}>PREMIUM</Text>
-                  <Text style={styles.focusTitle} numberOfLines={1}>Unlock the full learning report</Text>
-                </View>
-                <View style={styles.unlockPill}><Text style={styles.unlockPillText}>Unlock</Text></View>
+                <Text style={styles.focusKicker}>PREMIUM</Text>
+                <View style={styles.planChipMini}><Text style={styles.planChipMiniText}>Basic</Text></View>
               </View>
-            </TouchableOpacity>
+              <Text style={styles.focusTitle}>See where {firstName} is — and what’s next</Text>
+              <Text style={styles.focusBody}>
+                Unlock the full learning report: mastery, focus areas, and what to practise next.
+              </Text>
+              <TouchableOpacity style={styles.unlockBtn} activeOpacity={0.85} onPress={() => router.push('/subscriptions' as any)}>
+                <Text style={styles.unlockBtnText}>Unlock Premium</Text>
+                <Ionicons name="arrow-forward" size={13} color="#FFF" />
+              </TouchableOpacity>
+            </View>
           )}
 
           {/* AI insights (Premium) */}
@@ -225,16 +232,25 @@ export const LearningScreen: React.FC = () => {
             <CoachPanel styles={styles} colors={colors} studentId={studentId} accessToken={accessToken} childName={firstName} />
           )}
 
-          {/* Snapshot — one slim strip */}
+          {/* Snapshot — Level · XP head plus the full stat row */}
           {hasReport && (
-            <View style={styles.statStrip}>
-              <MiniStat styles={styles} icon="ribbon" tint={colors.purple} value={report!.avgScorePct != null ? `${num(report!.avgScorePct)}%` : '—'} label="Avg score" />
-              <View style={styles.statDividerV} />
-              <MiniStat styles={styles} icon="star" tint={colors.warning} value={`${num(report!.masteryCount)}`} label="Mastered" />
-              <View style={styles.statDividerV} />
-              <MiniStat styles={styles} icon="flame" tint={colors.danger} value={`${num(report!.currentStreak)}d`} label="Streak" />
-              <View style={styles.statDividerV} />
-              <MiniStat styles={styles} icon="time" tint={colors.info} value={fmtMinutes(report!.minutesInvested)} label="Time" />
+            <View style={styles.statCard}>
+              <View style={styles.statHeadRow}>
+                <View style={styles.statHeadLeft}>
+                  <MaterialCommunityIcons name="school-outline" size={14} color={colors.textTertiary} />
+                  <Text style={styles.statHeadText}>Level {num(report!.level) || 1} · {num(report!.totalXp)} XP</Text>
+                </View>
+                <Text style={styles.statHeadRight}>Best streak {num(report!.longestStreak)}d</Text>
+              </View>
+              <View style={styles.statStrip}>
+                <MiniStat styles={styles} icon="ribbon" tint={colors.purple} value={report!.avgScorePct != null ? `${num(report!.avgScorePct)}%` : '—'} label="Avg score" />
+                <View style={styles.statDividerV} />
+                <MiniStat styles={styles} icon="star" tint={colors.warning} value={`${num(report!.masteryCount)}`} label="Mastered" />
+                <View style={styles.statDividerV} />
+                <MiniStat styles={styles} icon="flame" tint={colors.danger} value={`${num(report!.currentStreak)}d`} label="Streak" />
+                <View style={styles.statDividerV} />
+                <MiniStat styles={styles} icon="time" tint={colors.info} value={fmtMinutes(report!.minutesInvested)} label="Time" />
+              </View>
             </View>
           )}
 
@@ -649,25 +665,40 @@ function makeStyles(c: ColorPalette) {
     questPlayBtnText: { color: '#FFF', fontSize: 12.5, fontFamily: fonts.bold },
     handOverNote: { fontSize: 11, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 8, lineHeight: 16 },
 
-    // Compact focus strip (replaces the old full-width hero)
-    focusStrip: {
-      flexDirection: 'row', alignItems: 'center', gap: 11,
-      backgroundColor: c.card, borderRadius: 15, borderWidth: 1, borderColor: c.border,
-      paddingHorizontal: 13, paddingVertical: 11, marginBottom: 12,
+    // Focus card (the web hero's content, quiet card treatment)
+    focusCard: {
+      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+      padding: 14, marginBottom: 12,
     },
-    focusIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-    focusKicker: { fontSize: 9, fontFamily: fonts.bold, color: c.primary, letterSpacing: 0.9 },
-    focusTitle: { fontSize: 13, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2, marginTop: 1 },
+    focusHead: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 9 },
+    focusIcon: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    focusKicker: { flex: 1, fontSize: 9.5, fontFamily: fonts.bold, color: c.primary, letterSpacing: 0.9 },
+    focusTitle: { fontSize: 15.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3, lineHeight: 20 },
+    focusBody: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 4, lineHeight: 18 },
     planChipMini: { backgroundColor: c.primarySoft, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
     planChipMiniText: { color: c.primary, fontSize: 10, fontFamily: fonts.extrabold },
-    unlockPill: { backgroundColor: c.primary, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 },
-    unlockPillText: { color: '#FFF', fontSize: 11, fontFamily: fonts.extrabold },
+    unlockBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+      backgroundColor: c.primary, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 9, marginTop: 11,
+    },
+    unlockBtnText: { color: '#FFF', fontSize: 12.5, fontFamily: fonts.bold },
 
-    // Slim stat strip (replaces the 2x2 tile grid)
+    // Stat card: Level·XP header + slim 4-stat strip
+    statCard: {
+      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+      marginBottom: 16, overflow: 'hidden',
+    },
+    statHeadRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingHorizontal: 13, paddingVertical: 9,
+      borderBottomWidth: 1, borderBottomColor: c.border, backgroundColor: c.backgroundAlt,
+    },
+    statHeadLeft: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    statHeadText: { fontSize: 11.5, fontFamily: fonts.bold, color: c.textSecondary },
+    statHeadRight: { fontSize: 11, fontFamily: fonts.semibold, color: c.textTertiary },
     statStrip: {
       flexDirection: 'row', alignItems: 'center',
-      backgroundColor: c.card, borderRadius: 15, borderWidth: 1, borderColor: c.border,
-      paddingVertical: 11, marginBottom: 16,
+      paddingVertical: 11,
     },
     statDividerV: { width: 1, alignSelf: 'stretch', backgroundColor: c.border, marginVertical: 3 },
     miniStat: { flex: 1, alignItems: 'center', gap: 2 },

@@ -99,8 +99,6 @@ function ThemedAppShell() {
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="chooser" />
         <Stack.Screen name="login" />
-        <Stack.Screen name="parent-login" />
-        <Stack.Screen name="student-login" />
         <Stack.Screen name="forgot-password" />
         <Stack.Screen name="choose-child" />
 

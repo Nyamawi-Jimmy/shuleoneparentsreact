@@ -24,11 +24,10 @@ interface TabRoute { key: string; name: string; params?: object }
 // aren't directly importable here).
 interface TabBarProps {
   state: { index: number; routes: TabRoute[] };
-  descriptors: Record<string, { options: { title?: string } }>;
-  navigation: {
-    emit: (e: { type: string; target?: string; canPreventDefault?: boolean }) => { defaultPrevented: boolean };
-    navigate: (name: string, params?: object) => void;
-  };
+  // Loosely typed: the concrete react-navigation types live in a transitive
+  // package; we only read options.title and call emit/navigate.
+  descriptors: Record<string, any>;
+  navigation: any;
 }
 
 export const BrandTabBar: React.FC<TabBarProps> = ({ state, descriptors, navigation }) => {

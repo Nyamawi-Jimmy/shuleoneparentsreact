@@ -1,12 +1,11 @@
-// Reusable brand app bar — slim, professional gradient header used across
-// parent pages. Title + optional subtitle, an optional back button, and an
-// optional right-side action slot. Colors come from the theme's primary
-// family only, so every page wearing it reads as one brand.
+// Reusable brand app bar — flat, slim and quiet: a single solid band of the
+// brand color, a bold title with an optional one-line subtitle, an optional
+// round back button, and a right-side action slot. No gradient, no drop
+// shadow — the rounded bottom edge alone separates it from the content.
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useTheme } from '../theme/ThemeContext';
 import { fonts } from '../constants/theme';
@@ -23,11 +22,7 @@ export const GradientAppBar: React.FC<Props> = ({ title, subtitle, showBack = fa
   const { colors } = useTheme();
 
   return (
-    <LinearGradient
-      colors={[colors.primary, colors.primaryDeep]}
-      start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-      style={styles.bar}
-    >
+    <View style={[styles.bar, { backgroundColor: colors.primary }]}>
       <View style={styles.row}>
         {showBack && (
           <TouchableOpacity style={styles.backBtn} activeOpacity={0.7} hitSlop={10} onPress={() => router.back()}>
@@ -40,7 +35,7 @@ export const GradientAppBar: React.FC<Props> = ({ title, subtitle, showBack = fa
         </View>
         {right}
       </View>
-    </LinearGradient>
+    </View>
   );
 };
 
@@ -49,20 +44,15 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 54 : 40,
     paddingBottom: 14,
     paddingHorizontal: 16,
-    borderBottomLeftRadius: 22,
-    borderBottomRightRadius: 22,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 5,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   backBtn: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center', justifyContent: 'center',
   },
-  title: { color: '#FFF', fontSize: 17, fontFamily: fonts.extrabold, letterSpacing: -0.3 },
-  subtitle: { color: 'rgba(255,255,255,0.82)', fontSize: 11.5, fontFamily: fonts.medium, marginTop: 1 },
+  title: { color: '#FFF', fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.3 },
+  subtitle: { color: 'rgba(255,255,255,0.8)', fontSize: 11.5, fontFamily: fonts.regular, marginTop: 1 },
 });
