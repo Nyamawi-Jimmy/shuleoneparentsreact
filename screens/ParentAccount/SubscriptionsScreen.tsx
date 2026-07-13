@@ -182,7 +182,7 @@ export const SubscriptionsScreen: React.FC = () => {
           ) : (
             <>
               {/* Value banner — the web's gradient statement panel */}
-              <LinearGradient colors={['#7C3AED', '#DB2777']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.banner}>
+              <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.banner}>
                 <View style={styles.bannerCircleA} />
                 <View style={styles.bannerCircleB} />
                 <Text style={styles.bannerTitle}>Give your children the best advantage</Text>
@@ -191,18 +191,17 @@ export const SubscriptionsScreen: React.FC = () => {
                 </Text>
               </LinearGradient>
 
-              {/* Free vs Premium comparison */}
+              {/* What Premium unlocks — app-style feature list (free items shown as already included) */}
               <View style={styles.tableCard}>
-                <View style={[styles.tableRow, styles.tableHead]}>
-                  <Text style={[styles.tableLabel, { fontFamily: fonts.bold, color: colors.text }]}>What you get</Text>
-                  <Text style={styles.tableColHead}>Free</Text>
-                  <Text style={[styles.tableColHead, { color: colors.primary }]}>Premium</Text>
-                </View>
-                {COMPARISON.map(([label, free, prem], i) => (
-                  <View key={label} style={[styles.tableRow, i > 0 && styles.divider]}>
-                    <Text style={styles.tableLabel}>{label}</Text>
-                    <Text style={[styles.tableTick, { color: free ? colors.success : colors.textTertiary }]}>{free ? '✓' : '—'}</Text>
-                    <Text style={[styles.tableTick, { color: prem ? colors.success : colors.textTertiary }]}>{prem ? '✓' : '—'}</Text>
+                {COMPARISON.map(([label, free], i) => (
+                  <View key={label} style={[styles.featureRow, i > 0 && styles.divider]}>
+                    <View style={[styles.featureDot, { backgroundColor: free ? colors.successSoft : colors.primarySoft }]}>
+                      <Ionicons name={free ? 'checkmark' : 'sparkles'} size={11} color={free ? colors.success : colors.primary} />
+                    </View>
+                    <Text style={styles.featureLabel}>{label}</Text>
+                    <Text style={[styles.featureTag, { color: free ? colors.textTertiary : colors.primary }]}>
+                      {free ? 'Free' : 'Premium'}
+                    </Text>
                   </View>
                 ))}
               </View>
@@ -443,13 +442,13 @@ export const SubscriptionsScreen: React.FC = () => {
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
-    scroll: { paddingHorizontal: 16 },
+    scroll: { paddingHorizontal: 16, paddingTop: 14 },
     center: { padding: 44, alignItems: 'center' },
 
     banner: {
       borderRadius: 20, padding: 18, overflow: 'hidden',
-      marginTop: -20, marginBottom: 18,
-      shadowColor: '#7C3AED', shadowOffset: { width: 0, height: 8 },
+      marginBottom: 18,
+      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.25, shadowRadius: 18, elevation: 7,
     },
     bannerCircleA: { position: 'absolute', right: -40, top: -56, width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.1)' },
@@ -458,11 +457,10 @@ function makeStyles(c: ColorPalette) {
     bannerSub: { color: 'rgba(255,255,255,0.88)', fontSize: 12.5, fontFamily: fonts.regular, marginTop: 5, lineHeight: 18 },
 
     tableCard: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, overflow: 'hidden', marginBottom: 20 },
-    tableHead: { backgroundColor: c.backgroundAlt },
-    tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 13 },
-    tableLabel: { flex: 1, fontSize: 12, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 16, paddingRight: 8 },
-    tableColHead: { width: 56, textAlign: 'center', fontSize: 11.5, fontFamily: fonts.bold, color: c.textTertiary },
-    tableTick: { width: 56, textAlign: 'center', fontSize: 13, fontFamily: fonts.extrabold },
+    featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 13 },
+    featureDot: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+    featureLabel: { flex: 1, fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 17 },
+    featureTag: { fontSize: 10.5, fontFamily: fonts.extrabold, letterSpacing: 0.3 },
     divider: { borderTopWidth: 1, borderTopColor: c.border },
 
     kicker: { fontSize: 10.5, fontFamily: fonts.bold, color: c.textTertiary, letterSpacing: 1, marginBottom: 8 },

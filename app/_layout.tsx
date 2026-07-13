@@ -130,6 +130,7 @@ function ThemedAppShell() {
         <Stack.Screen name="live-classes" />
         <Stack.Screen name="coding" />
         <Stack.Screen name="kid-learn" />
+        <Stack.Screen name="help" />
 
         {/* Parent feature screens */}
         <Stack.Screen name="communication-all" />   {/* ← add this line */}

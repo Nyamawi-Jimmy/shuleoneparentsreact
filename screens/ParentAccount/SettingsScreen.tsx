@@ -113,11 +113,16 @@ export const SettingsScreen: React.FC = () => {
     } finally { setDevicesBusy(null); }
   };
 
-  // Entitlements, mirroring the web PlanRows.
-  const childSub = billing?.childStatuses?.find((c: any) => c.studentId === selectedChild?.studentId) as any;
-  const premiumActive = subActive(billing?.family?.status as any) || subActive(childSub?.status) || subActive(billing?.status as any);
-  const hasCodingPlan = !!selectedChild && (selectedChild.codingSchool || selectedChild.codingOnly);
-  const renews = (billing?.family as any)?.currentPeriodEnd || childSub?.currentPeriodEnd || childSub?.entitlementExpiresAt || null;
+  // Entitlements — the same fields the web AppContext reads: the selected
+  // child's entry in billing children[] carries premiumActive / plan / expiry.
+  const billingKids: any[] = (billing?.raw as any)?.children ?? billing?.childStatuses ?? [];
+  const childBilling = billingKids.find((c: any) => c.studentId === selectedChild?.studentId);
+  const premiumActive = !!childBilling?.premiumActive
+    || subActive((billing?.family as any)?.status) || subActive(billing?.status as any);
+  const planName = childBilling?.plan || (premiumActive ? 'PREMIUM' : 'FREE');
+  const hasCodingPlan = !!selectedChild && (selectedChild.codingSchool || selectedChild.codingOnly || premiumActive);
+  const renews = childBilling?.entitlementExpiresAt || childBilling?.planExpiresAt || childBilling?.trialExpiresAt
+    || (billing?.family as any)?.currentPeriodEnd || null;
   const renewsLabel = renews ? new Date(renews).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
 
   const handleSignOut = () => {
@@ -246,7 +251,9 @@ export const SettingsScreen: React.FC = () => {
             icon={<Ionicons name="sparkles" size={18} color={colors.purple} />} iconBg={colors.purpleLight}
             title="AI Learning" active={premiumActive}
             desc={premiumActive
-              ? (renewsLabel ? `Premium · renews ${renewsLabel}` : 'Premium · active')
+              ? (planName === 'TRIAL'
+                  ? (renewsLabel ? `Premium trial · until ${renewsLabel}` : 'Premium trial active')
+                  : renewsLabel ? `Premium · renews ${renewsLabel}` : 'Premium · active')
               : 'Personalized practice, AI tutor & learning insights'}
           />
           <PlanRow colors={colors} styles={styles} divider
@@ -361,8 +368,8 @@ export const SettingsScreen: React.FC = () => {
           <Row colors={colors} styles={styles}
             icon={<Ionicons name="help-circle" size={20} color={colors.info} />}
             iconBg={colors.infoSoft}
-            label="Help Center" sub="Frequently asked questions"
-            onPress={() => Alert.alert('Help', 'Help center is in development.')}
+            label="Help & Support" sub="FAQs, call, WhatsApp or email us"
+            onPress={() => router.push('/help' as any)}
           />
           <Row colors={colors} styles={styles}
             icon={<Ionicons name="document-text" size={18} color={colors.textSecondary} />}
@@ -548,7 +555,7 @@ const PlanRow: React.FC<{
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.background },
-    scroll: { paddingHorizontal: 16 },
+    scroll: { paddingHorizontal: 16, paddingTop: 14 },
 
     // Profile card floats over the app bar edge
     profileCard: {
@@ -556,7 +563,6 @@ function makeStyles(c: ColorPalette) {
       backgroundColor: c.card,
       padding: 14, borderRadius: 18,
       borderWidth: 1, borderColor: c.border,
-      marginTop: -20,
       shadowColor: c.primaryDeep,
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.12,

@@ -1,30 +1,21 @@
-// Notifications — inbox + per-category routing preferences, matching the web:
-//   Inbox        — the same feed the web bell shows: unread banner with
-//                  mark-all-read, category-tinted cards, tap marks read and
-//                  follows the deep link.
-//   Preferences  — the backend's canonical per-category routing map
-//                  ({ FEES: { inApp, push }, ... }): one row per category
-//                  with In-app and Push switches, saved on toggle.
+// Notifications — the inbox, matching the web bell exactly (the web has no
+// preferences page, so neither does the app): unread banner with
+// mark-all-read, category-tinted cards, tap marks read and follows the
+// deep link.
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, RefreshControl, Switch,
+  ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { GradientAppBar } from '../../components/GradientAppBar';
 import { fonts } from '../../constants/theme';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { useNotifications } from '../../hooks/useNotifications';
-import {
-  ParentNotification, NotificationPrefs, PREF_CATEGORIES, defaultPrefs,
-} from '../../api/notifications.types';
-import { getNotificationPrefs, setNotificationPrefs } from '../../api/notifications';
-import { useAuth } from '../../context/AuthContext';
-
-type Tab = 'inbox' | 'prefs';
+import { ParentNotification } from '../../api/notifications.types';
 
 // Category metadata — the backend's stable set, in its render order.
 const CATEGORY_META: Record<string, { label: string; desc: string; icon: any }> = {
@@ -70,7 +61,6 @@ const relTime = (iso?: string | null): string => {
 export const NotificationsScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [tab, setTab] = useState<Tab>('inbox');
   const {
     items, unreadCount, loading, refreshing, refresh, error, markRead, readAll,
   } = useNotifications();
@@ -83,37 +73,9 @@ export const NotificationsScreen: React.FC = () => {
         showBack
       />
 
-      {/* Floating segmented control */}
-      <View style={styles.segmentWrap}>
-        <View style={styles.segment}>
-          {([
-            { id: 'inbox', label: 'Inbox', icon: 'notifications-outline', count: unreadCount },
-            { id: 'prefs', label: 'Preferences', icon: 'options-outline', count: 0 },
-          ] as { id: Tab; label: string; icon: any; count: number }[]).map((t) => {
-            const active = tab === t.id;
-            return (
-              <TouchableOpacity key={t.id} style={[styles.segmentBtn, active && styles.segmentBtnActive]}
-                activeOpacity={0.8} onPress={() => setTab(t.id)}>
-                <Ionicons name={t.icon} size={14} color={active ? colors.primary : colors.textTertiary} />
-                <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{t.label}</Text>
-                {t.count > 0 && (
-                  <View style={styles.segmentBadge}>
-                    <Text style={styles.segmentBadgeText}>{t.count > 99 ? '99+' : t.count}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-
-      {tab === 'inbox' ? (
-        <InboxView styles={styles} colors={colors}
-          items={items} unreadCount={unreadCount} loading={loading} refreshing={refreshing}
-          refresh={refresh} error={error} markRead={markRead} readAll={readAll} />
-      ) : (
-        <PrefsView styles={styles} colors={colors} />
-      )}
+      <InboxView styles={styles} colors={colors}
+        items={items} unreadCount={unreadCount} loading={loading} refreshing={refreshing}
+        refresh={refresh} error={error} markRead={markRead} readAll={readAll} />
     </View>
   );
 };
@@ -204,120 +166,12 @@ const InboxView: React.FC<{
   </ScrollView>
 );
 
-// =================================================================
-// Preferences — per-category In-app / Push routing, saved on toggle
-// =================================================================
-const PrefsView: React.FC<{ styles: any; colors: ColorPalette }> = ({ styles, colors }) => {
-  const { accessToken } = useAuth();
-  const [prefs, setPrefs] = useState<NotificationPrefs | null>(null);
-  const [saveErr, setSaveErr] = useState(false);
-
-  useFocusEffect(useCallback(() => {
-    if (!accessToken) return;
-    getNotificationPrefs(accessToken).then(setPrefs).catch(() => setPrefs(defaultPrefs()));
-  }, [accessToken]));
-
-  const toggle = (cat: string, channel: 'inApp' | 'push', value: boolean) => {
-    if (!prefs || !accessToken) return;
-    const next: NotificationPrefs = { ...prefs, [cat]: { ...prefs[cat], [channel]: value } };
-    setPrefs(next); // optimistic
-    setSaveErr(false);
-    setNotificationPrefs(accessToken, next)
-      .then(setPrefs)
-      .catch(() => { setPrefs(prefs); setSaveErr(true); });
-  };
-
-  if (!prefs) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;
-  }
-
-  return (
-    <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-      <Text style={styles.prefsIntro}>
-        Choose where each kind of update reaches you. In-app fills the inbox here; push alerts your phone.
-      </Text>
-      {saveErr && (
-        <View style={styles.errorBanner}>
-          <Ionicons name="warning" size={16} color={colors.danger} />
-          <Text style={styles.errorBannerText}>Could not save that change — it has been undone.</Text>
-        </View>
-      )}
-
-      <View style={styles.prefsCard}>
-        {/* Column legend */}
-        <View style={styles.prefsLegend}>
-          <View style={{ flex: 1 }} />
-          <Text style={styles.legendText}>In-app</Text>
-          <Text style={styles.legendText}>Push</Text>
-        </View>
-
-        {PREF_CATEGORIES.map((cat, i) => {
-          const meta = CATEGORY_META[cat];
-          const r = prefs[cat] ?? { inApp: true, push: true };
-          return (
-            <View key={cat} style={[styles.prefRow, i > 0 && styles.divider]}>
-              <View style={[styles.prefIcon, { backgroundColor: colors.primarySoft }]}>
-                <Ionicons name={meta?.icon ?? 'notifications-outline'} size={16} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.prefLabel}>{meta?.label ?? cat}</Text>
-                <Text style={styles.prefDesc} numberOfLines={1}>{meta?.desc ?? ''}</Text>
-              </View>
-              <View style={styles.switchCol}>
-                <Switch
-                  value={r.inApp}
-                  onValueChange={(v) => toggle(cat, 'inApp', v)}
-                  trackColor={{ false: colors.border, true: colors.primaryLight }}
-                  thumbColor={r.inApp ? colors.primary : '#f4f3f4'}
-                />
-              </View>
-              <View style={styles.switchCol}>
-                <Switch
-                  value={r.push}
-                  onValueChange={(v) => toggle(cat, 'push', v)}
-                  trackColor={{ false: colors.border, true: colors.primaryLight }}
-                  thumbColor={r.push ? colors.primary : '#f4f3f4'}
-                />
-              </View>
-            </View>
-          );
-        })}
-      </View>
-
-      <Text style={styles.prefsFoot}>
-        Everything is on by default. Changes apply immediately — no save button needed.
-      </Text>
-      <View style={{ height: 32 }} />
-    </ScrollView>
-  );
-};
-
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
     scroll: { paddingHorizontal: 16, paddingTop: 14 },
     center: { padding: 44, alignItems: 'center', gap: 10 },
 
-    // Floating segmented control over the app bar edge
-    segmentWrap: { paddingHorizontal: 16, marginTop: -20 },
-    segment: {
-      flexDirection: 'row', backgroundColor: c.card, borderRadius: 14, padding: 4,
-      borderWidth: 1, borderColor: c.border,
-      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.12, shadowRadius: 14, elevation: 5,
-    },
-    segmentBtn: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-      paddingVertical: 10, borderRadius: 11,
-    },
-    segmentBtnActive: { backgroundColor: c.primarySoft },
-    segmentText: { fontSize: 12.5, fontFamily: fonts.semibold, color: c.textSecondary },
-    segmentTextActive: { color: c.primary, fontFamily: fonts.bold },
-    segmentBadge: {
-      minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9,
-      backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center',
-    },
-    segmentBadgeText: { fontSize: 9.5, fontFamily: fonts.extrabold, color: '#FFF' },
 
     unreadBanner: {
       flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -362,20 +216,5 @@ function makeStyles(c: ColorPalette) {
     cardBody: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 3, lineHeight: 18 },
     cardMeta: { fontSize: 10.5, fontFamily: fonts.medium, color: c.textTertiary, marginTop: 6 },
 
-    // Preferences
-    prefsIntro: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 18, marginBottom: 12 },
-    prefsCard: {
-      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
-      paddingHorizontal: 14, overflow: 'hidden',
-    },
-    prefsLegend: { flexDirection: 'row', alignItems: 'center', paddingTop: 12, paddingBottom: 4 },
-    legendText: { width: 56, textAlign: 'center', fontSize: 10, fontFamily: fonts.bold, color: c.textTertiary, letterSpacing: 0.5, textTransform: 'uppercase' },
-    prefRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11 },
-    divider: { borderTopWidth: 1, borderTopColor: c.border },
-    prefIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-    prefLabel: { fontSize: 13, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
-    prefDesc: { fontSize: 10.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 1 },
-    switchCol: { width: 56, alignItems: 'center' },
-    prefsFoot: { fontSize: 11, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 12, lineHeight: 16 },
   });
 }
