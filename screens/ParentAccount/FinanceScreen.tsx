@@ -1,11 +1,22 @@
+// Fees — mobile-first redesign (deliberately different from the web page's
+// tabbed layout): one scrolling story in the brand theme —
+//   1. Balance hero riding over the app bar: paid-% donut, outstanding
+//      balance, Billed / Paid / B-Forward strip and the M-Pesa pay button.
+//   2. Statements — term and whole-history downloads as two separate tiles,
+//      each with its own progress state (they download independently).
+//   3. Ledger — the fee statement entries, first few visible, "Show all"
+//      expands the rest. Credits pull green pills, charges neutral.
+//   4. Payments — M-Pesa receipts made from this app + how-to-pay card.
+
 import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator,
 } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
-import { ParentHeader } from '../../components/ParentHeader';
+import { GradientAppBar } from '../../components/GradientAppBar';
 import { fonts } from '../../constants/theme';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
@@ -29,7 +40,7 @@ const fmtDate = (s?: string | null): string => {
   return isNaN(d.getTime()) ? String(s) : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-type Tab = 'overview' | 'statement' | 'payments';
+const LEDGER_PREVIEW = 6;
 
 export const FinanceScreen: React.FC = () => {
   const { colors } = useTheme();
@@ -40,11 +51,13 @@ export const FinanceScreen: React.FC = () => {
   const { parent } = useParentProfile();
   const { accessToken } = useAuth();
 
-  const [tab, setTab] = useState<Tab>('overview');
   const [payOpen, setPayOpen] = useState(false);
-  const [downloading, setDownloading] = useState(false);
+  // Which statement is downloading — 'term' and 'all' are independent, so
+  // tapping one never shows progress (or blocks) the other.
+  const [downloading, setDownloading] = useState<'term' | 'all' | null>(null);
   const [payments, setPayments] = useState<FeePayment[]>([]);
   const [options, setOptions] = useState<PaymentOptions | null>(null);
+  const [allLines, setAllLines] = useState(false);
 
   const studentId = selectedChild?.studentId ?? null;
 
@@ -54,165 +67,157 @@ export const FinanceScreen: React.FC = () => {
     getPaymentOptions(accessToken, studentId).then(setOptions).catch(() => setOptions(null));
   }, [accessToken, studentId]));
 
-  const balance = moneyToNumber(summary?.balance);
-  const broughtForward = moneyToNumber(summary?.broughtForward);
-  const termBilling = moneyToNumber(summary?.termBilling);
-  const paid = moneyToNumber(summary?.paid);
+  const balance = moneyToNumber(summary?.balance ?? null);
+  const broughtForward = moneyToNumber(summary?.broughtForward ?? null);
+  const termBilling = moneyToNumber(summary?.termBilling ?? null);
+  const paid = moneyToNumber(summary?.paid ?? null);
   const billed = broughtForward + termBilling;
   const pctPaid = billed > 0 ? Math.round((paid / billed) * 100) : (balance <= 0 ? 100 : 0);
   const mpesaEnabled = options?.mpesaStkEnabled !== false;
 
-  const statusLine = loading
+  const subtitle = loading
     ? 'Loading fees…'
     : error
-      ? error
+      ? 'Balance unavailable right now'
       : isFromBackend && summary?.admNo
-        ? `Live balance • ${summary.admNo}${summary.studentName ? ` · ${summary.studentName}` : ''}`
+        ? `Live balance · ${summary.admNo}${summary.studentName ? ` · ${summary.studentName}` : ''}`
         : 'Fee balance from the school';
 
+  const lines = statement?.lines ?? [];
+  const visibleLines = allLines ? lines : lines.slice(0, LEDGER_PREVIEW);
   const successPayments = payments.filter((p) => isPaymentSuccess(p.status));
 
-  const downloadStatement = async (whole: boolean) => {
-    if (!studentId || !accessToken) return;
-    setDownloading(true);
+  const downloadStatement = async (kind: 'term' | 'all') => {
+    if (!studentId || !accessToken || downloading === kind) return;
+    setDownloading(kind);
     const slug = (selectedChild?.fullName || 'student').replace(/\s+/g, '-');
     await downloadAuthFile(
       accessToken,
-      buildStatementPdfUrl(studentId, whole ? {} : { year: statement?.year ?? undefined, term: statement?.term ?? undefined }),
-      { fileName: `fees-statement-${slug}${whole ? '-all' : ''}.pdf` },
+      buildStatementPdfUrl(studentId, kind === 'all' ? {} : { year: statement?.year ?? undefined, term: statement?.term ?? undefined }),
+      { fileName: `fees-statement-${slug}${kind === 'all' ? '-all' : ''}.pdf` },
     ).catch(() => {});
-    setDownloading(false);
+    setDownloading(null);
   };
 
   return (
     <View style={styles.root}>
-      <ParentHeader title="Fees" showBack rightIcon="none" />
+      <GradientAppBar title="Fees" subtitle={subtitle} showBack={false} />
 
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
       >
-        <Text style={styles.statusLine} numberOfLines={1}>{statusLine}</Text>
-
-        {/* Tabs */}
-        <View style={styles.tabs}>
-          <TabBtn styles={styles} colors={colors} label="Overview" active={tab === 'overview'} onPress={() => setTab('overview')} />
-          <TabBtn styles={styles} colors={colors} label="Statement" active={tab === 'statement'} onPress={() => setTab('statement')} />
-          <TabBtn styles={styles} colors={colors} label="Payments" active={tab === 'payments'} onPress={() => setTab('payments')}
-            count={payments.length} />
-        </View>
-
         {loading && !summary ? (
           <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
-        ) : tab === 'overview' ? (
+        ) : (
           <>
-            {/* Balance card */}
-            <View style={styles.balanceCard}>
-              <View style={styles.balanceTop}>
-                <View style={[styles.chip, { backgroundColor: balance > 0 ? colors.dangerSoft : colors.successSoft }]}>
-                  <Text style={[styles.chipText, { color: balance > 0 ? colors.danger : colors.success }]}>
-                    {balance > 0 ? 'Outstanding balance' : 'All paid'}
+            {/* ── Balance hero — rides over the app bar ──────────────────── */}
+            <View style={styles.heroCard}>
+              <View style={styles.heroTop}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <View style={[styles.chip, { backgroundColor: balance > 0 ? colors.dangerSoft : colors.successSoft }]}>
+                    <View style={[styles.chipDot, { backgroundColor: balance > 0 ? colors.danger : colors.success }]} />
+                    <Text style={[styles.chipText, { color: balance > 0 ? colors.danger : colors.success }]}>
+                      {balance > 0 ? 'Balance due' : 'All cleared'}
+                    </Text>
+                  </View>
+                  <Text style={styles.heroLabel}>Outstanding balance</Text>
+                  <Text style={[styles.heroValue, balance <= 0 && { color: colors.success }]} numberOfLines={1}>
+                    {ksh(balance)}
                   </Text>
                 </View>
-                <Donut pct={pctPaid} color={balance > 0 ? colors.primary : colors.success} track={colors.backgroundAlt} textColor={colors.text} />
+                <Donut pct={pctPaid} color={colors.primary} track={colors.backgroundAlt} textColor={colors.text} />
               </View>
-              <Text style={styles.balanceLabel}>Outstanding balance</Text>
-              <Text style={[styles.balanceValue, { color: balance > 0 ? colors.text : colors.success }]}>{ksh(balance)}</Text>
 
-              <View style={styles.breakdown}>
-                <Break styles={styles} label="Brought f/wd" value={ksh(broughtForward)} />
-                <View style={styles.breakDivider} />
-                <Break styles={styles} label="This term" value={ksh(termBilling)} />
-                <View style={styles.breakDivider} />
-                <Break styles={styles} label="Paid" value={ksh(paid)} valueColor={colors.success} />
+              <View style={styles.strip}>
+                <Mini styles={styles} label="Billed" value={ksh(billed)} />
+                <View style={styles.stripDivider} />
+                <Mini styles={styles} label="Paid" value={ksh(paid)} valueColor={colors.success} />
+                <View style={styles.stripDivider} />
+                <Mini styles={styles} label="B/Forward" value={ksh(broughtForward)} />
               </View>
 
               {balance > 0 && mpesaEnabled && (
-                <TouchableOpacity style={styles.payBtn} activeOpacity={0.85} onPress={() => setPayOpen(true)}>
-                  <MaterialCommunityIcons name="cellphone-check" size={18} color="#FFF" />
-                  <Text style={styles.payBtnText}>Pay with M-Pesa</Text>
+                <TouchableOpacity activeOpacity={0.85} onPress={() => setPayOpen(true)}>
+                  <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.payBtn}>
+                    <MaterialCommunityIcons name="cellphone-check" size={18} color="#FFF" />
+                    <Text style={styles.payBtnText}>Pay with M-Pesa</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               )}
             </View>
 
-            {/* Latest receipts */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Latest receipts</Text>
-              {payments.length > 0 && (
-                <TouchableOpacity onPress={() => setTab('payments')} hitSlop={8}><Text style={styles.link}>See all</Text></TouchableOpacity>
-              )}
+            {/* ── Statements — two independent downloads ─────────────────── */}
+            <Text style={styles.sectionTitle}>Statements</Text>
+            <View style={styles.dlRow}>
+              <DownloadTile
+                styles={styles} colors={colors}
+                icon="document-text-outline" title="This term"
+                desc={statement?.term != null ? `Term ${statement.term}${statement.year ? ` · ${statement.year}` : ''}` : 'Current term'}
+                busy={downloading === 'term'}
+                onPress={() => downloadStatement('term')}
+              />
+              <DownloadTile
+                styles={styles} colors={colors}
+                icon="albums-outline" title="Whole history"
+                desc="All terms, one PDF"
+                busy={downloading === 'all'}
+                onPress={() => downloadStatement('all')}
+              />
             </View>
-            {successPayments.length > 0 ? (
-              <View style={styles.card}>
-                {successPayments.slice(0, 3).map((p, i) => (
-                  <ReceiptRow key={p.id ?? i} styles={styles} colors={colors} p={p} first={i === 0} />
-                ))}
-              </View>
-            ) : (
-              <EmptyLine styles={styles} text="No receipts yet." />
-            )}
-          </>
-        ) : tab === 'statement' ? (
-          <>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Fee statement</Text>
-              <Text style={styles.metaSmall}>{statement?.lines?.length ?? 0} entries</Text>
+
+            {/* ── Ledger ─────────────────────────────────────────────────── */}
+            <View style={styles.sectionRow}>
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Statement entries</Text>
+              <Text style={styles.metaSmall}>{lines.length} {lines.length === 1 ? 'entry' : 'entries'}</Text>
             </View>
-            {statement?.lines && statement.lines.length > 0 ? (
+            {lines.length > 0 ? (
               <View style={styles.card}>
-                {statement.lines.map((l, i) => {
+                {visibleLines.map((l, i) => {
                   const debit = moneyToNumber(l.debit);
                   const credit = moneyToNumber(l.credit);
                   const isCredit = credit > 0;
                   return (
                     <View key={i} style={[styles.lineRow, i > 0 && styles.divider]}>
-                      <View style={{ flex: 1 }}>
+                      <View style={[styles.lineIcon, { backgroundColor: isCredit ? colors.successSoft : colors.backgroundAlt }]}>
+                        <Ionicons name={isCredit ? 'arrow-down' : 'arrow-up'} size={13}
+                          color={isCredit ? colors.success : colors.textSecondary} />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.lineDesc} numberOfLines={1}>{l.description || l.type || 'Entry'}</Text>
-                        <Text style={styles.lineMeta}>{fmtDate(l.date)}{l.reference ? `  •  ${l.reference}` : ''}</Text>
+                        <Text style={styles.lineMeta} numberOfLines={1}>{fmtDate(l.date)}{l.reference ? `  ·  ${l.reference}` : ''}</Text>
                       </View>
                       <Text style={[styles.lineAmt, { color: isCredit ? colors.success : colors.text }]}>
-                        {isCredit ? `-${ksh(credit)}` : ksh(debit)}
+                        {isCredit ? `−${ksh(credit)}` : ksh(debit)}
                       </Text>
                     </View>
                   );
                 })}
+                {lines.length > LEDGER_PREVIEW && (
+                  <TouchableOpacity style={[styles.showAll, styles.divider]} activeOpacity={0.7} onPress={() => setAllLines((v) => !v)}>
+                    <Text style={styles.showAllText}>
+                      {allLines ? 'Show less' : `Show all ${lines.length} entries`}
+                    </Text>
+                    <Ionicons name={allLines ? 'chevron-up' : 'chevron-down'} size={14} color={colors.primary} />
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               <EmptyLine styles={styles} text="No statement entries yet." />
             )}
 
-            <View style={styles.card}>
-              <DownloadRow styles={styles} colors={colors} title="This term's statement" desc="Charges and payments for this term"
-                busy={downloading} onPress={() => downloadStatement(false)} first />
-              <DownloadRow styles={styles} colors={colors} title="Whole statement" desc="Complete history across all terms"
-                busy={downloading} onPress={() => downloadStatement(true)} />
-            </View>
-          </>
-        ) : (
-          <>
-            {/* Payments tab */}
-            <View style={styles.balanceCard}>
-              <Text style={styles.balanceLabel}>{balance > 0 ? 'Balance due' : 'All paid up 🎉'}</Text>
-              <Text style={[styles.balanceValue, { color: balance > 0 ? colors.text : colors.success }]}>{ksh(balance)}</Text>
-              {balance > 0 && mpesaEnabled && (
-                <TouchableOpacity style={styles.payBtn} activeOpacity={0.85} onPress={() => setPayOpen(true)}>
-                  <MaterialCommunityIcons name="cellphone-check" size={18} color="#FFF" />
-                  <Text style={styles.payBtnText}>Pay with M-Pesa</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
+            {/* ── Payments from this app ─────────────────────────────────── */}
             <Text style={styles.sectionTitle}>M-Pesa payments from this app</Text>
             {payments.length > 0 ? (
               <View style={styles.card}>
                 {payments.map((p, i) => (
-                  <ReceiptRow key={p.id ?? i} styles={styles} colors={colors} p={p} first={i === 0} showStatus />
+                  <ReceiptRow key={p.id ?? i} styles={styles} colors={colors} p={p} first={i === 0} />
                 ))}
               </View>
-            ) : (
-              <EmptyLine styles={styles} text="You haven't paid through the app yet." />
-            )}
+            ) : successPayments.length === 0 ? (
+              <EmptyLine styles={styles} text="You haven’t paid through the app yet." />
+            ) : null}
 
             {!!options?.payInstructions && (
               <>
@@ -245,7 +250,7 @@ export const FinanceScreen: React.FC = () => {
 };
 
 const Donut: React.FC<{ pct: number; color: string; track: string; textColor: string }> = ({ pct, color, track, textColor }) => {
-  const size = 64, stroke = 7;
+  const size = 68, stroke = 7;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const p = Math.max(0, Math.min(100, pct));
@@ -258,26 +263,39 @@ const Donut: React.FC<{ pct: number; color: string; track: string; textColor: st
           transform={`rotate(-90 ${size / 2} ${size / 2})`} />
       </Svg>
       <Text style={{ fontFamily: fonts.extrabold, fontSize: 14, color: textColor }}>{p}%</Text>
+      <Text style={{ fontFamily: fonts.medium, fontSize: 8.5, color: textColor, opacity: 0.6 }}>paid</Text>
     </View>
   );
 };
 
-const TabBtn: React.FC<{ styles: any; colors: ColorPalette; label: string; active: boolean; onPress: () => void; count?: number }> =
-  ({ styles, label, active, onPress }) => (
-  <TouchableOpacity style={[styles.tab, active && styles.tabActive]} activeOpacity={0.8} onPress={onPress}>
-    <Text style={[styles.tabText, active && styles.tabTextActive]}>{label}</Text>
-  </TouchableOpacity>
-);
-
-const Break: React.FC<{ styles: any; label: string; value: string; valueColor?: string }> = ({ styles, label, value, valueColor }) => (
-  <View style={styles.break}>
-    <Text style={[styles.breakValue, valueColor ? { color: valueColor } : null]} numberOfLines={1}>{value}</Text>
-    <Text style={styles.breakLabel}>{label}</Text>
+const Mini: React.FC<{ styles: any; label: string; value: string; valueColor?: string }> = ({ styles, label, value, valueColor }) => (
+  <View style={styles.mini}>
+    <Text style={styles.miniLabel}>{label}</Text>
+    <Text style={[styles.miniValue, valueColor ? { color: valueColor } : null]} numberOfLines={1}>{value}</Text>
   </View>
 );
 
-const ReceiptRow: React.FC<{ styles: any; colors: ColorPalette; p: FeePayment; first?: boolean; showStatus?: boolean }> =
-  ({ styles, colors, p, first, showStatus }) => {
+/** One statement download tile — its own spinner; never reflects the other tile's state. */
+const DownloadTile: React.FC<{
+  styles: any; colors: ColorPalette; icon: any; title: string; desc: string; busy: boolean; onPress: () => void;
+}> = ({ styles, colors, icon, title, desc, busy, onPress }) => (
+  <TouchableOpacity style={styles.dlTile} activeOpacity={0.75} onPress={onPress} disabled={busy}>
+    <View style={[styles.dlIcon, { backgroundColor: colors.primarySoft }]}>
+      {busy
+        ? <ActivityIndicator size="small" color={colors.primary} />
+        : <Ionicons name={icon} size={19} color={colors.primary} />}
+    </View>
+    <Text style={styles.dlTitle}>{title}</Text>
+    <Text style={styles.dlDesc} numberOfLines={1}>{busy ? 'Preparing PDF…' : desc}</Text>
+    <View style={styles.dlAction}>
+      <Ionicons name="download-outline" size={13} color={colors.primary} />
+      <Text style={styles.dlActionText}>{busy ? 'Downloading' : 'Download PDF'}</Text>
+    </View>
+  </TouchableOpacity>
+);
+
+const ReceiptRow: React.FC<{ styles: any; colors: ColorPalette; p: FeePayment; first?: boolean }> =
+  ({ styles, colors, p, first }) => {
   const amt = moneyToNumber(p.amount);
   const ok = isPaymentSuccess(p.status);
   const failed = isPaymentFailed(p.status);
@@ -285,37 +303,21 @@ const ReceiptRow: React.FC<{ styles: any; colors: ColorPalette; p: FeePayment; f
   const statusLabel = ok ? 'Paid' : failed ? 'Failed' : 'Awaiting PIN';
   return (
     <View style={[styles.receiptRow, !first && styles.divider]}>
-      <View style={[styles.receiptIcon, { backgroundColor: colors.successSoft }]}>
-        <MaterialCommunityIcons name="cellphone" size={18} color={colors.success} />
+      <View style={[styles.receiptIcon, { backgroundColor: colors.primarySoft }]}>
+        <MaterialCommunityIcons name="cellphone" size={18} color={colors.primary} />
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.receiptAmt}>{`KSh ${amt.toLocaleString('en-KE')}`}</Text>
         <Text style={styles.receiptMeta} numberOfLines={1}>
-          {p.mpesaReceipt || 'M-Pesa'}{p.createdAt ? `  •  ${fmtDate(p.createdAt)}` : ''}
+          {p.mpesaReceipt || 'M-Pesa'}{p.createdAt ? `  ·  ${fmtDate(p.createdAt)}` : ''}
         </Text>
       </View>
-      {showStatus && (
-        <View style={[styles.statusChip, { backgroundColor: statusColor + '1A' }]}>
-          <Text style={[styles.statusChipText, { color: statusColor }]}>{statusLabel}</Text>
-        </View>
-      )}
+      <View style={[styles.statusChip, { backgroundColor: statusColor + '1A' }]}>
+        <Text style={[styles.statusChipText, { color: statusColor }]}>{statusLabel}</Text>
+      </View>
     </View>
   );
 };
-
-const DownloadRow: React.FC<{ styles: any; colors: ColorPalette; title: string; desc: string; busy: boolean; onPress: () => void; first?: boolean }> =
-  ({ styles, colors, title, desc, busy, onPress, first }) => (
-  <TouchableOpacity style={[styles.dlRow, !first && styles.divider]} activeOpacity={0.7} onPress={onPress} disabled={busy}>
-    <View style={[styles.receiptIcon, { backgroundColor: colors.infoSoft }]}>
-      <Ionicons name="document-text-outline" size={18} color={colors.info} />
-    </View>
-    <View style={{ flex: 1 }}>
-      <Text style={styles.receiptAmt}>{title}</Text>
-      <Text style={styles.receiptMeta}>{desc}</Text>
-    </View>
-    {busy ? <ActivityIndicator size="small" color={colors.primary} /> : <Feather name="download" size={18} color={colors.primary} />}
-  </TouchableOpacity>
-);
 
 const EmptyLine: React.FC<{ styles: any; text: string }> = ({ styles, text }) => (
   <View style={styles.emptyLine}><Text style={styles.emptyText}>{text}</Text></View>
@@ -324,40 +326,71 @@ const EmptyLine: React.FC<{ styles: any; text: string }> = ({ styles, text }) =>
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
-    scroll: { paddingHorizontal: 16, paddingTop: 4 },
+    scroll: { paddingHorizontal: 16 },
     center: { padding: 40, alignItems: 'center' },
-    statusLine: { fontSize: 11.5, fontFamily: fonts.medium, color: c.textTertiary, marginBottom: 12, marginLeft: 2 },
 
-    tabs: { flexDirection: 'row', backgroundColor: c.backgroundAlt, borderRadius: 12, padding: 4, marginBottom: 20 },
-    tab: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 9 },
-    tabActive: { backgroundColor: c.card, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
-    tabText: { fontSize: 13, fontFamily: fonts.semibold, color: c.textSecondary },
-    tabTextActive: { color: c.text, fontFamily: fonts.bold },
+    heroCard: {
+      backgroundColor: c.card, borderRadius: 22, borderWidth: 1, borderColor: c.border,
+      padding: 18, marginTop: 14, marginBottom: 22,
+      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.14, shadowRadius: 18, elevation: 6,
+    },
+    heroTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+    chip: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start',
+    },
+    chipDot: { width: 6, height: 6, borderRadius: 3 },
+    chipText: { fontSize: 11, fontFamily: fonts.bold },
+    heroLabel: { fontSize: 12, fontFamily: fonts.medium, color: c.textSecondary, marginTop: 12 },
+    heroValue: { fontSize: 29, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.8, marginTop: 2 },
 
-    balanceCard: { backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.border, padding: 18, marginBottom: 22 },
-    balanceTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
-    chip: { borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5, alignSelf: 'flex-start' },
-    chipText: { fontSize: 11.5, fontFamily: fonts.bold },
-    balanceLabel: { fontSize: 12.5, fontFamily: fonts.medium, color: c.textSecondary },
-    balanceValue: { fontSize: 30, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.8, marginTop: 2 },
-    breakdown: { flexDirection: 'row', marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: c.border },
-    break: { flex: 1, alignItems: 'center' },
-    breakValue: { fontSize: 13.5, fontFamily: fonts.bold, color: c.text },
-    breakLabel: { fontSize: 11, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 3 },
-    breakDivider: { width: 1, backgroundColor: c.border, marginVertical: 2 },
+    strip: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: c.backgroundAlt, borderRadius: 14,
+      paddingHorizontal: 14, paddingVertical: 11, marginTop: 16,
+    },
+    stripDivider: { width: 1, alignSelf: 'stretch', backgroundColor: c.border },
+    mini: { flex: 1, minWidth: 0 },
+    miniLabel: { fontSize: 9.5, fontFamily: fonts.bold, color: c.textTertiary, letterSpacing: 0.6, textTransform: 'uppercase' },
+    miniValue: { fontSize: 13, fontFamily: fonts.extrabold, color: c.text, marginTop: 2, letterSpacing: -0.2 },
+
     payBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-      backgroundColor: c.primary, borderRadius: 13, paddingVertical: 13, marginTop: 16,
+      borderRadius: 13, paddingVertical: 13, marginTop: 16,
     },
     payBtnText: { color: '#FFF', fontSize: 14.5, fontFamily: fonts.bold },
 
-    sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+    sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     sectionTitle: { fontSize: 15.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.4, marginBottom: 12 },
-    link: { fontSize: 12.5, fontFamily: fonts.bold, color: c.primary },
     metaSmall: { fontSize: 12, fontFamily: fonts.medium, color: c.textTertiary },
+
+    dlRow: { flexDirection: 'row', gap: 10, marginBottom: 22 },
+    dlTile: {
+      flex: 1, backgroundColor: c.card, borderRadius: 18,
+      borderWidth: 1, borderColor: c.border, padding: 14,
+      shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+    },
+    dlIcon: {
+      width: 38, height: 38, borderRadius: 12,
+      alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+    },
+    dlTitle: { fontSize: 13.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    dlDesc: { fontSize: 11, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 2 },
+    dlAction: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10 },
+    dlActionText: { fontSize: 11.5, fontFamily: fonts.bold, color: c.primary },
 
     card: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, marginBottom: 22 },
     divider: { borderTopWidth: 1, borderTopColor: c.border },
+
+    lineRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12 },
+    lineIcon: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+    lineDesc: { fontSize: 13.5, fontFamily: fonts.semibold, color: c.text },
+    lineMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
+    lineAmt: { fontSize: 13.5, fontFamily: fonts.bold },
+    showAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 12 },
+    showAllText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.primary },
 
     receiptRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
     receiptIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
@@ -365,13 +398,6 @@ function makeStyles(c: ColorPalette) {
     receiptMeta: { fontSize: 12, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 2 },
     statusChip: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
     statusChipText: { fontSize: 11, fontFamily: fonts.bold },
-
-    lineRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, gap: 10 },
-    lineDesc: { fontSize: 13.5, fontFamily: fonts.semibold, color: c.text },
-    lineMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
-    lineAmt: { fontSize: 13.5, fontFamily: fonts.bold },
-
-    dlRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
 
     instructions: { fontSize: 13, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 20 },
     shortcode: { fontSize: 13, fontFamily: fonts.bold, color: c.text, marginTop: 8 },
