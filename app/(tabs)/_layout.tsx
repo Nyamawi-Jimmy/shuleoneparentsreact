@@ -1,88 +1,20 @@
 import { Tabs } from 'expo-router';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
-import { useTheme } from '../../theme/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
-import { fonts } from '../../constants/theme';
+import { BrandTabBar } from '../../components/BrandTabBar';
 
 export default function TabLayout() {
-  const { colors } = useTheme();
   const { t } = useLanguage();
 
   return (
     <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textTertiary,
-        tabBarShowLabel: true,
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontFamily: fonts.bold,
-          letterSpacing: 0,
-          marginBottom: Platform.OS === 'ios' ? 0 : 4,
-        },
-        tabBarStyle: {
-          backgroundColor: colors.card,
-          borderTopColor: colors.border,
-          borderTopWidth: 1,
-          paddingTop: 6,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-          height: Platform.OS === 'ios' ? 84 : 64,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: colors.scheme === 'dark' ? 0.4 : 0.06,
-          shadowRadius: 8,
-          elevation: 8,
-        },
-        tabBarItemStyle: { paddingVertical: 4 },
-      }}
+      screenOptions={{ headerShown: false }}
+      tabBar={(props) => <BrandTabBar {...props} />}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: t('nav.home'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="learning"
-        options={{
-          title: t('nav.learning'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'rocket' : 'rocket-outline'} size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="finance"
-        options={{
-          title: t('nav.fees'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <MaterialCommunityIcons name={focused ? 'wallet' : 'wallet-outline'} size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="academics"
-        options={{
-          title: t('nav.academics'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'school' : 'school-outline'} size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="communication"
-        options={{
-          title: t('nav.messages'),
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'chatbubbles' : 'chatbubbles-outline'} size={size} color={color} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: t('nav.home') }} />
+      <Tabs.Screen name="learning" options={{ title: t('nav.learning') }} />
+      <Tabs.Screen name="finance" options={{ title: t('nav.fees') }} />
+      <Tabs.Screen name="academics" options={{ title: t('nav.academics') }} />
+      <Tabs.Screen name="communication" options={{ title: t('nav.messages') }} />
     </Tabs>
   );
 }

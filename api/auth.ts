@@ -119,3 +119,34 @@ export function signOutDevice(accessToken: string, sessionId: string) {
     method: 'DELETE', accessToken,
   });
 }
+
+// =================================================================
+// Unified login (the same POST /api/auth/login the web uses).
+// Returns tokens directly, or a CHOOSE_ACCOUNT step when the identifier
+// matches more than one account type.
+// =================================================================
+
+export interface LoginCandidate {
+  userType: string;               // PARENT | STUDENT | LEARNER | TUTOR
+  accountId: number | string;
+  name?: string | null;
+  label?: string | null;
+  [key: string]: any;
+}
+
+export type UnifiedLoginResult =
+  | AuthResponse
+  | { status: 'CHOOSE_ACCOUNT'; candidates: LoginCandidate[]; message?: string }
+  | { status: string; message?: string; [key: string]: any };
+
+export function loginUnified(
+  identifier: string,
+  password: string,
+  userType?: string | null,
+  accountId?: number | string | null,
+) {
+  return apiFetch<UnifiedLoginResult>('/api/auth/login', {
+    method: 'POST',
+    body: { identifier, password, userType: userType ?? null, accountId: accountId ?? null },
+  });
+}

@@ -1,8 +1,7 @@
-// Reusable brand app bar — the primary-gradient header used across parent
-// pages (Today has its own richer variant). Title + optional subtitle on the
-// gradient, an optional back button, and an optional right-side action slot.
-// Colors come from the theme's primary family only, so every page wearing it
-// reads as one brand.
+// Reusable brand app bar — slim, professional gradient header used across
+// parent pages. Title + optional subtitle, an optional back button, and an
+// optional right-side action slot. Colors come from the theme's primary
+// family only, so every page wearing it reads as one brand.
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
@@ -31,8 +30,8 @@ export const GradientAppBar: React.FC<Props> = ({ title, subtitle, showBack = fa
     >
       <View style={styles.row}>
         {showBack && (
-          <TouchableOpacity style={styles.backBtn} activeOpacity={0.7} hitSlop={8} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={20} color="#FFF" />
+          <TouchableOpacity style={styles.backBtn} activeOpacity={0.7} hitSlop={10} onPress={() => router.back()}>
+            <Ionicons name="arrow-back" size={18} color="#FFF" />
           </TouchableOpacity>
         )}
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -47,19 +46,23 @@ export const GradientAppBar: React.FC<Props> = ({ title, subtitle, showBack = fa
 
 const styles = StyleSheet.create({
   bar: {
-    paddingTop: Platform.OS === 'ios' ? 58 : 44,
-    paddingBottom: 18,
+    paddingTop: Platform.OS === 'ios' ? 54 : 40,
+    paddingBottom: 14,
     paddingHorizontal: 16,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center', justifyContent: 'center',
   },
-  title: { color: '#FFF', fontSize: 19, fontFamily: fonts.extrabold, letterSpacing: -0.4 },
-  subtitle: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: fonts.medium, marginTop: 2 },
+  title: { color: '#FFF', fontSize: 17, fontFamily: fonts.extrabold, letterSpacing: -0.3 },
+  subtitle: { color: 'rgba(255,255,255,0.82)', fontSize: 11.5, fontFamily: fonts.medium, marginTop: 1 },
 });

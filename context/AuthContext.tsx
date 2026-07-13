@@ -11,6 +11,8 @@ import {
   AuthResponse,
   loginParent,
   loginStudent,
+  loginUnified,
+  UnifiedLoginResult,
   loginWithGoogle,
   refreshTokens,
   UserType,
@@ -44,6 +46,10 @@ interface AuthContextValue {
 
   /** Login flows — throw on failure so screens can show the error. */
   signInParent: (identifier: string, password: string) => Promise<AuthUser>;
+  /** Unified /auth/login: resolves to the signed-in user, or the raw
+   *  CHOOSE_ACCOUNT / status payload for the login screen to handle. */
+  signInUnified: (identifier: string, password: string, userType?: string | null, accountId?: number | string | null)
+    => Promise<{ user: AuthUser } | { result: UnifiedLoginResult }>;
   signInStudent: (identifier: string, password: string) => Promise<AuthUser>;
   signInGoogle: (idToken: string, userType: UserType) => Promise<AuthUser>;
 
@@ -121,6 +127,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     [persist],
   );
 
+  const signInUnified = useCallback(
+    async (identifier: string, password: string, userType?: string | null, accountId?: number | string | null) => {
+      const res = await loginUnified(identifier, password, userType, accountId);
+      if (res && (res as any).accessToken) {
+        const user = await persist(res as any);
+        return { user };
+      }
+      return { result: res };
+    },
+    [persist],
+  );
+
   const signInGoogle = useCallback(
     async (idToken: string, userType: UserType) => {
       const res = await loginWithGoogle(idToken, userType);
@@ -162,6 +180,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         accessToken,
         signInParent,
         signInStudent,
+        signInUnified,
         signInGoogle,
         signOut,
         refresh,
