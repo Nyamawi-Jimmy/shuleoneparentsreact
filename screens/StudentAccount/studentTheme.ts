@@ -9,8 +9,8 @@
 // The proxy resolves each style key against the ACTIVE scheme (schemeHolder,
 // maintained by ThemeProvider), so no render-time mutation is needed.
 
-import { useSyncExternalStore } from 'react';
-import { schemeHolder, subscribeScheme, getActiveScheme } from '../../theme/schemeHolder';
+import { schemeHolder, mirrorScheme } from '../../theme/schemeHolder';
+import { useTheme } from '../../theme/ThemeContext';
 
 export interface StudentColors {
   bg: string;          // screen canvas
@@ -105,10 +105,16 @@ export function themedSheets<T extends object>(light: T, dark: T): T {
 export const C = themedSheets(STUDENT_LIGHT, STUDENT_DARK);
 
 /**
- * Subscribe a component to scheme flips via the external store. Returns the
- * active scheme; the subscription guarantees a re-render the moment the
- * scheme changes, so the proxied sheets always resolve fresh values.
+ * Bind a component to the active scheme via the THEME CONTEXT (the authoritative
+ * source): every consumer re-renders reliably on mount and on any scheme change,
+ * including the async "restore saved theme" flip — so no screen (not even the
+ * first tab that mounts before hydration) can get stuck on the wrong scheme.
+ *
+ * The module-level style proxies read `schemeHolder.current`; we sync it here,
+ * during render, so those sheets resolve the correct scheme in the SAME pass.
  */
 export function useSchemeTick(): 'light' | 'dark' {
-  return useSyncExternalStore(subscribeScheme, getActiveScheme);
+  const { scheme } = useTheme();
+  if (schemeHolder.current !== scheme) mirrorScheme(scheme);
+  return scheme;
 }

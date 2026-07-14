@@ -30,6 +30,14 @@ export function setActiveScheme(next: Scheme): void {
   store.listeners.forEach((l) => l());
 }
 
+/**
+ * Sync the mirror WITHOUT notifying — safe to call during render to keep the
+ * proxy source aligned with the authoritative scheme for the current pass.
+ */
+export function mirrorScheme(next: Scheme): void {
+  store.current = next;
+}
+
 export function getActiveScheme(): Scheme {
   return store.current;
 }

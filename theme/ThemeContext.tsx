@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Appearance } from 'react-native';
 import { ColorPalette, lightColors, darkColors } from './palettes';
-import { setActiveScheme } from './schemeHolder';
+import { mirrorScheme, setActiveScheme } from './schemeHolder';
 
 // =================================================================
 // AsyncStorage with safe fallback (some setups may not have it installed)
@@ -81,8 +81,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const scheme: 'light' | 'dark' = mode === 'system' ? systemScheme : mode;
   const colors = scheme === 'dark' ? darkColors : lightColors;
 
-  // Belt & braces: whatever path changed the resolved scheme, publish it to
-  // the external store after commit so scheme-store subscribers catch up.
+  // Sync the proxy mirror DURING render (no notify) so any child rendered in
+  // this same pass — including the first tab that mounts before hydration —
+  // resolves its themed sheets against the authoritative scheme.
+  mirrorScheme(scheme);
+
+  // Belt & braces: also publish after commit for any external-store subscriber.
   useEffect(() => { setActiveScheme(scheme); }, [scheme]);
 
   const setMode = useCallback(async (next: ThemeMode) => {
