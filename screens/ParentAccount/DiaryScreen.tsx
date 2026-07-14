@@ -286,7 +286,7 @@ const SessionList: React.FC<{
 
           return (
             <TouchableOpacity key={s.id} style={styles.weekCard} activeOpacity={0.85} onPress={() => onOpen(s.id)}>
-              <View style={[styles.weekAccent, { backgroundColor: pending > 0 ? colors.primary : totalSignable > 0 ? colors.success : colors.border }]} />
+              <View style={[styles.weekAccent, { backgroundColor: pending > 0 ? colors.primary : colors.border }]} />
               <View style={styles.weekInner}>
               <View style={styles.weekCardTop}>
                 <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.weekBadge}>
