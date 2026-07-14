@@ -122,17 +122,18 @@ export const KidLearnScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
-      {/* One slim line, not a banner — the child's screen belongs to the quest, and the
-          only thing a parent needs up here is the way back. */}
-      <View style={styles.topBar}>
-        <Text style={styles.topBarText} numberOfLines={1}>
-          🎓 {childName} is learning — progress saves to their account
-        </Text>
-        <TouchableOpacity style={styles.doneBtn} activeOpacity={0.7} onPress={() => router.back()}>
-          <Ionicons name="close" size={13} color={colors.textSecondary} />
-          <Text style={styles.doneBtnText}>Done</Text>
+      {/* Professional kid-learn app bar */}
+      <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.topBar}>
+        <View style={styles.kidBadge}><Text style={{ fontSize: 16 }}>🎓</Text></View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.topTitle} numberOfLines={1}>{childName} is learning</Text>
+          <Text style={styles.topSub} numberOfLines={1}>Progress saves to their account</Text>
+        </View>
+        <TouchableOpacity style={styles.doneBtnBar} activeOpacity={0.85} onPress={() => router.back()}>
+          <Ionicons name="close" size={14} color="#FFF" />
+          <Text style={styles.doneBtnBarText}>Done</Text>
         </TouchableOpacity>
-      </View>
+      </LinearGradient>
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
@@ -191,12 +192,6 @@ export const KidLearnScreen: React.FC = () => {
   );
 };
 
-// Fallback node coordinates (0-100 space) when the quest has no authored map.
-const DEFAULT_POSITIONS = [
-  { x: 18, y: 88 }, { x: 42, y: 80 }, { x: 64, y: 70 }, { x: 80, y: 56 },
-  { x: 58, y: 45 }, { x: 34, y: 36 }, { x: 56, y: 24 }, { x: 76, y: 11 },
-];
-
 // Curvy connector through the stage nodes — the winding "tree" path.
 function buildPath(points: { x: number; y: number }[]): string {
   if (points.length < 2) return '';
@@ -221,10 +216,22 @@ const QuestStageMap: React.FC<{
   const dark = colors.scheme === 'dark';
   const stages = detail.stages;
   const accent = detail.quest.accentColor || colors.primary;
-  const positions = stages.map((s, i) => ({
-    x: s.mapX ?? DEFAULT_POSITIONS[i % DEFAULT_POSITIONS.length].x,
-    y: s.mapY ?? DEFAULT_POSITIONS[i % DEFAULT_POSITIONS.length].y,
-  }));
+  const n = stages.length;
+  // Use the quest's authored coordinates when every stage has them; otherwise
+  // spread the stages evenly bottom→top in a zig-zag so ALL of them fit — no
+  // wrapping/overlap past the 8 defaults, and nothing runs off the bottom.
+  const hasAuthored = n > 0 && stages.every((s) => s.mapX != null && s.mapY != null);
+  const ZIG = [20, 44, 66, 80, 60, 36];
+  const positions = stages.map((s, i) => {
+    if (hasAuthored) return { x: s.mapX as number, y: s.mapY as number };
+    const y = n > 1 ? 90 - (i / (n - 1)) * 82 : 50;
+    return { x: ZIG[i % ZIG.length], y };
+  });
+  const maxY = positions.length ? Math.max(...positions.map((p) => p.y)) : 88;
+  // Height that guarantees the lowest node AND its label stay on-screen.
+  const mapHeight = hasAuthored
+    ? Math.min(2200, Math.max(640, Math.round(95 / Math.max(0.08, 1 - maxY / 100))))
+    : Math.max(460, n * 104);
   const pathD = buildPath(positions);
 
   return (
@@ -263,7 +270,7 @@ const QuestStageMap: React.FC<{
         start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
         style={styles.mapWrap}
       >
-        <View style={styles.map}>
+        <View style={[styles.map, { height: mapHeight }]}>
           <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style={StyleSheet.absoluteFill}>
             <Path d={pathD} fill="none" stroke="#ffffff" strokeWidth={4} strokeLinecap="round" />
             <Path d={pathD} fill="none" stroke="#c9b8ff" strokeWidth={1.6} strokeLinecap="round" strokeDasharray="0.1 3" />
@@ -324,10 +331,16 @@ function makeStyles(c: ColorPalette) {
     scroll: { paddingHorizontal: 16, paddingTop: 8 },
 
     topBar: {
-      flexDirection: 'row', alignItems: 'center', gap: 10,
-      paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 58 : 40, paddingBottom: 10,
-      backgroundColor: c.background,
+      flexDirection: 'row', alignItems: 'center', gap: 11,
+      paddingHorizontal: 14, paddingTop: Platform.OS === 'ios' ? 56 : 38, paddingBottom: 14,
+      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6,
     },
+    kidBadge: {
+      width: 38, height: 38, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)',
+      alignItems: 'center', justifyContent: 'center',
+    },
+    topTitle: { fontSize: 15, fontFamily: fonts.extrabold, color: '#FFF', letterSpacing: -0.3 },
+    topSub: { fontSize: 11.5, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.85)', marginTop: 1 },
     topBarText: { flex: 1, fontSize: 12, fontFamily: fonts.semibold, color: c.textTertiary },
     doneBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 4,
@@ -335,6 +348,11 @@ function makeStyles(c: ColorPalette) {
       borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6,
     },
     doneBtnText: { fontSize: 12, fontFamily: fonts.bold, color: c.textSecondary },
+    doneBtnBar: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 999, paddingHorizontal: 13, paddingVertical: 7,
+    },
+    doneBtnBarText: { fontSize: 12.5, fontFamily: fonts.bold, color: '#FFF' },
 
     emptyText: { fontSize: 13, fontFamily: fonts.regular, color: c.textSecondary, textAlign: 'center', lineHeight: 19 },
 
