@@ -10,6 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTier, Tier, TIER_META } from '../TierContext';
 import { useTokens } from '../tokens';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, useSchemeTick } from '../studentTheme';
 
 const TIER_ORDER: Tier[] = ['sprout', 'explorer', 'voyager', 'scholar', 'campus'];
 
@@ -95,7 +96,7 @@ export const AgeSwitcher: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const makeSheet = (S: StudentColors) => StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 14,
@@ -136,17 +137,20 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 6,
   },
-  sheetTitle: { fontSize: 18, fontWeight: '800', color: '#2c2550' },
-  sheetSub: { fontSize: 12.5, color: '#6f679c', marginTop: 4, marginBottom: 14 },
+  sheetTitle: { fontSize: 18, fontWeight: '800', color: S.ink },
+  sheetSub: { fontSize: 12.5, color: S.inkSoft, marginTop: 4, marginBottom: 14 },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   optWrap: { flexBasis: '48%', flexGrow: 1 },
   opt: {
-    backgroundColor: '#f2eefc',
+    backgroundColor: S.ring,
     borderRadius: 14,
     padding: 12,
     alignItems: 'center',
   },
   optActive: { shadowColor: '#5038A0', shadowOpacity: 0.25, shadowRadius: 8, elevation: 3 },
-  optLabel: { color: '#6f679c', fontWeight: '800', fontSize: 13 },
-  optSub: { color: '#6f679c', fontSize: 10.5, fontWeight: '600', marginTop: 2 },
+  optLabel: { color: S.inkSoft, fontWeight: '800', fontSize: 13 },
+  optSub: { color: S.inkSoft, fontSize: 10.5, fontWeight: '600', marginTop: 2 },
 });
+
+const styles = themedSheets(makeSheet(STUDENT_LIGHT), makeSheet(STUDENT_DARK));
+
