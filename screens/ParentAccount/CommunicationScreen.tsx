@@ -84,9 +84,8 @@ export const CommunicationScreen: React.FC = () => {
       .then((raw) => {
         const rows = Array.isArray(raw) ? raw : [];
         setAssignments(rows);
-        const now = Date.now();
-        setDueCount(rows.filter((a) => a.status === 'OVERDUE'
-          || (a.status === 'DUE' && a.dueAt && new Date(a.dueAt).getTime() - now <= 2 * 86400000)).length);
+        // Badge = how many tasks still need doing (due or overdue).
+        setDueCount(rows.filter((a) => a.status === 'OVERDUE' || a.status === 'DUE').length);
       })
       .catch(() => { setAssignments([]); setDueCount(0); setAssignError(true); });
   }, [accessToken, studentId]));
@@ -138,6 +137,12 @@ export const CommunicationScreen: React.FC = () => {
         large overlap
         title="Messages"
         subtitle={`${unreadChats} unread chat${unreadChats !== 1 ? 's' : ''} · ${newCount} school update${newCount !== 1 ? 's' : ''}`}
+        right={
+          <TouchableOpacity style={styles.helpBtn} activeOpacity={0.8} onPress={() => router.push('/help' as any)}>
+            <Ionicons name="help-buoy-outline" size={16} color="#FFF" />
+            <Text style={styles.helpBtnText}>Help</Text>
+          </TouchableOpacity>
+        }
       />
 
       {/* Floating segmented control — rides over the app bar edge */}
@@ -147,12 +152,14 @@ export const CommunicationScreen: React.FC = () => {
             const active = tab === t.id;
             return (
               <TouchableOpacity key={t.id} style={[styles.segmentBtn, active && styles.segmentBtnActive]}
-                activeOpacity={0.8} onPress={() => openTab(t.id)}>
-                <Ionicons name={t.icon} size={14} color={active ? colors.primary : colors.textTertiary} />
+                activeOpacity={0.85} onPress={() => openTab(t.id)}>
+                <Ionicons name={t.icon} size={15} color={active ? '#FFF' : colors.textTertiary} />
                 <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{t.label}</Text>
                 {t.count > 0 && (
-                  <View style={styles.segmentBadge}>
-                    <Text style={styles.segmentBadgeText}>{t.count > 99 ? '99+' : t.count}</Text>
+                  <View style={[styles.segmentBadge, active && styles.segmentBadgeActive]}>
+                    <Text style={[styles.segmentBadgeText, active && { color: colors.primary }]}>
+                      {t.count > 99 ? '99+' : t.count}
+                    </Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -403,16 +410,28 @@ function makeStyles(c: ColorPalette) {
     },
     segmentBtn: {
       flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-      paddingVertical: 10, borderRadius: 11,
+      paddingVertical: 11, borderRadius: 12,
     },
-    segmentBtnActive: { backgroundColor: c.primarySoft },
+    segmentBtnActive: {
+      backgroundColor: c.primary,
+      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.3, shadowRadius: 7, elevation: 4,
+    },
     segmentText: { fontSize: 12.5, fontFamily: fonts.semibold, color: c.textSecondary },
-    segmentTextActive: { color: c.primary, fontFamily: fonts.bold },
+    segmentTextActive: { color: '#FFF', fontFamily: fonts.bold },
     segmentBadge: {
-      minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9,
+      minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9,
       backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center',
     },
+    segmentBadgeActive: { backgroundColor: '#FFF' },
     segmentBadgeText: { fontSize: 9.5, fontFamily: fonts.extrabold, color: '#FFF' },
+
+    helpBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 999,
+      paddingHorizontal: 11, paddingVertical: 6,
+    },
+    helpBtnText: { color: '#FFF', fontSize: 12.5, fontFamily: fonts.bold },
 
     searchBox: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
