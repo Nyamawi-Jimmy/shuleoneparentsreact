@@ -207,7 +207,7 @@ const SessionList: React.FC<{
       {/* Hero — rides over the app bar edge. When signatures are pending it's a
           call to action that drops straight onto the first unsigned day. */}
       <LinearGradient
-        colors={totalUnsigned > 0 ? [colors.primary, colors.primaryDeep] : ['#059669', '#047857']}
+        colors={[colors.primary, colors.primaryDeep]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroCard}
       >
         <View style={styles.heroTop}>
@@ -304,9 +304,9 @@ const SessionList: React.FC<{
                           <Text style={[styles.miniChipText, { color: colors.primary }]}>{pending} to sign</Text>
                         </View>
                       ) : (
-                        <View style={[styles.miniChip, { backgroundColor: colors.successSoft }]}>
-                          <Ionicons name="checkmark" size={11} color={colors.success} />
-                          <Text style={[styles.miniChipText, { color: colors.success }]}>Signed</Text>
+                        <View style={[styles.miniChip, { backgroundColor: colors.backgroundAlt }]}>
+                          <Ionicons name="checkmark-circle" size={11} color={colors.textSecondary} />
+                          <Text style={[styles.miniChipText, { color: colors.textSecondary }]}>Signed</Text>
                         </View>
                       )
                     )}
@@ -327,7 +327,7 @@ const SessionList: React.FC<{
                     onPress={() => onOpen(s.id, i)} disabled={st === 'none'}>
                     <View style={[
                       styles.slotDot,
-                      st === 'signed' && { backgroundColor: colors.success },
+                      st === 'signed' && { backgroundColor: colors.textTertiary },
                       st === 'pending' && { backgroundColor: colors.primary },
                       st === 'none' && { backgroundColor: colors.backgroundAlt, borderWidth: 1, borderColor: colors.border },
                     ]}>
