@@ -4,25 +4,37 @@ import { Appearance } from 'react-native';
 // from event callbacks/effects; scheme-proxied stylesheets read it, and
 // components subscribe via useSyncExternalStore (see studentTheme's
 // useSchemeTick) so a flip re-renders everything that depends on it.
+//
+// Backed by a globalThis singleton: Fast Refresh can leave several copies of
+// this MODULE alive in one session, and if each owned its own state, screens
+// still holding an old copy would freeze on a stale scheme. One shared store
+// makes every copy read and notify the same source of truth.
 type Scheme = 'light' | 'dark';
 
-const listeners = new Set<() => void>();
+interface SchemeStore {
+  current: Scheme;
+  listeners: Set<() => void>;
+}
 
-export const schemeHolder = {
+const g = globalThis as { __shuleoneSchemeStore?: SchemeStore };
+const store: SchemeStore = g.__shuleoneSchemeStore ?? (g.__shuleoneSchemeStore = {
   current: (Appearance.getColorScheme() ?? 'light') as Scheme,
-};
+  listeners: new Set(),
+});
+
+export const schemeHolder = store;
 
 export function setActiveScheme(next: Scheme): void {
-  if (schemeHolder.current === next) return;
-  schemeHolder.current = next;
-  listeners.forEach((l) => l());
+  if (store.current === next) return;
+  store.current = next;
+  store.listeners.forEach((l) => l());
 }
 
 export function getActiveScheme(): Scheme {
-  return schemeHolder.current;
+  return store.current;
 }
 
 export function subscribeScheme(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => { listeners.delete(listener); };
+  store.listeners.add(listener);
+  return () => { store.listeners.delete(listener); };
 }
