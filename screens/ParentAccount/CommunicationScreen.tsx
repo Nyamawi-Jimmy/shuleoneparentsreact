@@ -212,29 +212,47 @@ const AssignmentsTab: React.FC<{ styles: any; colors: ColorPalette; childName: s
   }
   return (
     <>
-      <View style={styles.card}>
+      <View style={styles.aList}>
         {assignments.map((a, i) => {
           const ic = subjectIcon(a.subject, colors);
           const graded = a.status === 'GRADED';
           const submitted = a.status === 'SUBMITTED';
           const overdue = a.status === 'OVERDUE';
-          const statusColor = graded || submitted ? colors.success : overdue ? colors.danger : colors.warning;
+          const color = graded || submitted ? colors.success : overdue ? colors.danger : colors.warning;
           const scoreStr = a.score != null && a.maxScore != null ? `${a.score}/${a.maxScore}` : a.score != null ? String(a.score) : null;
-          const statusLabel = graded ? (scoreStr ? `Graded · ${scoreStr}` : 'Graded')
-            : submitted ? (a.submittedAt ? `Submitted ${shortDate(a.submittedAt)}` : 'Submitted')
-            : overdue ? 'Overdue' : dueLabel(a.dueAt);
+          const meta = graded
+            ? { word: 'Graded', detail: scoreStr ? `Scored ${scoreStr}` : 'Marked', icon: 'ribbon' as const }
+            : submitted
+              ? { word: 'Submitted', detail: a.submittedAt ? `Handed in ${shortDate(a.submittedAt)}` : 'Handed in', icon: 'checkmark-circle' as const }
+              : overdue
+                ? { word: 'Overdue', detail: a.dueAt ? `Was due ${shortDate(a.dueAt)}` : 'Past due', icon: 'alert-circle' as const }
+                : { word: dueLabel(a.dueAt), detail: '', icon: 'time' as const };
           const sub = [a.subject, a.teacher].filter(Boolean).join(' · ');
           return (
-            <View key={a.id ?? i} style={[styles.assignRow, i > 0 && styles.divider]}>
-              <View style={[styles.assignIcon, { backgroundColor: ic.color + '1A' }]}>
-                <MaterialCommunityIcons name={ic.name} size={19} color={ic.color} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.assignTitle} numberOfLines={1}>{a.title || 'Assignment'}</Text>
-                {!!sub && <Text style={styles.assignSub} numberOfLines={1}>{sub}</Text>}
-              </View>
-              <View style={[styles.statusChip, { backgroundColor: statusColor + '1A' }]}>
-                <Text style={[styles.statusChipText, { color: statusColor }]}>{statusLabel}</Text>
+            <View key={a.id ?? i} style={styles.aCard}>
+              <View style={[styles.aAccent, { backgroundColor: color }]} />
+              <View style={styles.aBody}>
+                <View style={styles.aTopRow}>
+                  <View style={[styles.aIcon, { backgroundColor: ic.color + '18' }]}>
+                    <MaterialCommunityIcons name={ic.name} size={19} color={ic.color} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.aTitle} numberOfLines={2}>{a.title || 'Assignment'}</Text>
+                    {!!sub && <Text style={styles.aSub} numberOfLines={1}>{sub}</Text>}
+                  </View>
+                  {graded && scoreStr && (
+                    <View style={[styles.aScore, { borderColor: color + '55' }]}>
+                      <Text style={[styles.aScoreVal, { color }]}>{scoreStr}</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.aFooter}>
+                  <View style={[styles.aStatus, { backgroundColor: color + '18' }]}>
+                    <Ionicons name={meta.icon} size={12} color={color} />
+                    <Text style={[styles.aStatusText, { color }]}>{meta.word}</Text>
+                  </View>
+                  {!!meta.detail && <Text style={styles.aDetail} numberOfLines={1}>{meta.detail}</Text>}
+                </View>
               </View>
             </View>
           );
@@ -450,6 +468,30 @@ function makeStyles(c: ColorPalette) {
     emptyCard: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 30, alignItems: 'center' },
     emptyTitle: { fontSize: 15.5, fontFamily: fonts.bold, color: c.text, marginTop: 12 },
     emptyText: { fontSize: 13, fontFamily: fonts.regular, color: c.textSecondary, textAlign: 'center', marginTop: 5, lineHeight: 19 },
+
+    // Assignment cards — each its own elevated card with a status accent edge,
+    // subject icon, and a status footer (distinct from the web's flat rows).
+    aList: { gap: 10, marginBottom: 14 },
+    aCard: {
+      flexDirection: 'row', backgroundColor: c.card, borderRadius: 16,
+      borderWidth: 1, borderColor: c.border, overflow: 'hidden',
+      shadowColor: '#1e1b3a', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
+    },
+    aAccent: { width: 4, alignSelf: 'stretch' },
+    aBody: { flex: 1, padding: 13 },
+    aTopRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+    aIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    aTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2, lineHeight: 18 },
+    aSub: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 2 },
+    aScore: {
+      borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5,
+      alignItems: 'center', justifyContent: 'center', minWidth: 44,
+    },
+    aScoreVal: { fontSize: 14, fontFamily: fonts.extrabold, letterSpacing: -0.3 },
+    aFooter: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 11 },
+    aStatus: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4.5 },
+    aStatusText: { fontSize: 11, fontFamily: fonts.bold, letterSpacing: 0.1 },
+    aDetail: { flex: 1, fontSize: 11.5, fontFamily: fonts.medium, color: c.textTertiary },
 
     assignRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
     assignIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
