@@ -143,6 +143,7 @@ function ThemedAppShell() {
         <Stack.Screen name="chat" />
         <Stack.Screen name="conversation" />
         <Stack.Screen name="call" />
+        <Stack.Screen name="help-assignment" />
 
         {/* Modal */}
         <Stack.Screen

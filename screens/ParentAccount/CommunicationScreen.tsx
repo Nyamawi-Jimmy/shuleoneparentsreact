@@ -174,7 +174,7 @@ export const CommunicationScreen: React.FC = () => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />}
       >
         {tab === 'assignments' ? (
-          <AssignmentsTab styles={styles} colors={colors} childName={childName} assignments={assignments} error={assignError} />
+          <AssignmentsTab styles={styles} colors={colors} childName={childName} studentId={studentId} assignments={assignments} error={assignError} />
         ) : tab === 'updates' ? (
           <UpdatesTab styles={styles} colors={colors} loading={loading} announcements={annList} onOpen={markOneRead} />
         ) : (
@@ -197,8 +197,12 @@ const subjectIcon = (subject: string | null, c: ColorPalette): { name: any; colo
   if (/english|lugha/.test(s)) return { name: 'book-open-variant', color: c.danger };
   return { name: 'file-document-outline', color: c.primary };
 };
-const AssignmentsTab: React.FC<{ styles: any; colors: ColorPalette; childName: string; assignments: ParentAssignment[] | null; error: boolean }> =
-  ({ styles, colors, childName, assignments, error }) => {
+const AssignmentsTab: React.FC<{ styles: any; colors: ColorPalette; childName: string; studentId: number | null; assignments: ParentAssignment[] | null; error: boolean }> =
+  ({ styles, colors, childName, studentId, assignments, error }) => {
+  const openAssignment = (a: ParentAssignment) => {
+    if (a.id == null || studentId == null) return;
+    router.push({ pathname: '/help-assignment', params: { examId: String(a.id), studentId: String(studentId), childName } } as any);
+  };
   if (assignments === null) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
   if (error) return <View style={styles.errorBox}><Text style={styles.errorText}>Couldn’t load assignments just now.</Text></View>;
   if (assignments.length === 0) {
@@ -228,8 +232,9 @@ const AssignmentsTab: React.FC<{ styles: any; colors: ColorPalette; childName: s
                 ? { word: 'Overdue', detail: a.dueAt ? `Was due ${shortDate(a.dueAt)}` : 'Past due', icon: 'alert-circle' as const }
                 : { word: dueLabel(a.dueAt), detail: '', icon: 'time' as const };
           const sub = [a.subject, a.teacher].filter(Boolean).join(' · ');
+          const done = graded || submitted;
           return (
-            <View key={a.id ?? i} style={styles.aCard}>
+            <TouchableOpacity key={a.id ?? i} style={styles.aCard} activeOpacity={0.85} onPress={() => openAssignment(a)}>
               <View style={[styles.aAccent, { backgroundColor: color }]} />
               <View style={styles.aBody}>
                 <View style={styles.aTopRow}>
@@ -252,9 +257,13 @@ const AssignmentsTab: React.FC<{ styles: any; colors: ColorPalette; childName: s
                     <Text style={[styles.aStatusText, { color }]}>{meta.word}</Text>
                   </View>
                   {!!meta.detail && <Text style={styles.aDetail} numberOfLines={1}>{meta.detail}</Text>}
+                  <View style={styles.aCta}>
+                    <Text style={styles.aCtaText}>{done ? 'View' : 'Help do it'}</Text>
+                    <Feather name="chevron-right" size={15} color={colors.primary} />
+                  </View>
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
           );
         })}
       </View>
@@ -492,6 +501,8 @@ function makeStyles(c: ColorPalette) {
     aStatus: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4.5 },
     aStatusText: { fontSize: 11, fontFamily: fonts.bold, letterSpacing: 0.1 },
     aDetail: { flex: 1, fontSize: 11.5, fontFamily: fonts.medium, color: c.textTertiary },
+    aCta: { flexDirection: 'row', alignItems: 'center', gap: 1 },
+    aCtaText: { fontSize: 12, fontFamily: fonts.bold, color: c.primary },
 
     assignRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
     assignIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
