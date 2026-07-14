@@ -23,11 +23,12 @@ export const HelpAssignmentScreen: React.FC = () => {
   const studentId = params.studentId ? Number(params.studentId) : null;
   const childName = (params.childName as string) || 'your child';
 
-  useEffect(() => {
-    if (studentId == null) return;
-    setLearnAsChild(studentId);
-    return () => setLearnAsChild(null);
-  }, [studentId]);
+  // Arm kid-learn SYNCHRONOUSLY in render — the child TaskPlayer's fetch effect
+  // runs before the parent's effects, so setting the header here (before the
+  // child renders) guarantees the request carries X-Learn-As-Child. Without
+  // this the fetch hits the parent context and shows a child picker / nothing.
+  if (studentId != null) setLearnAsChild(studentId);
+  useEffect(() => () => { setLearnAsChild(null); }, []);
 
   if (examId == null) { router.back(); return null; }
 
