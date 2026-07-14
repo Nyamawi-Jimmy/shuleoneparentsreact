@@ -8,7 +8,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
-  Image, Platform,
+  Image, Platform, useWindowDimensions,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -88,6 +88,9 @@ const quickItems = (c: ColorPalette): QuickItem[] => [
 export const HomeScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { width: screenW } = useWindowDimensions();
+  // Attention carousel: cards ~78% wide so the next one peeks, inviting a swipe.
+  const attnCardW = Math.round(Math.min(300, screenW - 64));
 
   const { parent } = useParentProfile();
   const { t } = useLanguage();
@@ -246,39 +249,48 @@ export const HomeScreen: React.FC = () => {
           {actions.length > 0 && (
             <>
               <SectionHeader styles={styles} colors={colors} title="Needs your attention" />
-              <View style={styles.attnList}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                decelerationRate="fast"
+                snapToInterval={attnCardW + 12}
+                snapToAlignment="start"
+                style={styles.attnScroll}
+                contentContainerStyle={styles.attnScrollInner}
+              >
                 {actions.map((a, i) => {
                   const pr = PRIORITY[String(a.priority || 'WHENEVER').toUpperCase()] || PRIORITY.WHENEVER;
                   const tint = colors[pr.tintKey] as string;
                   const tintSoft = colors[pr.softKey] as string;
                   const isFee = a.kind === 'PAY_FEES';
+                  const ctaText = a.cta
+                    || (isFee ? (a.amount ? `Pay ${formatKsh(a.amount)}` : 'Pay now') : 'Review');
                   return (
-                    <TouchableOpacity key={a.id || i} style={styles.attnCard} activeOpacity={0.7}
+                    <TouchableOpacity key={a.id || i} activeOpacity={0.9}
+                      style={[styles.attnTile, { width: attnCardW }]}
                       onPress={() => router.push(toMobileRoute(a.deepLink) as any)}>
-                      <View style={[styles.attnAccent, { backgroundColor: tint }]} />
-                      <View style={[styles.attnIconTile, { backgroundColor: tintSoft }]}>
-                        <Ionicons name={attnIcon(a.kind, isFee)} size={17} color={tint} />
-                      </View>
-                      <View style={styles.attnText}>
-                        <View style={styles.attnTitleRow}>
-                          <Text style={styles.attnCardTitle} numberOfLines={1}>{a.title}</Text>
-                          {!!pr.label && (
-                            <Text style={[styles.attnFlag, { color: tint }]} numberOfLines={1}>{pr.label}</Text>
-                          )}
+                      <View style={[styles.attnGlow, { backgroundColor: tint }]} />
+                      <View style={styles.attnTileTop}>
+                        <View style={[styles.attnIconTile, { backgroundColor: tintSoft }]}>
+                          <Ionicons name={attnIcon(a.kind, isFee)} size={19} color={tint} />
                         </View>
-                        {!!a.subtitle && <Text style={styles.attnCardSub} numberOfLines={1}>{a.subtitle}</Text>}
+                        {!!pr.label && (
+                          <View style={[styles.attnBadge, { backgroundColor: tintSoft }]}>
+                            <View style={[styles.attnBadgeDot, { backgroundColor: tint }]} />
+                            <Text style={[styles.attnBadgeText, { color: tint }]}>{pr.label}</Text>
+                          </View>
+                        )}
                       </View>
-                      {isFee ? (
-                        <View style={[styles.attnPay, { backgroundColor: colors.primary }]}>
-                          <Text style={styles.attnPayText}>Pay</Text>
-                        </View>
-                      ) : (
-                        <Feather name="chevron-right" size={18} color={colors.textTertiary} />
-                      )}
+                      <Text style={styles.attnTileTitle} numberOfLines={2}>{a.title}</Text>
+                      {!!a.subtitle && <Text style={styles.attnTileSub} numberOfLines={1}>{a.subtitle}</Text>}
+                      <View style={[styles.attnTileCta, { backgroundColor: isFee ? colors.primary : tintSoft }]}>
+                        <Text style={[styles.attnTileCtaText, { color: isFee ? '#FFF' : tint }]}>{ctaText}</Text>
+                        <Feather name="arrow-right" size={14} color={isFee ? '#FFF' : tint} />
+                      </View>
                     </TouchableOpacity>
                   );
                 })}
-              </View>
+              </ScrollView>
             </>
           )}
 
@@ -614,25 +626,38 @@ function makeStyles(c: ColorPalette) {
     },
     divider: { borderTopWidth: 1, borderTopColor: c.border },
 
-    // "Needs your attention" — compact priority rows: a slim colour-coded
-    // accent edge, small icon, one-line title + subtitle, and a trailing
-    // action, so several items fit without heavy scrolling.
-    attnList: { marginBottom: 24, gap: 8 },
-    attnCard: {
-      flexDirection: 'row', alignItems: 'center', gap: 11,
-      backgroundColor: c.card, borderRadius: 14,
-      borderWidth: 1, borderColor: c.border, overflow: 'hidden',
-      paddingRight: 12, paddingVertical: 10,
+    // "Needs your attention" — a horizontal swipe carousel of action tiles.
+    // Distinctly mobile (nothing like the web list), one row tall, with the
+    // next tile peeking to invite a swipe.
+    attnScroll: { marginHorizontal: -16, marginBottom: 24 },
+    attnScrollInner: { paddingHorizontal: 16, gap: 12 },
+    attnTile: {
+      backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.border,
+      padding: 14, overflow: 'hidden',
+      shadowColor: '#1e1b3a', shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.07, shadowRadius: 14, elevation: 3,
     },
-    attnAccent: { width: 4, alignSelf: 'stretch', borderTopLeftRadius: 14, borderBottomLeftRadius: 14 },
-    attnIconTile: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
-    attnText: { flex: 1, minWidth: 0 },
-    attnTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    attnCardTitle: { flexShrink: 1, fontSize: 13.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
-    attnFlag: { fontSize: 9.5, fontFamily: fonts.bold, letterSpacing: 0.5, textTransform: 'uppercase' },
-    attnCardSub: { fontSize: 11.5, color: c.textSecondary, marginTop: 1, fontFamily: fonts.regular },
-    attnPay: { backgroundColor: c.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 7 },
-    attnPayText: { color: '#FFF', fontSize: 12, fontFamily: fonts.bold },
+    // A soft coloured glow bleeding in from the top-right corner as the accent.
+    attnGlow: {
+      position: 'absolute', top: -34, right: -34, width: 90, height: 90,
+      borderRadius: 45, opacity: 0.16,
+    },
+    attnTileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+    attnIconTile: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    attnBadge: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
+    },
+    attnBadgeDot: { width: 6, height: 6, borderRadius: 3 },
+    attnBadgeText: { fontSize: 10, fontFamily: fonts.bold, letterSpacing: 0.4, textTransform: 'uppercase' },
+    attnTileTitle: { fontSize: 15, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2, lineHeight: 20 },
+    attnTileSub: { fontSize: 12, color: c.textSecondary, marginTop: 3, fontFamily: fonts.regular },
+    attnTileCta: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      alignSelf: 'flex-start', marginTop: 13,
+      paddingHorizontal: 15, paddingVertical: 9, borderRadius: 12,
+    },
+    attnTileCtaText: { fontSize: 12.5, fontFamily: fonts.bold },
 
     eventRow: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 12 },
     eventDate: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
