@@ -241,7 +241,7 @@ export const MeView: React.FC = () => {
         {due.length > 0 && (
           <TouchableOpacity activeOpacity={0.9} onPress={() => router.push('/(student-tabs)/tasks' as any)}>
             <LinearGradient
-              colors={uiScheme === 'dark' ? ['#3a3153', '#3f2a49'] : ['#fff3d6', '#ffe9f3']}
+              colors={uiScheme === 'dark' ? ['#6d4a12', '#7b2d4e'] : ['#fff3d6', '#ffe9f3']}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={[styles.tasksBanner, { borderRadius: tokens.radius }]}
             >
