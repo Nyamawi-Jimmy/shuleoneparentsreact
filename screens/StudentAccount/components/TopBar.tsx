@@ -1,6 +1,5 @@
 import React from 'react';
-import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, useSchemeTick } from '../studentTheme';
 import {
   View,
   Text,
@@ -43,7 +42,7 @@ export const TopBar: React.FC<TopBarProps> = ({ streak, stars, onAvatarPress, on
   const { tier } = useTier();
   const tokens = useTokens(tier);
   const insets = useSafeAreaInsets();
-  useTheme(); // subscribe — styles/C proxies resolve the active scheme
+  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const { accessToken } = useAuth();
   const isAdult = tier === 'scholar' || tier === 'campus';
 

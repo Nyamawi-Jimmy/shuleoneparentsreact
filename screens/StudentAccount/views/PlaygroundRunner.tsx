@@ -16,8 +16,7 @@
 // on first use — mirroring the web's shared-runtime pattern.
 
 import React, { useCallback, useRef, useState } from 'react';
-import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
   KeyboardAvoidingView, Platform, Linking,
@@ -140,7 +139,7 @@ export const PlaygroundRunner: React.FC = () => {
   const kind = String(kindParam || 'PYTHON').toUpperCase();
   const k = KINDS[kind] ?? KINDS.PYTHON;
   const insets = useSafeAreaInsets();
-  useTheme(); // subscribe — styles/C proxies resolve the active scheme
+  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const topPad = insets.top > 0 ? insets.top : 24;
 
   // ── External editors: Scratch / Blocks / MakeCode ─────

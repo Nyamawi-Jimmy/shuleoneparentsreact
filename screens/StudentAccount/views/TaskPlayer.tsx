@@ -4,8 +4,7 @@
 // review (choices keyed correct/yours, written answers + marking guide).
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
   ActivityIndicator, Alert,
@@ -38,7 +37,7 @@ export const TaskPlayer: React.FC<{
 }> = ({ examId, onClose, onSubmitted }) => {
   const { accessToken } = useAuth();
   const [phase, setPhase] = useState<Phase>('loading');
-  useTheme(); // subscribe — styles/C proxies resolve the active scheme
+  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const [exam, setExam] = useState<AssignmentExam | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [idx, setIdx] = useState(0);

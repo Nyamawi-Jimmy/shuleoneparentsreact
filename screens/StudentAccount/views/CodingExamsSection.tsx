@@ -4,8 +4,7 @@
 // per-question feedback).
 
 import React, { useCallback, useState } from 'react';
-import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator,
 } from 'react-native';
@@ -22,7 +21,7 @@ const BANDS: Record<number, string> = { 4: 'Exceeding', 3: 'Meeting', 2: 'Approa
 export const CodingExamsSection: React.FC<{ studentId: number | null }> = ({ studentId }) => {
   const { accessToken } = useAuth();
   const [exams, setExams] = useState<CodingExamRow[] | null>(null);
-  useTheme(); // subscribe — styles/C proxies resolve the active scheme
+  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const [take, setTake] = useState<CodingExamTake | null>(null);
   const [responses, setResponses] = useState<Record<number, string>>({});
   const [report, setReport] = useState<CodingExamReport | null>(null);

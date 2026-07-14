@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator,
   Image,
@@ -35,7 +34,7 @@ const DEFAULT_POSITIONS = [
 export const QuestView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
-  useTheme(); // subscribe — styles/C proxies resolve the active scheme
+  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const { accessToken } = useAuth();
 
   const [quests, setQuests] = useState<QuestSummary[]>([]);
@@ -281,6 +280,7 @@ const QuestMapView: React.FC<{
   onBack: () => void;
   onStageTap: (s: Stage) => void;
 }> = ({ questDetail, tier, tokens, loadingDetail, onBack, onStageTap }) => {
+  const mapScheme = useSchemeTick(); // dark map surface + fresh proxy styles
   const stages = questDetail.stages;
   const stagePositions = stages.map((s, i) => ({
     x: s.mapX ?? DEFAULT_POSITIONS[i % DEFAULT_POSITIONS.length].x,
@@ -326,9 +326,17 @@ const QuestMapView: React.FC<{
           </View>
         </View>
 
+        {/* Legend — the map key sits ABOVE the map */}
+        <View style={styles.legend}>
+          <LegendItem colors={['#15c98c', '#0fae78']} label={pickByTier(tier, { base: 'Completed', sprout: 'Done' })} />
+          <LegendItem colors={['#ff9d2e', '#ff5e9c']} label={pickByTier(tier, { base: 'Available', sprout: 'Play now' })} />
+          <LegendItem solid="#9b93c4" label="Locked" />
+          <LegendItem colors={['#f4a716', '#ff9d2e']} label={pickByTier(tier, { base: 'Boss', sprout: 'Big challenge' })} />
+        </View>
+
         {/* Map */}
         <LinearGradient
-          colors={['#eafef3', '#e7f7ff']}
+          colors={mapScheme === 'dark' ? ['#182a26', '#182238'] : ['#eafef3', '#e7f7ff']}
           start={{ x: 0, y: 0 }}
           end={{ x: 0, y: 1 }}
           style={[styles.mapWrap, { borderRadius: tokens.radius }]}
@@ -370,14 +378,6 @@ const QuestMapView: React.FC<{
             </View>
           )}
         </LinearGradient>
-
-        {/* Legend */}
-        <View style={styles.legend}>
-          <LegendItem colors={['#15c98c', '#0fae78']} label={pickByTier(tier, { base: 'Completed', sprout: 'Done' })} />
-          <LegendItem colors={['#ff9d2e', '#ff5e9c']} label={pickByTier(tier, { base: 'Available', sprout: 'Play now' })} />
-          <LegendItem solid="#9b93c4" label="Locked" />
-          <LegendItem colors={['#f4a716', '#ff9d2e']} label={pickByTier(tier, { base: 'Boss', sprout: 'Big challenge' })} />
-        </View>
 
         <View style={{ height: 90 }} />
       </ScrollView>
@@ -594,7 +594,7 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   lblText: { fontWeight: '700', fontSize: 11.5, lineHeight: 15, color: S.ink, textAlign: 'center' },
   lblTextCur: { color: '#fff' },
 
-  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 18, paddingHorizontal: 4 },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, paddingHorizontal: 4, marginBottom: 12 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   legendDot: {
     width: 22, height: 22, borderRadius: 11,

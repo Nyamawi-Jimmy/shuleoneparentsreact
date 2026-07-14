@@ -5,8 +5,7 @@
 // coming up in start order. Join mints a Jitsi URL and opens it.
 
 import React, { useCallback, useState } from 'react';
-import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, RefreshControl, Linking,
@@ -45,7 +44,7 @@ const rangeOf = (it: Item) => {
 export const EventsView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
-  useTheme(); // subscribe — styles/C proxies resolve the active scheme
+  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const { accessToken } = useAuth();
 
   const [events, setEvents] = useState<StudentCalendarItem[] | null>(null);

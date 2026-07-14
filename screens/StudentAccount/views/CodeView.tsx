@@ -6,8 +6,7 @@
 // and the gamified progress profile.
 
 import React, { useCallback, useState } from 'react';
-import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert,
   ActivityIndicator, RefreshControl,
@@ -54,7 +53,7 @@ const PG_KINDS = [
 export const CodeView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
-  useTheme(); // subscribe — styles/C proxies resolve the active scheme
+  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const { accessToken } = useAuth();
   const playful = tier === 'sprout' || tier === 'explorer';
 

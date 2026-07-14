@@ -1,6 +1,5 @@
 import React from 'react';
-import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View,
   Text,
@@ -24,7 +23,7 @@ interface Props {
 /** Compact header used on all pushed learning screens. */
 export const LearningHeader: React.FC<Props> = ({ title, subtitle, onBack, right }) => {
   const insets = useSafeAreaInsets();
-  useTheme(); // subscribe — styles/C proxies resolve the active scheme
+  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const topPad =
     insets.top > 0
       ? insets.top

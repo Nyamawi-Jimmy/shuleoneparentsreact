@@ -5,7 +5,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
   ActivityIndicator, RefreshControl,
@@ -38,6 +38,7 @@ export const AvatarView: React.FC = () => {
   const tokens = useTokens(tier);
   // Also subscribes the scheme proxies; mode/setMode drive the Appearance picker.
   const { mode, setMode, scheme } = useTheme();
+  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const { signOut, user, accessToken } = useAuth();
 
   const [profile, setProfile] = useState<StudentProfile | null>(null);

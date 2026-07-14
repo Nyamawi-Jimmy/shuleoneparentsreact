@@ -5,8 +5,7 @@
 // emoji pills and the mascot for the play tiers.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView,
   RefreshControl, ActivityIndicator,
@@ -40,7 +39,7 @@ const isTier = (t: string | null | undefined): t is Tier => !!t && t in TIER_LAY
 export const MeView: React.FC = () => {
   const { tier, setTier } = useTier();
   const tokens = useTokens(tier);
-  useTheme(); // subscribe — styles/C proxies resolve the active scheme
+  const uiScheme = useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const {
     profile, game, next, mastery, access, assignments, liveClasses,
     loading, refreshing, refresh, error,
@@ -242,7 +241,7 @@ export const MeView: React.FC = () => {
         {due.length > 0 && (
           <TouchableOpacity activeOpacity={0.9} onPress={() => router.push('/(student-tabs)/tasks' as any)}>
             <LinearGradient
-              colors={['#fff3d6', '#ffe9f3']}
+              colors={uiScheme === 'dark' ? ['#3a3153', '#3f2a49'] : ['#fff3d6', '#ffe9f3']}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
               style={[styles.tasksBanner, { borderRadius: tokens.radius }]}
             >
@@ -438,7 +437,7 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
 
   tasksBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 12,
-    borderWidth: 2, borderColor: '#fff', ...SHADOWS.cardSm,
+    borderWidth: 2, borderColor: S.card, ...SHADOWS.cardSm,
   },
   tasksTitle: { fontSize: 14, fontWeight: '800', color: S.ink },
   tasksSub: { fontSize: 11.5, color: S.inkSoft, fontWeight: '600', marginTop: 2 },

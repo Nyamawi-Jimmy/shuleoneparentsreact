@@ -5,8 +5,7 @@
 // work — all from real student endpoints, grouped into clean sections.
 
 import React, { useCallback, useState } from 'react';
-import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, RefreshControl,
@@ -37,7 +36,7 @@ interface Section {
 
 export const StudentNotificationsView: React.FC = () => {
   const { accessToken } = useAuth();
-  useTheme(); // subscribe — styles/C proxies resolve the active scheme
+  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const [assignments, setAssignments] = useState<StudentAssignment[] | null>(null);
   const [liveClasses, setLiveClasses] = useState<StudentLiveClass[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);

@@ -9,7 +9,8 @@
 // The proxy resolves each style key against the ACTIVE scheme (schemeHolder,
 // maintained by ThemeProvider), so no render-time mutation is needed.
 
-import { schemeHolder } from '../../theme/schemeHolder';
+import { useSyncExternalStore } from 'react';
+import { schemeHolder, subscribeScheme, getActiveScheme } from '../../theme/schemeHolder';
 
 export interface StudentColors {
   bg: string;          // screen canvas
@@ -77,3 +78,12 @@ export function themedSheets<T extends object>(light: T, dark: T): T {
 
 /** Scheme-following palette for inline JSX colours (icons etc.). */
 export const C = themedSheets(STUDENT_LIGHT, STUDENT_DARK);
+
+/**
+ * Subscribe a component to scheme flips via the external store. Returns the
+ * active scheme; the subscription guarantees a re-render the moment the
+ * scheme changes, so the proxied sheets always resolve fresh values.
+ */
+export function useSchemeTick(): 'light' | 'dark' {
+  return useSyncExternalStore(subscribeScheme, getActiveScheme);
+}

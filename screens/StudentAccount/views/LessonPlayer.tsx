@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
@@ -40,7 +39,7 @@ export const LessonPlayer: React.FC = () => {
     lessonId?: string; questId?: string; stageId?: string;
   }>();
   const { accessToken } = useAuth();
-  useTheme(); // subscribe — styles/C proxies resolve the active scheme
+  const uiScheme = useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [loading, setLoading] = useState(true);
@@ -237,7 +236,7 @@ export const LessonPlayer: React.FC = () => {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {isIntro ? (
-          <LinearGradient colors={['#efeaff', '#fce7f3']} style={styles.introCard}>
+          <LinearGradient colors={uiScheme === 'dark' ? ['#2c2554', '#3a2544'] : ['#efeaff', '#fce7f3']} style={styles.introCard}>
             <Text style={styles.introEmoji}>{emojiForSubject(lesson.subject)}</Text>
             <Text style={styles.introTitle}>{lesson.title}</Text>
             <Text style={styles.introBody}>

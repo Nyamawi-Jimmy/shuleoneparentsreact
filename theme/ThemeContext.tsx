@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Appearance } from 'react-native';
 import { ColorPalette, lightColors, darkColors } from './palettes';
-import { schemeHolder } from './schemeHolder';
+import { setActiveScheme } from './schemeHolder';
 
 // =================================================================
 // AsyncStorage with safe fallback (some setups may not have it installed)
@@ -47,11 +47,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const applyMode = useCallback((next: ThemeMode) => {
     modeRef.current = next;
-    // Keep the module-level scheme mirror in sync BEFORE React re-renders,
+    // Keep the external scheme store in sync BEFORE React re-renders,
     // so scheme-proxy stylesheets resolve the fresh scheme on the next pass.
-    schemeHolder.current = next === 'system'
+    setActiveScheme(next === 'system'
       ? ((Appearance.getColorScheme() ?? 'light') as 'light' | 'dark')
-      : next;
+      : next);
     setModeState(next);
   }, []);
 
@@ -71,7 +71,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const sub = Appearance.addChangeListener(({ colorScheme }) => {
       const sys = (colorScheme ?? 'light') as 'light' | 'dark';
-      if (modeRef.current === 'system') schemeHolder.current = sys;
+      if (modeRef.current === 'system') setActiveScheme(sys);
       setSystemScheme(sys);
     });
     return () => sub.remove();
@@ -80,6 +80,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // ── Resolve mode → actual scheme ───
   const scheme: 'light' | 'dark' = mode === 'system' ? systemScheme : mode;
   const colors = scheme === 'dark' ? darkColors : lightColors;
+
+  // Belt & braces: whatever path changed the resolved scheme, publish it to
+  // the external store after commit so scheme-store subscribers catch up.
+  useEffect(() => { setActiveScheme(scheme); }, [scheme]);
 
   const setMode = useCallback(async (next: ThemeMode) => {
     applyMode(next);

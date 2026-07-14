@@ -5,8 +5,7 @@
 // engines: QuizGame (all round-based games) and MemoryGame (flip the pairs).
 
 import React, { useCallback, useRef, useState } from 'react';
-import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
 } from 'react-native';
@@ -42,7 +41,7 @@ const say = (text: string) => {
 export const GamesView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
-  useTheme(); // subscribe — styles/C proxies resolve the active scheme
+  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const { accessToken } = useAuth();
   const playful = tier === 'sprout' || tier === 'explorer';
 

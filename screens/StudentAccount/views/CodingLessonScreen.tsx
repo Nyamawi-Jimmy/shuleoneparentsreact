@@ -4,8 +4,7 @@
 // team") and the practice-mode note when the teacher hasn't opened the lesson.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
   ActivityIndicator,
@@ -61,7 +60,7 @@ interface Props {
 export const CodingLessonScreen: React.FC<Props> = ({ lesson, node, playful, onClose, onProgressChanged }) => {
   const { accessToken } = useAuth();
   const outcomes = (lesson.learningOutcomes ?? []).filter((o) => o && o !== lesson.objective);
-  useTheme(); // subscribe — styles/C proxies resolve the active scheme
+  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const kind = lesson.sandbox?.kind ?? 'NONE';
   const modality = MODALITY[kind] || MODALITY.NONE;
   const hasSandbox = !!(lesson.sandbox && kind && kind !== 'NONE' && kind !== 'TEXT');

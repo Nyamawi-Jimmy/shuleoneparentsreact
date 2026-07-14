@@ -4,8 +4,7 @@
 // then Done and Missed. Tapping a task opens the in-app TaskPlayer.
 
 import React, { useCallback, useState } from 'react';
-import { useTheme } from '../../../theme/ThemeContext';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, RefreshControl,
@@ -52,7 +51,7 @@ function statusMeta(a: StudentAssignment) {
 export const AssignmentsView: React.FC = () => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
-  useTheme(); // subscribe — styles/C proxies resolve the active scheme
+  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const { accessToken } = useAuth();
 
   const [items, setItems] = useState<StudentAssignment[] | null>(null);
