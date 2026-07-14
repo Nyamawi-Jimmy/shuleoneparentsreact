@@ -234,34 +234,38 @@ const AssignmentsTab: React.FC<{ styles: any; colors: ColorPalette; childName: s
           const sub = [a.subject, a.teacher].filter(Boolean).join(' · ');
           const done = graded || submitted;
           return (
-            <TouchableOpacity key={a.id ?? i} style={styles.aCard} activeOpacity={0.85} onPress={() => openAssignment(a)}>
-              <View style={[styles.aAccent, { backgroundColor: color }]} />
-              <View style={styles.aBody}>
-                <View style={styles.aTopRow}>
-                  <View style={[styles.aIcon, { backgroundColor: ic.color + '18' }]}>
-                    <MaterialCommunityIcons name={ic.name} size={19} color={ic.color} />
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.aTitle} numberOfLines={2}>{a.title || 'Assignment'}</Text>
-                    {!!sub && <Text style={styles.aSub} numberOfLines={1}>{sub}</Text>}
-                  </View>
-                  {graded && scoreStr && (
-                    <View style={[styles.aScore, { borderColor: color + '55' }]}>
-                      <Text style={[styles.aScoreVal, { color }]}>{scoreStr}</Text>
-                    </View>
-                  )}
+            <TouchableOpacity key={a.id ?? i} style={styles.aCard} activeOpacity={0.9} onPress={() => openAssignment(a)}>
+              <View style={styles.aHead}>
+                <View style={[styles.aIcon, { backgroundColor: ic.color + '18' }]}>
+                  <MaterialCommunityIcons name={ic.name} size={20} color={ic.color} />
                 </View>
-                <View style={styles.aFooter}>
-                  <View style={[styles.aStatus, { backgroundColor: color + '18' }]}>
-                    <Ionicons name={meta.icon} size={12} color={color} />
-                    <Text style={[styles.aStatusText, { color }]}>{meta.word}</Text>
-                  </View>
-                  {!!meta.detail && <Text style={styles.aDetail} numberOfLines={1}>{meta.detail}</Text>}
-                  <View style={styles.aCta}>
-                    <Text style={styles.aCtaText}>{done ? 'View' : 'Help do it'}</Text>
-                    <Feather name="chevron-right" size={15} color={colors.primary} />
-                  </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.aTitle} numberOfLines={2}>{a.title || 'Assignment'}</Text>
+                  {!!sub && <Text style={styles.aSub} numberOfLines={1}>{sub}</Text>}
                 </View>
+                {graded && scoreStr ? (
+                  <View style={[styles.aScore, { backgroundColor: color + '15', borderColor: color + '40' }]}>
+                    <Text style={[styles.aScoreVal, { color }]}>{scoreStr}</Text>
+                    <Text style={[styles.aScoreCap, { color }]}>score</Text>
+                  </View>
+                ) : (
+                  <View style={[styles.aPill, { backgroundColor: color + '18' }]}>
+                    <View style={[styles.aPillDot, { backgroundColor: color }]} />
+                    <Text style={[styles.aPillText, { color }]}>{meta.word}</Text>
+                  </View>
+                )}
+              </View>
+
+              {!!meta.detail && (
+                <Text style={styles.aMeta} numberOfLines={1}>
+                  <Ionicons name={meta.icon} size={11} color={colors.textTertiary} />  {meta.detail}
+                </Text>
+              )}
+
+              <View style={[styles.aCta, done ? styles.aCtaGhost : styles.aCtaPrimary]}>
+                <Ionicons name={done ? 'eye-outline' : 'sparkles'} size={15} color={done ? colors.primary : '#FFF'} />
+                <Text style={[styles.aCtaText, { color: done ? colors.primary : '#FFF' }]}>{done ? 'View paper' : 'Help do it'}</Text>
+                <Feather name="arrow-right" size={15} color={done ? colors.primary : '#FFF'} />
               </View>
             </TouchableOpacity>
           );
@@ -478,31 +482,31 @@ function makeStyles(c: ColorPalette) {
     emptyTitle: { fontSize: 15.5, fontFamily: fonts.bold, color: c.text, marginTop: 12 },
     emptyText: { fontSize: 13, fontFamily: fonts.regular, color: c.textSecondary, textAlign: 'center', marginTop: 5, lineHeight: 19 },
 
-    // Assignment cards — each its own elevated card with a status accent edge,
-    // subject icon, and a status footer (distinct from the web's flat rows).
-    aList: { gap: 10, marginBottom: 14 },
+    // Assignment cards — an elevated card per task: icon + title + status pill,
+    // a due/score meta line, and a full-width action button. Modern & clean.
+    aList: { gap: 12, marginBottom: 14 },
     aCard: {
-      flexDirection: 'row', backgroundColor: c.card, borderRadius: 16,
-      borderWidth: 1, borderColor: c.border, overflow: 'hidden',
-      shadowColor: '#1e1b3a', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
+      backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.border, padding: 14,
+      shadowColor: '#1e1b3a', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.07, shadowRadius: 14, elevation: 3,
     },
-    aAccent: { width: 4, alignSelf: 'stretch' },
-    aBody: { flex: 1, padding: 13 },
-    aTopRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-    aIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    aTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2, lineHeight: 18 },
+    aHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    aIcon: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+    aTitle: { fontSize: 14.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2, lineHeight: 19 },
     aSub: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 2 },
-    aScore: {
-      borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5,
-      alignItems: 'center', justifyContent: 'center', minWidth: 44,
+    aPill: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+    aPillDot: { width: 6, height: 6, borderRadius: 3 },
+    aPillText: { fontSize: 11, fontFamily: fonts.bold, letterSpacing: 0.1 },
+    aScore: { borderWidth: 1.5, borderRadius: 13, paddingHorizontal: 11, paddingVertical: 5, alignItems: 'center', justifyContent: 'center', minWidth: 50 },
+    aScoreVal: { fontSize: 15, fontFamily: fonts.extrabold, letterSpacing: -0.3 },
+    aScoreCap: { fontSize: 8, fontFamily: fonts.bold, letterSpacing: 0.5, textTransform: 'uppercase', opacity: 0.8, marginTop: -1 },
+    aMeta: { fontSize: 11.5, fontFamily: fonts.medium, color: c.textTertiary, marginTop: 10, marginLeft: 2 },
+    aCta: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+      borderRadius: 13, paddingVertical: 11, marginTop: 13,
     },
-    aScoreVal: { fontSize: 14, fontFamily: fonts.extrabold, letterSpacing: -0.3 },
-    aFooter: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 11 },
-    aStatus: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4.5 },
-    aStatusText: { fontSize: 11, fontFamily: fonts.bold, letterSpacing: 0.1 },
-    aDetail: { flex: 1, fontSize: 11.5, fontFamily: fonts.medium, color: c.textTertiary },
-    aCta: { flexDirection: 'row', alignItems: 'center', gap: 1 },
-    aCtaText: { fontSize: 12, fontFamily: fonts.bold, color: c.primary },
+    aCtaPrimary: { backgroundColor: c.primary },
+    aCtaGhost: { backgroundColor: c.primarySoft },
+    aCtaText: { fontSize: 13, fontFamily: fonts.bold },
 
     assignRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13 },
     assignIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
