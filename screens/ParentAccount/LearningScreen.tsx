@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator,
-  TouchableOpacity, TextInput,
+  TouchableOpacity, TextInput, Image,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -165,22 +165,10 @@ export const LearningScreen: React.FC = () => {
           {/* Pick up exactly where the child stopped — on any device. Tapping hands over
               the screen straight into that quest; progress lands on the child's account. */}
           {resumeQuest && resumeQuest.id != null && (
-            <TouchableOpacity activeOpacity={0.85} onPress={() => playQuest(resumeQuest.id)}>
-              <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.resumeCard}>
-                <View style={styles.resumePlay}>
-                  <Ionicons name="play" size={20} color="#FFF" />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.resumeKicker}>CONTINUE WHERE {firstName.toUpperCase()} LEFT OFF</Text>
-                  <Text style={styles.resumeTitle} numberOfLines={1}>{resumeQuest.title}</Text>
-                  <Text style={styles.resumeMeta} numberOfLines={1}>
-                    {resumeQuest.completedStages || 0} of {resumeQuest.totalStages || 0} stages done
-                    {resumeQuest.subject ? ` · ${resumeQuest.subject}` : ''}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#FFF" />
-              </LinearGradient>
-            </TouchableOpacity>
+            <GamifiedQuestCard
+              styles={styles} quest={resumeQuest} onPlay={playQuest} featured
+              kicker={`▶  CONTINUE WHERE ${firstName.toUpperCase()} LEFT OFF`}
+            />
           )}
 
           {/* Focus card — the web hero's content on a quiet card */}
@@ -412,45 +400,9 @@ const SubjectQuestsView: React.FC<{
         }
       />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {rows.map((q) => {
-          const pct = q.totalStages > 0 ? Math.round(((q.completedStages || 0) / q.totalStages) * 100) : 0;
-          const done = q.status === 'COMPLETED';
-          const accent = q.accentColor || colors.primary;
-          return (
-            <View key={String(q.id ?? q.key)} style={styles.questRowCard}>
-              <View style={styles.questRowHead}>
-                <View style={[styles.subjectIcon, { backgroundColor: accent + '1F' }]}>
-                  <MaterialCommunityIcons name={subjectIconName(subject)} size={18} color={accent} />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.questRowTitle} numberOfLines={2}>{q.title}</Text>
-                  <View style={styles.questRowMetaRow}>
-                    <View style={[styles.track, { flex: 1 }]}>
-                      <View style={[styles.fill, { width: `${pct}%`, backgroundColor: accent }]} />
-                    </View>
-                    <Text style={styles.questRowStages}>{q.completedStages || 0}/{q.totalStages || 0}</Text>
-                  </View>
-                </View>
-                {done ? (
-                  <View style={styles.doneChip}>
-                    <Ionicons name="checkmark-circle" size={13} color={colors.success} />
-                    <Text style={[styles.doneChipText, { color: colors.success }]}>Done</Text>
-                  </View>
-                ) : q.status === 'IN_PROGRESS' ? (
-                  <Text style={[styles.doneChipText, { color: colors.primary }]}>{pct}%</Text>
-                ) : null}
-              </View>
-              <TouchableOpacity activeOpacity={0.85} onPress={() => onPlay(q.id)}>
-                <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.questPlayBtn}>
-                  <Ionicons name="play" size={13} color="#FFF" />
-                  <Text style={styles.questPlayBtnText}>
-                    {done ? 'Replay' : q.status === 'IN_PROGRESS' ? 'Continue' : 'Start'}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          );
-        })}
+        {rows.map((q) => (
+          <GamifiedQuestCard key={String(q.id ?? q.key)} styles={styles} quest={q} onPlay={onPlay} />
+        ))}
         {rows.length === 0 && (
           <View style={styles.emptyBox}>
             <Text style={styles.emptyText}>No quests in this subject yet.</Text>
@@ -462,6 +414,71 @@ const SubjectQuestsView: React.FC<{
         <View style={{ height: 32 }} />
       </ScrollView>
     </View>
+  );
+};
+
+// ── Gamified quest card — the SAME playful design as the student side, reused
+// on the parent side for "Continue where you left off" and the subject quest
+// lists: an accent-gradient cover (subject pill + status badge), then title,
+// stat chips (stages · XP) and a progress bar with the action label.
+const QUEST_BADGE: Record<string, { label: string; bg: string }> = {
+  COMPLETED: { label: '✓ Done', bg: 'rgba(21,201,140,0.92)' },
+  IN_PROGRESS: { label: 'In progress', bg: 'rgba(255,255,255,0.26)' },
+  AVAILABLE: { label: 'New', bg: 'rgba(255,255,255,0.26)' },
+  LOCKED: { label: '🔒 Locked', bg: 'rgba(20,20,40,0.35)' },
+};
+
+const GamifiedQuestCard: React.FC<{
+  styles: any; quest: QuestSummary; onPlay: (id: number | null) => void;
+  featured?: boolean; kicker?: string;
+}> = ({ styles, quest, onPlay, featured, kicker }) => {
+  const accent = quest.accentColor || '#7c5cff';
+  const pct = quest.totalXp > 0
+    ? (quest.earnedXp / quest.totalXp) * 100
+    : quest.totalStages > 0 ? ((quest.completedStages || 0) / quest.totalStages) * 100 : 0;
+  const locked = quest.status === 'LOCKED';
+  const badge = QUEST_BADGE[String(quest.status || 'AVAILABLE').toUpperCase()] || QUEST_BADGE.AVAILABLE;
+  const action = locked ? '🔒 Locked'
+    : quest.status === 'COMPLETED' ? 'Replay →'
+    : quest.status === 'IN_PROGRESS' ? 'Continue →' : 'Start →';
+  return (
+    <TouchableOpacity activeOpacity={0.9} onPress={() => onPlay(quest.id)} disabled={locked}
+      style={[styles.gqCard, { borderColor: accent + '3D' }, featured && styles.gqCardFeatured]}>
+      <View style={[styles.gqCover, featured && styles.gqCoverTall]}>
+        {quest.coverImageUrl ? (
+          <Image source={{ uri: quest.coverImageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : null}
+        <LinearGradient colors={[accent + 'E6', accent + '99']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+        {!!kicker && <Text style={styles.gqKicker}>{kicker}</Text>}
+        <View style={styles.gqCoverInner}>
+          <View style={styles.gqThemePill}><Text style={styles.gqThemePillText} numberOfLines={1}>{quest.subject || 'Quest'}</Text></View>
+          <View style={[styles.gqBadge, { backgroundColor: badge.bg }]}><Text style={styles.gqBadgeText}>{badge.label}</Text></View>
+        </View>
+      </View>
+      <View style={styles.gqBody}>
+        <Text style={styles.gqTitle} numberOfLines={1}>{quest.title || 'Quest'}</Text>
+        {!!quest.description && <Text style={styles.gqDesc} numberOfLines={1}>{quest.description}</Text>}
+        <View style={styles.gqStatsRow}>
+          <View style={styles.gqStatChip}>
+            <Ionicons name="flag" size={11} color={accent} />
+            <Text style={[styles.gqStatChipText, { color: accent }]}>{quest.completedStages || 0}/{quest.totalStages || 0} stages</Text>
+          </View>
+          <View style={styles.gqStatChip}>
+            <Ionicons name="flash" size={11} color="#f4a716" />
+            <Text style={[styles.gqStatChipText, { color: '#f4a716' }]}>{quest.earnedXp || 0}/{quest.totalXp || 0} XP</Text>
+          </View>
+        </View>
+        <View style={styles.gqProgRow}>
+          <View style={styles.gqTrack}>
+            <LinearGradient colors={[accent, accent + 'AA']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.gqFill, { width: `${pct}%` }]} />
+          </View>
+          <Text style={[styles.gqAction, { color: accent }]}>{action}</Text>
+        </View>
+      </View>
+      {featured && !locked && (
+        <View style={styles.gqPlayFab}><Ionicons name="play" size={22} color={accent} /></View>
+      )}
+    </TouchableOpacity>
   );
 };
 
@@ -627,6 +644,48 @@ function makeStyles(c: ColorPalette) {
     root: { flex: 1, backgroundColor: c.background },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 12 },
     scroll: { paddingHorizontal: 16, paddingTop: 4 },
+
+    // ── Gamified quest card (student-side look, reused on parent) ──
+    gqCard: {
+      backgroundColor: c.card, borderRadius: 20, borderWidth: 1.5, overflow: 'hidden',
+      marginBottom: 14,
+      shadowColor: '#3b2d7a', shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.14, shadowRadius: 16, elevation: 5,
+    },
+    gqCardFeatured: { marginBottom: 18, borderRadius: 22 },
+    gqCover: { height: 84, justifyContent: 'flex-end', padding: 12 },
+    gqCoverTall: { height: 104 },
+    gqKicker: {
+      position: 'absolute', top: 12, left: 12, right: 12,
+      fontSize: 10.5, fontFamily: fonts.extrabold, color: '#FFF',
+      letterSpacing: 0.8, opacity: 0.95,
+    },
+    gqCoverInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+    gqThemePill: {
+      backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 999,
+      paddingHorizontal: 10, paddingVertical: 4, maxWidth: '62%',
+    },
+    gqThemePillText: { fontSize: 10.5, fontFamily: fonts.extrabold, color: '#FFF', letterSpacing: 0.3 },
+    gqBadge: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+    gqBadgeText: { fontSize: 10, fontFamily: fonts.extrabold, color: '#FFF' },
+    gqPlayFab: {
+      position: 'absolute', right: 16, top: 82, width: 44, height: 44, borderRadius: 22,
+      backgroundColor: '#FFF', alignItems: 'center', justifyContent: 'center', zIndex: 5,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6,
+    },
+    gqBody: { padding: 14 },
+    gqTitle: { fontSize: 15.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3 },
+    gqDesc: { fontSize: 12, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 2 },
+    gqStatsRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+    gqStatChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: c.backgroundAlt, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4,
+    },
+    gqStatChipText: { fontSize: 11, fontFamily: fonts.bold },
+    gqProgRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
+    gqTrack: { flex: 1, height: 9, borderRadius: 999, backgroundColor: c.backgroundAlt, overflow: 'hidden' },
+    gqFill: { height: '100%', borderRadius: 999 },
+    gqAction: { fontSize: 12.5, fontFamily: fonts.extrabold },
 
     resumeCard: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
