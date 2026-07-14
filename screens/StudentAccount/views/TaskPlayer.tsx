@@ -30,12 +30,28 @@ const fmtClock = (s: number) => {
   return `${m}:${String(ss).padStart(2, '0')}`;
 };
 
+type SubmitBody = { startedAt: string | null; durationSpentSeconds: number; answers: ({ questionId: number; choiceId: number } | { questionId: number; text: string })[] };
+
 export const TaskPlayer: React.FC<{
   examId: number;
   onClose: () => void;
   onSubmitted: (result: AssignmentSubmitResult) => void;
-}> = ({ examId, onClose, onSubmitted }) => {
+  // Optional API overrides — used by the parent "Help do it" flow to hit the
+  // parent-scoped endpoints instead of the student ones. Default = student.
+  loadExam?: (examId: number) => Promise<AssignmentExam>;
+  submitExam?: (examId: number, body: SubmitBody) => Promise<AssignmentSubmitResult>;
+  loadReviewFn?: (examId: number, take?: number | null) => Promise<AssignmentReview>;
+}> = ({ examId, onClose, onSubmitted, loadExam, submitExam, loadReviewFn }) => {
   const { accessToken } = useAuth();
+  // Fetchers held in a ref (stable identity) so the load/submit hooks below
+  // don't list them as deps. Default = student endpoints; the parent "Help do
+  // it" flow injects parent-scoped ones. examId + token are fixed for the
+  // lifetime of one open assignment, so capturing them once is safe.
+  const apiRef = useRef({
+    fetchExam: (id: number) => loadExam ? loadExam(id) : getAssignmentExam(accessToken!, id),
+    fetchReview: (id: number, take?: number | null) => loadReviewFn ? loadReviewFn(id, take) : getAssignmentReview(accessToken!, id, take),
+    postSubmit: (id: number, body: SubmitBody) => submitExam ? submitExam(id, body) : submitAssignmentExam(accessToken!, id, body),
+  });
   const [phase, setPhase] = useState<Phase>('loading');
   useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const [exam, setExam] = useState<AssignmentExam | null>(null);
@@ -55,7 +71,7 @@ export const TaskPlayer: React.FC<{
     if (!accessToken) return;
     setPhase('loadingReview');
     setReviewErr(null);
-    getAssignmentReview(accessToken, examId)
+    apiRef.current.fetchReview(examId)
       .then((data) => { setReview(data); setPhase('review'); })
       .catch((e: any) => { setReviewErr(e?.message || 'Could not load your results.'); setPhase('review'); });
   }, [accessToken, examId]);
@@ -64,7 +80,7 @@ export const TaskPlayer: React.FC<{
   useEffect(() => {
     if (!accessToken) return;
     let off = false;
-    getAssignmentExam(accessToken, examId)
+    apiRef.current.fetchExam(examId)
       .then((data) => {
         if (off) return;
         setExam(data);
@@ -132,7 +148,7 @@ export const TaskPlayer: React.FC<{
         else if (a.text && a.text.trim()) acc.push({ questionId: q.id, text: a.text });
         return acc;
       }, []);
-      const res = await submitAssignmentExam(accessToken, examId, {
+      const res = await apiRef.current.postSubmit(examId, {
         startedAt: startedAtRef.current,
         durationSpentSeconds: Math.max(0, Math.round((Date.now() - startMsRef.current) / 1000)),
         answers: payloadAnswers,

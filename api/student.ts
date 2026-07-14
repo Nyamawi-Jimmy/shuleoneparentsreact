@@ -51,6 +51,27 @@ export function getAssignmentReview(accessToken: string, examId: number, take?: 
   return apiFetch<AssignmentReview>(`/api/student/assignments/${examId}/review${qs}`, { accessToken });
 }
 
+// ── Parent-assist ("Help do it"): the SAME assignment flow, but scoped to a
+// child via the parent endpoints (matches the web AssignmentPlayer's
+// basePath=/parent/children/{studentId}/assignments). Saved as parent-assisted.
+export function getParentAssignmentExam(accessToken: string, studentId: number, examId: number) {
+  return apiFetch<AssignmentExam>(`/api/parent/children/${studentId}/assignments/${examId}`, { accessToken });
+}
+
+export function submitParentAssignmentExam(
+  accessToken: string, studentId: number, examId: number,
+  body: { startedAt: string | null; durationSpentSeconds: number; answers: ({ questionId: number; choiceId: number } | { questionId: number; text: string })[] },
+) {
+  return apiFetch<AssignmentSubmitResult>(`/api/parent/children/${studentId}/assignments/${examId}/submit`, {
+    method: 'POST', accessToken, body,
+  });
+}
+
+export function getParentAssignmentReview(accessToken: string, studentId: number, examId: number, take?: number | null) {
+  const qs = take != null ? `?take=${take}` : '';
+  return apiFetch<AssignmentReview>(`/api/parent/children/${studentId}/assignments/${examId}/review${qs}`, { accessToken });
+}
+
 export async function getStudentCalendar(
   accessToken: string,
   params?: { from?: string; to?: string },

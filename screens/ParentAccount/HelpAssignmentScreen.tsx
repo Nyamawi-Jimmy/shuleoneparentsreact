@@ -1,36 +1,32 @@
 // "Help do it" — the parent works through ONE assignment WITH the child,
-// mirroring the web AssignmentPlayer's assist mode: a professional header
-// ("Help <child> do this"), a "parent-assisted" note, then the actual
-// question flow (the student TaskPlayer, reused verbatim). While mounted it
-// arms the kid-learn header (X-Learn-As-Child) so everything saves to the
-// child's account. Its own design — not the web's, not the gamified student
-// skin.
-import React, { useEffect } from 'react';
+// mirroring the web AssignmentPlayer's assist mode. Like the web, it uses the
+// PARENT-scoped assignment endpoints (/parent/children/{studentId}/assignments
+// /{examId}[/submit|/review]) so the attempt is saved as parent-assisted on
+// the child's account — no kid-learn header needed. Reuses the TaskPlayer with
+// those parent fetchers injected. Its own professional design.
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../theme/ThemeContext';
 import { fonts } from '../../constants/theme';
-import { setLearnAsChild } from '../../config/api';
+import { useAuth } from '../../context/AuthContext';
 import { TierProvider } from '../StudentAccount/TierContext';
 import { TaskPlayer } from '../StudentAccount/views/TaskPlayer';
+import {
+  getParentAssignmentExam, submitParentAssignmentExam, getParentAssignmentReview,
+} from '../../api/student';
 
 export const HelpAssignmentScreen: React.FC = () => {
   const { colors } = useTheme();
+  const { accessToken } = useAuth();
   const params = useLocalSearchParams<{ examId?: string; studentId?: string; childName?: string }>();
   const examId = params.examId ? Number(params.examId) : null;
   const studentId = params.studentId ? Number(params.studentId) : null;
   const childName = (params.childName as string) || 'your child';
 
-  // Arm kid-learn SYNCHRONOUSLY in render — the child TaskPlayer's fetch effect
-  // runs before the parent's effects, so setting the header here (before the
-  // child renders) guarantees the request carries X-Learn-As-Child. Without
-  // this the fetch hits the parent context and shows a child picker / nothing.
-  if (studentId != null) setLearnAsChild(studentId);
-  useEffect(() => () => { setLearnAsChild(null); }, []);
-
-  if (examId == null) { router.back(); return null; }
+  if (examId == null || studentId == null || !accessToken) { router.back(); return null; }
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -50,6 +46,9 @@ export const HelpAssignmentScreen: React.FC = () => {
       <TierProvider>
         <TaskPlayer
           examId={examId}
+          loadExam={(id) => getParentAssignmentExam(accessToken, studentId, id)}
+          submitExam={(id, body) => submitParentAssignmentExam(accessToken, studentId, id, body)}
+          loadReviewFn={(id, take) => getParentAssignmentReview(accessToken, studentId, id, take)}
           onClose={() => router.back()}
           onSubmitted={() => router.back()}
         />
