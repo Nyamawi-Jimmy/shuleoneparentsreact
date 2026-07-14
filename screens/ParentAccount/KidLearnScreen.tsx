@@ -224,18 +224,19 @@ const QuestStageMap: React.FC<{
   const ZIG = [20, 44, 66, 80, 60, 36];
   const positions = stages.map((s, i) => {
     if (hasAuthored) return { x: s.mapX as number, y: s.mapY as number };
-    const y = n > 1 ? 90 - (i / (n - 1)) * 82 : 50;
+    const y = n > 1 ? 82 - (i / (n - 1)) * 74 : 50; // bottom (82%) → top (8%)
     return { x: ZIG[i % ZIG.length], y };
   });
-  const maxY = positions.length ? Math.max(...positions.map((p) => p.y)) : 88;
-  // Height that guarantees the lowest node AND its label stay on-screen.
-  const mapHeight = hasAuthored
-    ? Math.min(2200, Math.max(640, Math.round(95 / Math.max(0.08, 1 - maxY / 100))))
-    : Math.max(460, n * 104);
+  const maxY = positions.length ? Math.max(...positions.map((p) => p.y)) : 82;
+  // Each node needs ~120px below its centre for the bubble + 2-line label, so
+  // pick a height where the LOWEST node's label still fits, with a per-stage
+  // minimum for breathing room. The ScrollView (flex:1) scrolls the rest.
+  const fitH = 120 / Math.max(0.12, 1 - maxY / 100);
+  const mapHeight = Math.min(2600, Math.max(hasAuthored ? 560 : n * 96, Math.round(fitH)));
   const pathD = buildPath(positions);
 
   return (
-    <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.scroll, { paddingBottom: 60 }]} showsVerticalScrollIndicator={false}>
       <TouchableOpacity style={styles.backRow} activeOpacity={0.7} onPress={onBack}>
         <Ionicons name="chevron-back" size={16} color={colors.primary} />
         <Text style={styles.backRowText}>All quests</Text>
