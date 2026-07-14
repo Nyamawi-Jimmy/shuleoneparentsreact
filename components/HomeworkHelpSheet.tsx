@@ -8,10 +8,11 @@ import {
   ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useTheme } from '../theme/ThemeContext';
 import { fonts } from '../constants/theme';
 import { useAuth } from '../context/AuthContext';
-import { getHomeworkHelp } from '../api/learner-me';
+import { getHomeworkHelp, getLearnerAccess } from '../api/learner-me';
 
 interface Props {
   visible: boolean;
@@ -33,9 +34,21 @@ export const HomeworkHelpSheet: React.FC<Props> = ({ visible, onClose, studentId
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<string>('TUTOR');
+  // Premium gate: null = checking, true = allowed, false = locked.
+  const [premium, setPremium] = useState<boolean | null>(null);
   const busyRef = useRef(false);
   const bootRef = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  // Check the learner's access when the sheet opens (paid or in trial = allowed).
+  useEffect(() => {
+    if (!visible || !accessToken) return;
+    let off = false;
+    getLearnerAccess(accessToken, studentId)
+      .then((a) => { if (!off) setPremium(!!(a?.paid || a?.trialActive)); })
+      .catch(() => { if (!off) setPremium(true); }); // fail open — the 402 still guards
+    return () => { off = true; };
+  }, [visible, accessToken, studentId]);
 
   const sendText = async (text: string) => {
     if (!text || busyRef.current || !accessToken) return;
@@ -67,7 +80,7 @@ export const HomeworkHelpSheet: React.FC<Props> = ({ visible, onClose, studentId
   // Auto-ask the moment it opens. A remount key (see TaskPlayer) gives a fresh
   // thread each open, so no reset-on-close needed here.
   useEffect(() => {
-    if (!visible || bootRef.current || !question?.text) return;
+    if (!visible || bootRef.current || !question?.text || premium !== true) return;
     bootRef.current = true;
     // Deferred a tick so the effect body stays free of synchronous state.
     const t = setTimeout(() => {
@@ -75,7 +88,7 @@ export const HomeworkHelpSheet: React.FC<Props> = ({ visible, onClose, studentId
     }, 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [visible, premium]);
 
   useEffect(() => { scrollRef.current?.scrollToEnd({ animated: true }); }, [msgs, busy]);
 
@@ -104,12 +117,28 @@ export const HomeworkHelpSheet: React.FC<Props> = ({ visible, onClose, studentId
             </TouchableOpacity>
           </View>
 
-          {!!question?.text && (
+          {!!question?.text && premium !== false && (
             <View style={styles.qBox}>
               <Text style={styles.qText} numberOfLines={3}><Text style={styles.qLabel}>Q: </Text>{question.text}</Text>
             </View>
           )}
 
+          {premium === false ? (
+            <View style={styles.gate}>
+              <View style={styles.gateIcon}><MaterialCommunityIcons name="lock-outline" size={30} color={colors.primary} /></View>
+              <Text style={styles.gateTitle}>AI homework help is premium</Text>
+              <Text style={styles.gateText}>
+                Unlock the homework helper to coach your child through any question — hints, explanations and step-by-step guidance, without giving the graded answer.
+              </Text>
+              <TouchableOpacity style={styles.gateBtn} activeOpacity={0.85} onPress={() => { onClose(); router.push('/subscriptions' as any); }}>
+                <Ionicons name="sparkles" size={15} color="#FFF" />
+                <Text style={styles.gateBtnText}>Unlock premium</Text>
+              </TouchableOpacity>
+            </View>
+          ) : premium === null ? (
+            <View style={styles.gate}><ActivityIndicator color={colors.primary} /></View>
+          ) : (
+          <>
           <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={{ padding: 14, gap: 8 }}>
             <View style={styles.note}>
               <MaterialCommunityIcons name="lightbulb-on-outline" size={15} color={colors.warning} />
@@ -145,6 +174,8 @@ export const HomeworkHelpSheet: React.FC<Props> = ({ visible, onClose, studentId
               <Ionicons name="send" size={17} color="#FFF" />
             </TouchableOpacity>
           </View>
+          </>
+          )}
         </KeyboardAvoidingView>
       </View>
     </Modal>
@@ -191,5 +222,15 @@ function makeStyles(c: any) {
       paddingHorizontal: 14, paddingVertical: 9, fontSize: 13.5, fontFamily: fonts.regular, color: c.text,
     },
     send: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' },
+
+    gate: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 6 },
+    gateIcon: { width: 66, height: 66, borderRadius: 20, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+    gateTitle: { fontSize: 16, fontFamily: fonts.extrabold, color: c.text, textAlign: 'center', letterSpacing: -0.3 },
+    gateText: { fontSize: 13, fontFamily: fonts.regular, color: c.textSecondary, textAlign: 'center', lineHeight: 19, marginTop: 2 },
+    gateBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 16,
+      backgroundColor: c.primary, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 13,
+    },
+    gateBtnText: { fontSize: 14, fontFamily: fonts.bold, color: '#FFF' },
   });
 }
