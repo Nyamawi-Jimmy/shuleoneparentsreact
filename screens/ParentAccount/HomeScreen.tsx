@@ -138,7 +138,10 @@ export const HomeScreen: React.FC = () => {
   const attValue = attRate != null ? `${Math.round(attRate)}%` : attLatest?.status ? String(attLatest.status) : '—';
   const attFoot = attRate != null ? 'Attendance this term' : attLatest?.status ? 'Latest recorded day' : 'No records yet';
 
-  const statusLine = home?.statusLine || (homeLoading ? 'Loading your day…' : 'Here’s your day');
+  // Match the web's greeting subtitle ("Here's how <child> is doing today.")
+  // instead of the backend's action-count status line.
+  const childFirst = child?.firstName || child?.fullName?.split(' ')[0] || 'your child';
+  const statusLine = homeLoading ? 'Loading your day…' : `Here’s how ${childFirst} is doing today.`;
 
   // Light status icons belong to the indigo header, but only while this tab is
   // focused — other tabs have plain backgrounds and keep the theme default.

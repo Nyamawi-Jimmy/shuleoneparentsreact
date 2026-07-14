@@ -42,7 +42,7 @@ export async function downloadAuthFile(
 ): Promise<string | null> {
   const localUri = await downloadToCache(accessToken, remoteUrl, opts);
   if (!localUri) return null;
-  await openWithSharing(localUri, opts);
+  await openFile(localUri, opts);
   return localUri;
 }
 
@@ -64,7 +64,7 @@ export async function saveAuthFileToDevice(
       if (saved) {
         // Take the parent straight to the file so they can see what was
         // downloaded (open it / share it / re-save it).
-        await openWithSharing(localUri, opts);
+        await openFile(localUri, opts);
         return true;
       }
     } catch {
@@ -72,7 +72,7 @@ export async function saveAuthFileToDevice(
     }
   }
   // iOS (Save to Files) and Android fallback.
-  await openWithSharing(localUri, opts);
+  await openFile(localUri, opts);
   return true;
 }
 
@@ -225,18 +225,41 @@ function legacyFs(): any {
 }
 
 // =================================================================
-// Sharing / preview
+// Open the downloaded file directly — the OS opens it in the default viewer,
+// or shows an "open with" chooser — instead of a share sheet.
 // =================================================================
-async function openWithSharing(localUri: string, opts: DownloadOptions) {
+async function openFile(localUri: string, opts: DownloadOptions) {
+  const mimeType = opts.mimeType ?? 'application/pdf';
+
+  if (Platform.OS === 'android') {
+    // ACTION_VIEW via a content:// URI = "open / open with", not "share".
+    try {
+      const FileSystem = legacyFs();
+      const IntentLauncher = requireIntentLauncher();
+      if (FileSystem?.getContentUriAsync && IntentLauncher?.startActivityAsync) {
+        const contentUri = await FileSystem.getContentUriAsync(localUri);
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: contentUri,
+          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+          type: mimeType,
+        });
+        return;
+      }
+    } catch {
+      // fall through to sharing as a last resort
+    }
+  }
+
+  // iOS (Quick Look) and Android fallback.
   let Sharing: any;
   try { Sharing = require('expo-sharing'); } catch { Sharing = null; }
   if (Sharing && (await Sharing.isAvailableAsync())) {
-    await Sharing.shareAsync(localUri, {
-      mimeType: opts.mimeType ?? 'application/pdf',
-      dialogTitle: opts.fileName,
-      UTI: 'com.adobe.pdf',
-    });
+    await Sharing.shareAsync(localUri, { mimeType, dialogTitle: opts.fileName, UTI: 'com.adobe.pdf' });
   } else {
     Alert.alert('Downloaded', `Saved to: ${localUri}`);
   }
+}
+
+function requireIntentLauncher(): any {
+  try { return require('expo-intent-launcher'); } catch { return null; }
 }
