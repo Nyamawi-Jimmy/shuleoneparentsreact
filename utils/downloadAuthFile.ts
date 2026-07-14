@@ -71,6 +71,27 @@ export async function saveAuthFileToDevice(
   return true;
 }
 
+/**
+ * Fetch an authenticated file and return it as a base64 string — used to hand
+ * a PDF to the in-app viewer (WebView + pdf.js) without a second auth round.
+ * Returns null on failure.
+ */
+export async function fetchAuthFileBase64(
+  accessToken: string,
+  remoteUrl: string,
+  fileName = 'file.pdf',
+): Promise<string | null> {
+  const localUri = await downloadToCache(accessToken, remoteUrl, { fileName });
+  if (!localUri) return null;
+  const FileSystem = legacyFs();
+  if (!FileSystem?.readAsStringAsync) return null;
+  try {
+    return await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
+  } catch {
+    return null;
+  }
+}
+
 // =================================================================
 // Cache download (shared by both helpers)
 // =================================================================

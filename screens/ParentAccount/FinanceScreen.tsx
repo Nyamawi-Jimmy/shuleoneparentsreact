@@ -12,6 +12,7 @@ import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator,
 } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
@@ -29,8 +30,9 @@ import {
 import { useSelectedChild } from '../../context/SelectedChildContext';
 import { useParentProfile } from '../../context/ParentProfileContext';
 import { useAuth } from '../../context/AuthContext';
-import { downloadAuthFile, saveAuthFileToDevice } from '../../utils/downloadAuthFile';
+import { saveAuthFileToDevice } from '../../utils/downloadAuthFile';
 import { FeePaymentSheet } from '../../components/FeePaymentSheet';
+import { PdfViewerModal } from '../../components/PdfViewerModal';
 
 const ksh = (n: number): string => `KSh ${(Number.isFinite(n) ? n : 0).toLocaleString('en-KE')}`;
 const fmtDate = (s?: string | null): string => {
@@ -57,8 +59,10 @@ export const FinanceScreen: React.FC = () => {
   const [payments, setPayments] = useState<FeePayment[]>([]);
   const [options, setOptions] = useState<PaymentOptions | null>(null);
   const [allLines, setAllLines] = useState(false);
-  // Per-receipt busy state, keyed by "<ref>:<view|save>".
+  // Per-receipt busy state, keyed by "<ref>:<save>" (view opens the in-app viewer).
   const [receiptBusy, setReceiptBusy] = useState<string | null>(null);
+  // In-app PDF viewer target.
+  const [viewer, setViewer] = useState<{ url: string; title: string; fileName: string } | null>(null);
 
   const studentId = selectedChild?.studentId ?? null;
 
@@ -108,17 +112,21 @@ export const FinanceScreen: React.FC = () => {
     setDownloading(null);
   };
 
-  // View opens the receipt in the system viewer; Save writes it to the device.
-  const handleReceipt = async (ref: string, action: 'view' | 'save') => {
-    if (!studentId || !accessToken) return;
-    const key = `${ref}:${action}`;
-    if (receiptBusy) return;
-    setReceiptBusy(key);
-    const url = buildReceiptPdfUrl(studentId, ref);
-    const opts = { fileName: `receipt-${ref}.pdf`.replace(/\s+/g, '-') };
+  // View opens the receipt inside the app; Save writes it to the device.
+  const viewReceipt = (ref: string) => {
+    if (studentId == null) return;
+    setViewer({
+      url: buildReceiptPdfUrl(studentId, ref),
+      title: `Receipt · ${ref}`,
+      fileName: `receipt-${ref}.pdf`.replace(/\s+/g, '-'),
+    });
+  };
+  const saveReceipt = async (ref: string) => {
+    if (!studentId || !accessToken || receiptBusy) return;
+    setReceiptBusy(`${ref}:save`);
     try {
-      if (action === 'view') await downloadAuthFile(accessToken, url, opts);
-      else await saveAuthFileToDevice(accessToken, url, opts);
+      await saveAuthFileToDevice(accessToken, buildReceiptPdfUrl(studentId, ref),
+        { fileName: `receipt-${ref}.pdf`.replace(/\s+/g, '-') });
     } catch { /* helper already alerts */ }
     setReceiptBusy(null);
   };
@@ -136,44 +144,41 @@ export const FinanceScreen: React.FC = () => {
           <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>
         ) : (
           <>
-            {/* ── Balance hero — a premium gradient card with a paid-progress bar ── */}
-            <LinearGradient
-              colors={balance > 0 ? [colors.primary, colors.primaryDeep] : ['#0f8a5f', '#0b6b49']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={styles.heroCard}
-            >
-              <View style={styles.heroGlow} />
-              <View style={styles.heroChipRow}>
-                <View style={styles.heroChip}>
-                  <View style={[styles.chipDot, { backgroundColor: '#fff' }]} />
-                  <Text style={styles.heroChipText}>{balance > 0 ? 'Balance due' : 'All cleared'}</Text>
+            {/* ── Balance hero — rides over the app bar ──────────────────── */}
+            <View style={styles.heroCard}>
+              <View style={styles.heroTop}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <View style={[styles.chip, { backgroundColor: balance > 0 ? colors.dangerSoft : colors.successSoft }]}>
+                    <View style={[styles.chipDot, { backgroundColor: balance > 0 ? colors.danger : colors.success }]} />
+                    <Text style={[styles.chipText, { color: balance > 0 ? colors.danger : colors.success }]}>
+                      {balance > 0 ? 'Balance due' : 'All cleared'}
+                    </Text>
+                  </View>
+                  <Text style={styles.heroLabel}>Outstanding balance</Text>
+                  <Text style={[styles.heroValue, balance <= 0 && { color: colors.success }]} numberOfLines={1}>
+                    {ksh(balance)}
+                  </Text>
                 </View>
-                <Text style={styles.heroPct}>{pctPaid}% paid</Text>
-              </View>
-
-              <Text style={styles.heroLabel}>Outstanding balance</Text>
-              <Text style={styles.heroValue} numberOfLines={1}>{ksh(balance)}</Text>
-
-              {/* Paid-progress bar */}
-              <View style={styles.track}>
-                <View style={[styles.trackFill, { width: `${Math.max(3, Math.min(100, pctPaid))}%` }]} />
+                <Donut pct={pctPaid} color={colors.primary} track={colors.backgroundAlt} textColor={colors.text} />
               </View>
 
               <View style={styles.strip}>
                 <Mini styles={styles} label="Billed" value={ksh(billed)} />
                 <View style={styles.stripDivider} />
-                <Mini styles={styles} label="Paid" value={ksh(paid)} />
+                <Mini styles={styles} label="Paid" value={ksh(paid)} valueColor={colors.success} />
                 <View style={styles.stripDivider} />
                 <Mini styles={styles} label="B/Forward" value={ksh(broughtForward)} />
               </View>
 
               {balance > 0 && mpesaEnabled && (
-                <TouchableOpacity activeOpacity={0.9} style={styles.payBtn} onPress={() => setPayOpen(true)}>
-                  <MaterialCommunityIcons name="cellphone-check" size={18} color={colors.primaryDeep} />
-                  <Text style={styles.payBtnText}>Pay with M-Pesa</Text>
+                <TouchableOpacity activeOpacity={0.85} onPress={() => setPayOpen(true)}>
+                  <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.payBtn}>
+                    <MaterialCommunityIcons name="cellphone-check" size={18} color="#FFF" />
+                    <Text style={styles.payBtnText}>Pay with M-Pesa</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               )}
-            </LinearGradient>
+            </View>
 
             {/* ── Statements — two independent downloads ─────────────────── */}
             <Text style={styles.sectionTitle}>Statements</Text>
@@ -213,13 +218,12 @@ export const FinanceScreen: React.FC = () => {
                           </Text>
                         </View>
                         <TouchableOpacity style={styles.rcptBtn} activeOpacity={0.7}
-                          onPress={() => handleReceipt(ref, 'view')} disabled={!!receiptBusy}>
-                          {receiptBusy === `${ref}:view`
-                            ? <ActivityIndicator size="small" color={colors.primary} />
-                            : <><Ionicons name="eye-outline" size={15} color={colors.primary} /><Text style={styles.rcptBtnText}>View</Text></>}
+                          onPress={() => viewReceipt(ref)}>
+                          <Ionicons name="eye-outline" size={15} color={colors.primary} />
+                          <Text style={styles.rcptBtnText}>View</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.rcptBtn, styles.rcptBtnAlt]} activeOpacity={0.7}
-                          onPress={() => handleReceipt(ref, 'save')} disabled={!!receiptBusy}>
+                          onPress={() => saveReceipt(ref)} disabled={!!receiptBusy}>
                           {receiptBusy === `${ref}:save`
                             ? <ActivityIndicator size="small" color={colors.textSecondary} />
                             : <Ionicons name="download-outline" size={16} color={colors.textSecondary} />}
@@ -300,6 +304,9 @@ export const FinanceScreen: React.FC = () => {
 
       {studentId != null && (
         <FeePaymentSheet
+          // Remount on open so the amount always initialises to the current
+          // balance (Pay-in-full reflects immediately, no toggle needed).
+          key={payOpen ? `pay-${Math.round(balance)}` : 'pay-closed'}
           visible={payOpen}
           onClose={() => setPayOpen(false)}
           studentId={studentId}
@@ -309,14 +316,42 @@ export const FinanceScreen: React.FC = () => {
           onSuccess={() => { refresh(); if (accessToken && studentId != null) getChildFeePayments(accessToken, studentId).then(setPayments).catch(() => {}); }}
         />
       )}
+
+      <PdfViewerModal
+        visible={!!viewer}
+        onClose={() => setViewer(null)}
+        title={viewer?.title ?? 'Receipt'}
+        url={viewer?.url ?? null}
+        accessToken={accessToken}
+        fileName={viewer?.fileName ?? 'receipt.pdf'}
+      />
     </View>
   );
 };
 
-const Mini: React.FC<{ styles: any; label: string; value: string }> = ({ styles, label, value }) => (
+const Donut: React.FC<{ pct: number; color: string; track: string; textColor: string }> = ({ pct, color, track, textColor }) => {
+  const size = 68, stroke = 7;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(100, pct));
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size} style={{ position: 'absolute' }}>
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={track} strokeWidth={stroke} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={stroke} fill="none"
+          strokeDasharray={c} strokeDashoffset={c * (1 - p / 100)} strokeLinecap="round"
+          transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+      </Svg>
+      <Text style={{ fontFamily: fonts.extrabold, fontSize: 14, color: textColor }}>{p}%</Text>
+      <Text style={{ fontFamily: fonts.medium, fontSize: 8.5, color: textColor, opacity: 0.6 }}>paid</Text>
+    </View>
+  );
+};
+
+const Mini: React.FC<{ styles: any; label: string; value: string; valueColor?: string }> = ({ styles, label, value, valueColor }) => (
   <View style={styles.mini}>
     <Text style={styles.miniLabel}>{label}</Text>
-    <Text style={styles.miniValue} numberOfLines={1}>{value}</Text>
+    <Text style={[styles.miniValue, valueColor ? { color: valueColor } : null]} numberOfLines={1}>{value}</Text>
   </View>
 );
 
@@ -375,47 +410,36 @@ function makeStyles(c: ColorPalette) {
     center: { padding: 40, alignItems: 'center' },
 
     heroCard: {
-      borderRadius: 24, padding: 20, marginTop: 14, marginBottom: 22, overflow: 'hidden',
-      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.28, shadowRadius: 20, elevation: 8,
+      backgroundColor: c.card, borderRadius: 22, borderWidth: 1, borderColor: c.border,
+      padding: 18, marginTop: 14, marginBottom: 22,
+      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.14, shadowRadius: 18, elevation: 6,
     },
-    heroGlow: {
-      position: 'absolute', top: -50, right: -40, width: 150, height: 150,
-      borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.10)',
-    },
-    heroChipRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    heroChip: {
+    heroTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 14 },
+    chip: {
       flexDirection: 'row', alignItems: 'center', gap: 6,
-      borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5,
-      backgroundColor: 'rgba(255,255,255,0.18)',
+      borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start',
     },
     chipDot: { width: 6, height: 6, borderRadius: 3 },
-    heroChipText: { fontSize: 11, fontFamily: fonts.bold, color: '#FFF' },
-    heroPct: { fontSize: 12, fontFamily: fonts.bold, color: 'rgba(255,255,255,0.9)' },
-    heroLabel: { fontSize: 12.5, fontFamily: fonts.medium, color: 'rgba(255,255,255,0.8)', marginTop: 16 },
-    heroValue: { fontSize: 32, fontFamily: fonts.extrabold, color: '#FFF', letterSpacing: -0.9, marginTop: 2 },
-
-    track: {
-      height: 8, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.22)',
-      marginTop: 14, overflow: 'hidden',
-    },
-    trackFill: { height: '100%', borderRadius: 999, backgroundColor: '#FFF' },
+    chipText: { fontSize: 11, fontFamily: fonts.bold },
+    heroLabel: { fontSize: 12, fontFamily: fonts.medium, color: c.textSecondary, marginTop: 12 },
+    heroValue: { fontSize: 29, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.8, marginTop: 2 },
 
     strip: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
-      backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 14,
+      backgroundColor: c.backgroundAlt, borderRadius: 14,
       paddingHorizontal: 14, paddingVertical: 11, marginTop: 16,
     },
-    stripDivider: { width: 1, alignSelf: 'stretch', backgroundColor: 'rgba(255,255,255,0.22)' },
+    stripDivider: { width: 1, alignSelf: 'stretch', backgroundColor: c.border },
     mini: { flex: 1, minWidth: 0 },
-    miniLabel: { fontSize: 9.5, fontFamily: fonts.bold, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.6, textTransform: 'uppercase' },
-    miniValue: { fontSize: 13, fontFamily: fonts.extrabold, color: '#FFF', marginTop: 2, letterSpacing: -0.2 },
+    miniLabel: { fontSize: 9.5, fontFamily: fonts.bold, color: c.textTertiary, letterSpacing: 0.6, textTransform: 'uppercase' },
+    miniValue: { fontSize: 13, fontFamily: fonts.extrabold, color: c.text, marginTop: 2, letterSpacing: -0.2 },
 
     payBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-      borderRadius: 14, paddingVertical: 14, marginTop: 18, backgroundColor: '#FFF',
+      borderRadius: 13, paddingVertical: 13, marginTop: 16,
     },
-    payBtnText: { color: c.primaryDeep, fontSize: 14.5, fontFamily: fonts.bold },
+    payBtnText: { color: '#FFF', fontSize: 14.5, fontFamily: fonts.bold },
 
     rcptRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12 },
     rcptIcon: {
