@@ -282,7 +282,11 @@ export const HomeScreen: React.FC = () => {
                         )}
                       </View>
                       <Text style={styles.attnTileTitle} numberOfLines={2}>{a.title}</Text>
-                      {!!a.subtitle && <Text style={styles.attnTileSub} numberOfLines={1}>{a.subtitle}</Text>}
+                      {!!a.subtitle && (
+                        <Text style={[styles.attnTileSub, isFee && styles.attnTileSubStrong]} numberOfLines={1}>
+                          {a.subtitle}
+                        </Text>
+                      )}
                       <View style={[styles.attnTileCta, { backgroundColor: isFee ? colors.primary : tintSoft }]}>
                         <Text style={[styles.attnTileCtaText, { color: isFee ? '#FFF' : tint }]}>{ctaText}</Text>
                         <Feather name="arrow-right" size={14} color={isFee ? '#FFF' : tint} />
@@ -652,6 +656,7 @@ function makeStyles(c: ColorPalette) {
     attnBadgeText: { fontSize: 10, fontFamily: fonts.bold, letterSpacing: 0.4, textTransform: 'uppercase' },
     attnTileTitle: { fontSize: 15, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2, lineHeight: 20 },
     attnTileSub: { fontSize: 12, color: c.textSecondary, marginTop: 3, fontFamily: fonts.regular },
+    attnTileSubStrong: { fontFamily: fonts.bold, color: c.text },
     attnTileCta: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
       alignSelf: 'flex-start', marginTop: 13,
