@@ -171,6 +171,19 @@ export const LearningScreen: React.FC = () => {
             />
           )}
 
+          {/* Quests — shown directly as the SAME gamified cards as the student side */}
+          {quests.length > 0 && (
+            <>
+              <Text style={styles.sectionTitle}>{firstName}’s quests</Text>
+              {[...quests]
+                .filter((q) => q.id !== resumeQuest?.id)
+                .sort((a, b) => rankStatus(a.status) - rankStatus(b.status))
+                .map((q) => (
+                  <GamifiedQuestCard key={String(q.id ?? q.key)} styles={styles} quest={q} onPlay={playQuest} />
+                ))}
+            </>
+          )}
+
           {/* Focus card — the web hero's content on a quiet card */}
           {subscribed ? (
             <View style={styles.focusCard}>
