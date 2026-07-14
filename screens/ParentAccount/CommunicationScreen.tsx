@@ -126,9 +126,9 @@ export const CommunicationScreen: React.FC = () => {
   };
 
   const TABS: { id: Tab; label: string; icon: any; count: number }[] = [
-    { id: 'assignments', label: 'Tasks', icon: 'clipboard-outline', count: dueCount },
-    { id: 'updates', label: 'Updates', icon: 'megaphone-outline', count: newCount },
-    { id: 'chats', label: 'Chats', icon: 'chatbubbles-outline', count: unreadChats },
+    { id: 'assignments', label: 'Assignments', icon: 'clipboard-outline', count: dueCount },
+    { id: 'updates', label: 'School updates', icon: 'megaphone-outline', count: newCount },
+    { id: 'chats', label: 'Teacher chats', icon: 'chatbubbles-outline', count: unreadChats },
   ];
 
   return (
@@ -153,8 +153,8 @@ export const CommunicationScreen: React.FC = () => {
             return (
               <TouchableOpacity key={t.id} style={[styles.segmentBtn, active && styles.segmentBtnActive]}
                 activeOpacity={0.85} onPress={() => openTab(t.id)}>
-                <Ionicons name={t.icon} size={15} color={active ? '#FFF' : colors.textTertiary} />
-                <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{t.label}</Text>
+                <Ionicons name={t.icon} size={16} color={active ? '#FFF' : colors.textTertiary} />
+                <Text style={[styles.segmentText, active && styles.segmentTextActive]} numberOfLines={1}>{t.label}</Text>
                 {t.count > 0 && (
                   <View style={[styles.segmentBadge, active && styles.segmentBadgeActive]}>
                     <Text style={[styles.segmentBadgeText, active && { color: colors.primary }]}>
@@ -360,7 +360,7 @@ const ChatsTab: React.FC<{ styles: any; colors: ColorPalette; contacts: ChatCont
             key={cnt.id ?? i}
             style={[styles.chatRow, i > 0 && styles.divider]}
             activeOpacity={0.7}
-            onPress={() => router.push({ pathname: '/conversation', params: { contactId: String(cnt.id ?? ''), name: cnt.name ?? '', avatar: (cnt as any).avatarUrl ?? cnt.avatar ?? '' } } as any)}
+            onPress={() => router.push({ pathname: '/conversation', params: { contactId: String(cnt.id ?? ''), name: cnt.name ?? '', avatar: (cnt as any).avatarUrl ?? cnt.avatar ?? '', role: String(cnt.role ?? 'TEACHER') } } as any)}
           >
             <View style={styles.chatAvatarWrap}>
               {(cnt as any).avatarUrl || cnt.avatar ? (
@@ -409,21 +409,23 @@ function makeStyles(c: ColorPalette) {
       shadowOpacity: 0.12, shadowRadius: 14, elevation: 5,
     },
     segmentBtn: {
-      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-      paddingVertical: 11, borderRadius: 12,
+      flex: 1, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
+      paddingVertical: 9, paddingHorizontal: 2, borderRadius: 12,
     },
     segmentBtnActive: {
       backgroundColor: c.primary,
       shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 3 },
       shadowOpacity: 0.3, shadowRadius: 7, elevation: 4,
     },
-    segmentText: { fontSize: 12.5, fontFamily: fonts.semibold, color: c.textSecondary },
-    segmentTextActive: { color: '#FFF', fontFamily: fonts.bold },
+    segmentText: { fontSize: 11.5, fontFamily: fonts.bold, color: c.textSecondary },
+    segmentTextActive: { color: '#FFF' },
     segmentBadge: {
-      minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9,
-      backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center',
+      position: 'absolute', top: 4, right: 6,
+      minWidth: 17, height: 17, paddingHorizontal: 4.5, borderRadius: 9,
+      backgroundColor: c.danger, alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1.5, borderColor: c.card,
     },
-    segmentBadgeActive: { backgroundColor: '#FFF' },
+    segmentBadgeActive: { backgroundColor: '#FFF', borderColor: c.primary },
     segmentBadgeText: { fontSize: 9.5, fontFamily: fonts.extrabold, color: '#FFF' },
 
     helpBtn: {

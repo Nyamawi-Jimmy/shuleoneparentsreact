@@ -9,18 +9,28 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { useChatConversation } from '../../hooks/useChatConversation';
-import { ChatMessage } from '../../api/chat.types';
+import { isCallingSupported } from '../../hooks/useCallManager';
+import { ChatMessage, ChatRole } from '../../api/chat.types';
 
 export const ConversationScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const params = useLocalSearchParams<{ contactId?: string; name?: string; avatar?: string }>();
+  const params = useLocalSearchParams<{ contactId?: string; name?: string; avatar?: string; role?: string }>();
   const contactId = params.contactId ? Number(params.contactId) : null;
   const contactName = (params.name as string) || 'Contact';
   const contactAvatar = (params.avatar as string) || '';
+  const peerRole = ((params.role as string) || 'TEACHER') as ChatRole;
 
-  const { messages, loading, sendMessage, sendAttachment, retry } = useChatConversation(contactId);
+  const { messages, loading, sendText, sendAttachment, retry } = useChatConversation({ peerId: contactId, peerRole });
+
+  const startCall = () => {
+    if (contactId == null) return;
+    router.push({
+      pathname: '/call',
+      params: { mode: 'outgoing', peerId: String(contactId), peerRole: String(peerRole), peerName: contactName },
+    } as any);
+  };
 
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -37,7 +47,7 @@ export const ConversationScreen: React.FC = () => {
     if (!text || sending) return;
     setInput('');
     setSending(true);
-    try { await sendMessage(text); }
+    try { await sendText(text); }
     catch (e: any) { Alert.alert('Could not send', e?.message ?? 'Try again.'); }
     finally { setSending(false); }
   };
@@ -52,7 +62,7 @@ export const ConversationScreen: React.FC = () => {
       const file = result.assets?.[0];
       if (!file) return;
       setSending(true);
-      await sendAttachment(file.uri, file.name, file.mimeType);
+      await sendAttachment({ uri: file.uri, name: file.name, type: file.mimeType ?? 'application/octet-stream' });
     } catch (e: any) { Alert.alert('Upload failed', e?.message ?? 'Try again.'); }
     finally { setSending(false); }
   };
@@ -80,6 +90,11 @@ export const ConversationScreen: React.FC = () => {
           <Text style={styles.headerName} numberOfLines={1}>{contactName}</Text>
           <Text style={styles.headerStatus}>School staff</Text>
         </View>
+        {isCallingSupported() && contactId != null && (
+          <TouchableOpacity onPress={startCall} style={styles.callBtn} activeOpacity={0.85} hitSlop={8}>
+            <Ionicons name="call" size={19} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
       </LinearGradient>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -92,7 +107,7 @@ export const ConversationScreen: React.FC = () => {
           <FlatList
             ref={flatRef}
             data={messages}
-            keyExtractor={(m, i) => String(m.id ?? `${m.createdAt}-${i}`)}
+            keyExtractor={(m, i) => String(m.id ?? `${m.time}-${i}`)}
             contentContainerStyle={styles.messagesContent}
             ListEmptyComponent={() => (
               <View style={styles.center}>
@@ -105,18 +120,18 @@ export const ConversationScreen: React.FC = () => {
             )}
             renderItem={({ item, index }) => {
               const prev = messages[index - 1];
-              const showDate = !prev || !sameDay(prev.createdAt, item.createdAt);
+              const showDate = !prev || !sameDay(prev.time, item.time);
               return (
                 <View>
                   {showDate && (
                     <View style={styles.dateSeparator}>
-                      <Text style={styles.dateText}>{formatDateLabel(item.createdAt)}</Text>
+                      <Text style={styles.dateText}>{formatDateLabel(item.time)}</Text>
                     </View>
                   )}
                   <MessageBubble
                     colors={colors} styles={styles}
                     message={item}
-                    onRetry={() => item.localId != null && retry(item.localId)}
+                    onRetry={() => retry(item)}
                   />
                 </View>
               );
@@ -154,8 +169,9 @@ export const ConversationScreen: React.FC = () => {
 };
 
 const MessageBubble: React.FC<{ message: ChatMessage; onRetry: () => void; colors: ColorPalette; styles: any }> = ({ message, onRetry, colors, styles }) => {
-  const isMine = message.fromMe ?? false;
-  const isFailed = message.status === 'failed';
+  const isMine = message.from === 'me';
+  const status = String(message.status ?? '').toUpperCase();
+  const isFailed = status === 'FAILED';
 
   return (
     <View style={[styles.bubbleRow, isMine && styles.bubbleRowMine]}>
@@ -174,12 +190,12 @@ const MessageBubble: React.FC<{ message: ChatMessage; onRetry: () => void; color
         )}
         <View style={styles.bubbleMetaRow}>
           <Text style={[styles.bubbleTime, isMine ? styles.bubbleTimeMine : styles.bubbleTimeOther]}>
-            {formatTime(message.createdAt)}
+            {formatTime(message.time)}
           </Text>
-          {isMine && message.status === 'sent' && (
+          {isMine && (status === 'SENT' || status === 'DELIVERED' || status === 'READ') && (
             <Ionicons name="checkmark-done" size={11} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
           )}
-          {isMine && message.status === 'sending' && (
+          {isMine && status === 'SENDING' && (
             <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
           )}
         </View>
@@ -235,6 +251,11 @@ function makeStyles(c: ColorPalette) {
     headerInitials: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
     headerName: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', letterSpacing: -0.2 },
     headerStatus: { color: 'rgba(255,255,255,0.85)', fontSize: 11.5, fontWeight: '500' },
+    callBtn: {
+      width: 40, height: 40, borderRadius: 20,
+      backgroundColor: 'rgba(255,255,255,0.22)',
+      alignItems: 'center', justifyContent: 'center',
+    },
 
     messagesContent: { padding: 14, flexGrow: 1 },
     dateSeparator: { alignItems: 'center', marginVertical: 12 },
