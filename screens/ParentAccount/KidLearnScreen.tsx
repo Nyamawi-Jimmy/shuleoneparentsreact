@@ -227,8 +227,8 @@ const QuestStageMap: React.FC<{
   const PAD_BOTTOM = 92;        // room for the lowest bubble + its label
   const mapHeight = PAD_TOP + PAD_BOTTOM + Math.max(1, n - 1) * SPACING;
   const positions = stages.map((s, i) => {
-    // stage 0 sits at the bottom, the last stage at the top
-    const yPx = mapHeight - PAD_BOTTOM - i * SPACING;
+    // Level 1 (stage 0) sits at the TOP, later stages descend downward.
+    const yPx = PAD_TOP + i * SPACING;
     return { x: ZIG[i % ZIG.length], y: (yPx / mapHeight) * 100 };
   });
   const pathD = buildPath(positions);
