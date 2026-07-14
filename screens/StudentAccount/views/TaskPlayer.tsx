@@ -18,6 +18,7 @@ import {
 import {
   AssignmentExam, AssignmentSubmitResult, AssignmentReview,
 } from '../../../api/student.types';
+import { HomeworkHelpSheet } from '../../../components/HomeworkHelpSheet';
 
 type Phase = 'loading' | 'error' | 'gate' | 'intro' | 'running' | 'result' | 'loadingReview' | 'review';
 type AnswerVal = { choiceId?: number; text?: string };
@@ -41,8 +42,12 @@ export const TaskPlayer: React.FC<{
   loadExam?: (examId: number) => Promise<AssignmentExam>;
   submitExam?: (examId: number, body: SubmitBody) => Promise<AssignmentSubmitResult>;
   loadReviewFn?: (examId: number, take?: number | null) => Promise<AssignmentReview>;
-}> = ({ examId, onClose, onSubmitted, loadExam, submitExam, loadReviewFn }) => {
+  // When set, shows the AI "Get help" button on each question.
+  helperStudentId?: number;
+  helperAudience?: 'PARENT' | 'STUDENT';
+}> = ({ examId, onClose, onSubmitted, loadExam, submitExam, loadReviewFn, helperStudentId, helperAudience = 'STUDENT' }) => {
   const { accessToken } = useAuth();
+  const [helpQ, setHelpQ] = useState<{ text?: string | null; options?: string | null } | null>(null);
   // Fetchers held in a ref (stable identity) so the load/submit hooks below
   // don't list them as deps. Default = student endpoints; the parent "Help do
   // it" flow injects parent-scoped ones. examId + token are fixed for the
@@ -297,6 +302,16 @@ export const TaskPlayer: React.FC<{
             </Text>
             <Text style={styles.qText}>{current.questionText}</Text>
 
+            {helperStudentId != null && (
+              <TouchableOpacity style={styles.helpBtn} activeOpacity={0.85}
+                onPress={() => setHelpQ({
+                  text: current.questionText,
+                  options: isMcq(current.type) ? (current.choices ?? []).map((c) => c.text).filter(Boolean).join('\n') : undefined,
+                })}>
+                <Text style={styles.helpBtnText}>✨ Get help</Text>
+              </TouchableOpacity>
+            )}
+
             {isMcq(current.type) ? (
               (current.choices ?? []).map((c) => {
                 const on = answers[current.id]?.choiceId === c.id;
@@ -529,6 +544,18 @@ export const TaskPlayer: React.FC<{
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
+
+      {helperStudentId != null && (
+        <HomeworkHelpSheet
+          key={helpQ?.text ?? 'hw-closed'}
+          visible={helpQ != null}
+          onClose={() => setHelpQ(null)}
+          studentId={helperStudentId}
+          assignmentId={examId}
+          audience={helperAudience}
+          question={helpQ}
+        />
+      )}
     </View>
   );
 };
@@ -597,7 +624,13 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
   },
   qType: { fontSize: 10, fontWeight: '800', letterSpacing: 0.6, color: '#7c5cff' },
-  qText: { fontSize: 15, fontWeight: '700', color: S.ink, lineHeight: 22, marginTop: 8, marginBottom: 14 },
+  qText: { fontSize: 15, fontWeight: '700', color: S.ink, lineHeight: 22, marginTop: 8, marginBottom: 10 },
+  helpBtn: {
+    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(124,92,255,0.12)', borderRadius: 999,
+    paddingHorizontal: 12, paddingVertical: 7, marginBottom: 14,
+  },
+  helpBtnText: { fontSize: 12.5, fontWeight: '800', color: '#7c5cff' },
   choice: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     borderWidth: 2, borderColor: S.line, borderRadius: 14,

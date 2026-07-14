@@ -49,6 +49,8 @@ export const HelpAssignmentScreen: React.FC = () => {
           loadExam={(id) => getParentAssignmentExam(accessToken, studentId, id)}
           submitExam={(id, body) => submitParentAssignmentExam(accessToken, studentId, id, body)}
           loadReviewFn={(id, take) => getParentAssignmentReview(accessToken, studentId, id, take)}
+          helperStudentId={studentId}
+          helperAudience="PARENT"
           onClose={() => router.back()}
           onSubmitted={() => router.back()}
         />

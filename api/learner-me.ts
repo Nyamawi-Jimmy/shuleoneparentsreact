@@ -51,3 +51,30 @@ export function getLearnerAccess(accessToken: string, studentId: number) {
 export function masteryPct(score: number | null | undefined): number {
   return Math.max(0, Math.min(100, Math.round((Number(score) || 0) * 100)));
 }
+
+// =================================================================
+// AI homework helper — POST /api/learner/{studentId}/homework-help
+// Hints/coaching for one question. audience 'PARENT' = "help you explain",
+// 'STUDENT' = "hints only". Mirrors the web HomeworkHelp component.
+// =================================================================
+export interface HomeworkHelpRequest {
+  assignmentId?: number | null;
+  schoolId?: number | null;
+  audience: 'PARENT' | 'STUDENT';
+  questionText?: string | null;
+  options?: string | null;
+  markingScheme?: string | null;
+  message: string;
+  history: { role: string; text: string }[];
+}
+
+export interface HomeworkHelpResponse {
+  reply: string | null;
+  mode?: string | null;   // TUTOR | REVISION
+}
+
+export function getHomeworkHelp(accessToken: string, studentId: number, body: HomeworkHelpRequest) {
+  return apiFetch<HomeworkHelpResponse>(`/api/learner/${studentId}/homework-help`, {
+    method: 'POST', accessToken, body,
+  });
+}
