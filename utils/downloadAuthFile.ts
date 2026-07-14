@@ -168,7 +168,8 @@ async function downloadViaLegacy(
 function stampSuffix(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  const ms = String(d.getMilliseconds()).padStart(3, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}${ms}`;
 }
 
 async function writeToDir(
@@ -208,7 +209,7 @@ async function saveViaSAF(localUri: string, opts: DownloadOptions): Promise<bool
     try { if (store) await store.setItem(SAF_DIR_KEY, perm.directoryUri); } catch {}
     await writeToDir(FileSystem, SAF, perm.directoryUri, base64, opts);
   }
-  Alert.alert('Saved to device', `${opts.fileName} was saved to your chosen folder.`);
+  Alert.alert('Downloaded', 'A new copy was saved to your device.');
   return true;
 }
 

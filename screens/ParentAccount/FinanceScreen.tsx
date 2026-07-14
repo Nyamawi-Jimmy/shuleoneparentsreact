@@ -402,7 +402,7 @@ const DownloadTile: React.FC<{
     <Text style={styles.dlDesc} numberOfLines={1}>{busy ? 'Preparing PDF…' : desc}</Text>
     <View style={styles.dlAction}>
       <Ionicons name="download-outline" size={13} color={colors.primary} />
-      <Text style={styles.dlActionText}>{busy ? 'Downloading' : 'Save to device'}</Text>
+      <Text style={styles.dlActionText}>{busy ? 'Downloading' : 'Download'}</Text>
     </View>
   </TouchableOpacity>
 );
