@@ -4,7 +4,7 @@
 // then Done and Missed. Tapping a task opens the in-app TaskPlayer.
 
 import React, { useCallback, useState } from 'react';
-import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, useSchemeTick } from '../studentTheme';
+import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   ActivityIndicator, RefreshControl,
@@ -22,29 +22,31 @@ import { TaskPlayer } from './TaskPlayer';
 
 const categoryKey = (a: StudentAssignment) => String(a.category || 'Assignment').trim().toLowerCase();
 
+// Colours resolve through the scheme-adaptive C palette, so chips flip with
+// the theme (dark accent on light chip → light accent on dark chip).
 function categoryMeta(category: string | null | undefined) {
   const c = String(category || 'Assignment').trim().toLowerCase();
-  if (c === 'cat') return { label: 'CAT', fg: '#7c3aed', bg: '#efeaff' };
-  if (c === 'term paper') return { label: 'Term Paper', fg: '#4f46e5', bg: '#e7e9ff' };
-  if (c === 'assignment') return { label: 'Assignment', fg: '#b45309', bg: '#fff3da' };
-  return { label: String(category).trim(), fg: '#6f679c', bg: '#f0edfb' };
+  if (c === 'cat') return { label: 'CAT', fg: C.ringInk, bg: C.ring };
+  if (c === 'term paper') return { label: 'Term Paper', fg: C.infoInk, bg: C.infoSoft };
+  if (c === 'assignment') return { label: 'Assignment', fg: C.warnInk, bg: C.warnSoft };
+  return { label: String(category).trim(), fg: C.inkSoft, bg: C.soft };
 }
 
 function statusMeta(a: StudentAssignment) {
   switch (a.status) {
     case 'OVERDUE':
-      return { label: 'Late · still open', emoji: '⏰', tint: '#ef4444', bg: '#fee2e2' };
+      return { label: 'Late · still open', emoji: '⏰', tint: C.badInk, bg: C.badSoft };
     case 'MISSED':
-      return { label: 'Missed', emoji: '🚫', tint: '#64748b', bg: '#eef1f5' };
+      return { label: 'Missed', emoji: '🚫', tint: C.faint, bg: C.soft };
     case 'SUBMITTED':
-      return { label: 'Submitted', emoji: '📬', tint: '#3aa0ff', bg: '#e3f1ff' };
+      return { label: 'Submitted', emoji: '📬', tint: C.infoInk, bg: C.infoSoft };
     case 'GRADED':
       return {
         label: a.score != null && a.maxScore != null ? `${a.score}/${a.maxScore}` : 'Graded',
-        emoji: '🏅', tint: '#0fae78', bg: '#eafef3',
+        emoji: '🏅', tint: C.okInk, bg: C.okSoft,
       };
     default:
-      return { label: 'To do', emoji: '✏️', tint: '#b45309', bg: '#fff3da' };
+      return { label: 'To do', emoji: '✏️', tint: C.warnInk, bg: C.warnSoft };
   }
 }
 

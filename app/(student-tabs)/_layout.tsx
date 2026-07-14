@@ -18,8 +18,13 @@ export default function StudentTabsLayout() {
       <TierProvider>
         <LessonProgressProvider>
           <Tabs
+            // Keep inactive tabs LIVE (not frozen) so a theme flip re-renders
+            // every mounted screen at once — a frozen tab would otherwise show
+            // the old scheme until you navigated to it and it thawed.
+            detachInactiveScreens={false}
             screenOptions={{
               headerShown: false,
+              freezeOnBlur: false,
               tabBarActiveTintColor: dark ? '#a78bfa' : '#7c5cff',
               tabBarInactiveTintColor: dark ? '#7d76a8' : '#9b94c4',
               tabBarStyle: {

@@ -255,8 +255,8 @@ export const CodeView: React.FC = () => {
                         </Text>
                       </View>
                       {r.hasQuiz && r.lastQuizPercent != null && (
-                        <View style={[styles.quizChip, { backgroundColor: r.quizPassed ? '#eafef3' : '#fff3da' }]}>
-                          <Text style={[styles.quizChipText, { color: r.quizPassed ? '#0fae78' : '#b45309' }]}>
+                        <View style={[styles.quizChip, { backgroundColor: r.quizPassed ? C.okSoft : C.warnSoft }]}>
+                          <Text style={[styles.quizChipText, { color: r.quizPassed ? C.okInk : C.warnInk }]}>
                             {r.lastQuizPercent}%
                           </Text>
                         </View>

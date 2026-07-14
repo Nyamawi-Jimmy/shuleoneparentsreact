@@ -462,7 +462,7 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   skillDot: { width: 8, height: 8, borderRadius: 4 },
   skillName: { maxWidth: 110, fontSize: 12.5, fontWeight: '700', color: S.ink },
   focusChip: { backgroundColor: S.warnSoft, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
-  focusChipText: { color: '#b45309', fontSize: 8.5, fontWeight: '800', letterSpacing: 0.4 },
+  focusChipText: { color: S.warnInk, fontSize: 8.5, fontWeight: '800', letterSpacing: 0.4 },
   skillBar: { flex: 1, height: 8, borderRadius: 99, backgroundColor: S.ring, overflow: 'hidden', minWidth: 30 },
   skillFill: { height: '100%', borderRadius: 99 },
   skillPct: { width: 36, textAlign: 'right', fontSize: 12, fontWeight: '800', color: S.ink },

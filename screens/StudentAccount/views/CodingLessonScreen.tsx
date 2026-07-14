@@ -92,10 +92,10 @@ export const CodingLessonScreen: React.FC<Props> = ({ lesson, node, playful, onC
   }, [accessToken, lesson.id]);
 
   const status = done
-    ? { label: '✓ Completed', bg: '#eafef3', fg: '#0fae78' }
+    ? { label: '✓ Completed', bg: C.okSoft, fg: C.okInk }
     : node?.teacherOpen
-      ? { label: 'In class', bg: '#fff3da', fg: '#b45309' }
-      : { label: 'In progress', bg: '#efeaff', fg: '#7c5cff' };
+      ? { label: 'In class', bg: C.warnSoft, fg: C.warnInk }
+      : { label: 'In progress', bg: C.ring, fg: C.ringInk };
 
   return (
     <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>

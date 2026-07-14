@@ -266,7 +266,7 @@ const EventCard: React.FC<{ it: StudentCalendarItem; radius: number }> = ({ it, 
         <Text style={styles.cardWhen}>{rangeOf({ ...it, _kind: 'EVENT' })}</Text>
       </View>
       <View style={[styles.pill, { backgroundColor: C.infoSoft }]}>
-        <Text style={[styles.pillText, { color: '#2779c7' }]}>{target}</Text>
+        <Text style={[styles.pillText, { color: C.infoInk }]}>{target}</Text>
       </View>
     </View>
   );
@@ -279,7 +279,7 @@ const ClassCard: React.FC<{
   const isLive = String(it.status).toLowerCase() === 'live';
   return (
     <View style={[styles.card, { borderRadius: radius }, isLive && { borderColor: '#fda4af' }]}>
-      <View style={[styles.tile, { backgroundColor: isLive ? '#ffe4e6' : '#efeaff' }]}>
+      <View style={[styles.tile, { backgroundColor: isLive ? C.badSoft : C.ring }]}>
         <Text style={{ fontSize: 19 }}>{isLive ? '🔴' : '🎥'}</Text>
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
@@ -289,8 +289,8 @@ const ClassCard: React.FC<{
         {!!error && <Text style={styles.joinErr}>{error}</Text>}
       </View>
       <View style={{ alignItems: 'flex-end', gap: 6 }}>
-        <View style={[styles.pill, { backgroundColor: isLive ? '#ffe4e6' : '#efeaff' }]}>
-          <Text style={[styles.pillText, { color: isLive ? '#e11d48' : '#5b45c9' }]}>
+        <View style={[styles.pill, { backgroundColor: isLive ? C.badSoft : C.ring }]}>
+          <Text style={[styles.pillText, { color: isLive ? C.badInk : C.ringInk }]}>
             {isLive ? 'Live' : 'Class'}
           </Text>
         </View>
