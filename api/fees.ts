@@ -78,17 +78,23 @@ export function getFeePayment(accessToken: string, paymentId: number) {
 // PDF downloads - return ready-to-open URLs (need Bearer header so
 // the caller usually fetches as blob, OR backend supports a signed token).
 // =================================================================
-export function buildReceiptPdfUrl(studentId: number): string {
-  return `${API_BASE_URL}/api/parent/children/${studentId}/fees/receipt.pdf`;
+/**
+ * The school's own branded receipt PDF. Pass a ledger `ref` to fetch that
+ * specific receipt (matches the web receipt.pdf?ref= endpoint); omit for the
+ * generic latest receipt.
+ */
+export function buildReceiptPdfUrl(studentId: number, ref?: string | null): string {
+  const query = ref ? `?ref=${encodeURIComponent(ref)}` : '';
+  return `${API_BASE_URL}/api/parent/children/${studentId}/fees/receipt.pdf${query}`;
 }
 
+/**
+ * The school's own statement PDF. scope 'TERM' = current term, 'FULL' = the
+ * whole statement across all years (matches the web statement.pdf?scope= API).
+ */
 export function buildStatementPdfUrl(
   studentId: number,
-  filters?: { year?: number; term?: number },
+  scope: 'TERM' | 'FULL' = 'TERM',
 ): string {
-  const qs = new URLSearchParams();
-  if (filters?.year != null) qs.set('year', String(filters.year));
-  if (filters?.term != null) qs.set('term', String(filters.term));
-  const query = qs.toString() ? `?${qs.toString()}` : '';
-  return `${API_BASE_URL}/api/parent/children/${studentId}/fees/statement.pdf${query}`;
+  return `${API_BASE_URL}/api/parent/children/${studentId}/fees/statement.pdf?scope=${scope}`;
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Modal, View, Text, StyleSheet, TouchableOpacity, TextInput,
-  ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, radius, typography, shadows } from '../constants/theme';
@@ -177,6 +177,7 @@ export const FeePaymentSheet: React.FC<Props> = ({
               phone={phone} setPhone={setPhone}
               amountError={amountError} phoneError={phoneError}
               options={options} studentName={studentName}
+              balance={defaultAmount ?? null}
               onPay={handlePay}
             />
           )}
@@ -238,76 +239,142 @@ export const FeePaymentSheet: React.FC<Props> = ({
 // =================================================================
 // Form step
 // =================================================================
+const ksh = (n: number) => `KSh ${(Number.isFinite(n) ? n : 0).toLocaleString('en-KE')}`;
+
 const FormStep: React.FC<{
   amount: string; setAmount: (s: string) => void;
   phone: string; setPhone: (s: string) => void;
   amountError: string | null; phoneError: string | null;
   options: PaymentOptions | null;
   studentName?: string;
+  balance: number | null;
   onPay: () => void;
-}> = ({ amount, setAmount, phone, setPhone, amountError, phoneError, options, studentName, onPay }) => (
-  <>
-    <View style={styles.greenBanner}>
-      <View style={styles.mpesaBadge}>
-        <Text style={styles.mpesaBadgeText}>M-PESA</Text>
+}> = ({ amount, setAmount, phone, setPhone, amountError, phoneError, options, studentName, balance, onPay }) => {
+  // Preset amounts, mirroring the web: Full = balance, Half = balance/2 rounded
+  // to the nearest 50 (min 10). "Custom" lets the parent type their own.
+  const hasBalance = balance != null && balance > 0;
+  const fullAmt = hasBalance ? Math.round(balance!) : 0;
+  const halfAmt = hasBalance ? Math.max(10, Math.round(balance! / 2 / 50) * 50) : 0;
+  const [mode, setMode] = useState<'full' | 'half' | 'custom'>(hasBalance ? 'full' : 'custom');
+
+  const choose = (m: 'full' | 'half' | 'custom', value: number) => {
+    setMode(m);
+    if (m !== 'custom') setAmount(String(value));
+  };
+  const amtNum = parseFloat(amount);
+  const canPay = Number.isFinite(amtNum) && amtNum >= 1 && !!phone.trim();
+
+  return (
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+      {/* Outstanding balance summary */}
+      {hasBalance && (
+        <View style={styles.balCard}>
+          <View style={styles.mpesaBadgeLg}>
+            <Text style={styles.mpesaBadgeText}>M-PESA</Text>
+          </View>
+          <Text style={styles.balLabel}>
+            {studentName ? `${studentName}'s outstanding balance` : 'Outstanding balance'}
+          </Text>
+          <Text style={styles.balValue}>{ksh(fullAmt)}</Text>
+        </View>
+      )}
+
+      {/* Choose how much to pay — Full / Half / Custom */}
+      {hasBalance && (
+        <>
+          <Text style={styles.label}>How much would you like to pay?</Text>
+          <View style={styles.presetRow}>
+            <PresetCard
+              title="Pay in full" amountLabel={ksh(fullAmt)}
+              active={mode === 'full'} onPress={() => choose('full', fullAmt)}
+            />
+            <PresetCard
+              title="Pay half" amountLabel={ksh(halfAmt)}
+              active={mode === 'half'} onPress={() => choose('half', halfAmt)}
+            />
+          </View>
+          <TouchableOpacity
+            style={[styles.customChip, mode === 'custom' && styles.customChipOn]}
+            activeOpacity={0.8}
+            onPress={() => choose('custom', 0)}
+          >
+            <Ionicons name="create-outline" size={15} color={mode === 'custom' ? colors.primary : colors.textSecondary} />
+            <Text style={[styles.customChipText, mode === 'custom' && { color: colors.primary }]}>
+              Enter a different amount
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      {/* Amount field (auto-selects "custom" once edited) */}
+      <Text style={[styles.label, { marginTop: spacing.lg }]}>Amount (KSh)</Text>
+      <View style={[styles.inputWrap, amountError && styles.inputError]}>
+        <Text style={styles.inputPrefix}>KSh</Text>
+        <TextInput
+          style={styles.input}
+          value={amount}
+          onChangeText={(t) => { setMode('custom'); setAmount(t); }}
+          keyboardType="numeric"
+          placeholder="0"
+          placeholderTextColor={colors.textTertiary}
+        />
       </View>
-      <Text style={styles.bannerText}>
-        Pay {studentName ? studentName + "'s" : "your child's"} fees with an instant STK push.
+      {amountError && <Text style={styles.errorText}>{amountError}</Text>}
+
+      <Text style={[styles.label, { marginTop: spacing.lg }]}>M-Pesa phone number</Text>
+      <View style={[styles.inputWrap, phoneError && styles.inputError]}>
+        <Text style={styles.inputPrefix}>+254</Text>
+        <TextInput
+          style={styles.input}
+          value={phone}
+          onChangeText={setPhone}
+          keyboardType="phone-pad"
+          placeholder="7XX XXX XXX"
+          placeholderTextColor={colors.textTertiary}
+        />
+      </View>
+      {phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
+
+      {options?.payInstructions && (
+        <View style={styles.instructions}>
+          <Ionicons name="information-circle-outline" size={15} color={colors.info} />
+          <Text style={styles.instructionsText}>{options.payInstructions}</Text>
+        </View>
+      )}
+
+      {options?.shortcode && (
+        <View style={styles.shortcodeRow}>
+          <MaterialCommunityIcons name="cellphone" size={15} color={colors.textSecondary} />
+          <Text style={styles.shortcodeText}>
+            M-Pesa shortcode: <Text style={{ fontWeight: '800', color: colors.text }}>{options.shortcode}</Text>
+          </Text>
+        </View>
+      )}
+
+      <Text style={styles.reassure}>
+        Paid straight to the school&apos;s M-Pesa account — you&apos;ll get the school receipt as usual.
       </Text>
-    </View>
 
-    <Text style={styles.label}>Amount (KSh)</Text>
-    <View style={[styles.inputWrap, amountError && styles.inputError]}>
-      <Text style={styles.inputPrefix}>KSh</Text>
-      <TextInput
-        style={styles.input}
-        value={amount}
-        onChangeText={setAmount}
-        keyboardType="numeric"
-        placeholder="0"
-        placeholderTextColor={colors.textTertiary}
-      />
-    </View>
-    {amountError && <Text style={styles.errorText}>{amountError}</Text>}
-
-    <Text style={[styles.label, { marginTop: spacing.lg }]}>M-Pesa phone number</Text>
-    <View style={[styles.inputWrap, phoneError && styles.inputError]}>
-      <Text style={styles.inputPrefix}>+254</Text>
-      <TextInput
-        style={styles.input}
-        value={phone}
-        onChangeText={setPhone}
-        keyboardType="phone-pad"
-        placeholder="7XX XXX XXX"
-        placeholderTextColor={colors.textTertiary}
-      />
-    </View>
-    {phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
-
-    {options?.payInstructions && (
-      <View style={styles.instructions}>
-        <Ionicons name="information-circle-outline" size={15} color={colors.info} />
-        <Text style={styles.instructionsText}>{options.payInstructions}</Text>
-      </View>
-    )}
-
-    {options?.shortcode && (
-      <View style={styles.shortcodeRow}>
-        <MaterialCommunityIcons name="cellphone" size={15} color={colors.textSecondary} />
-        <Text style={styles.shortcodeText}>
-          M-Pesa shortcode: <Text style={{ fontWeight: '800', color: colors.text }}>{options.shortcode}</Text>
+      <TouchableOpacity activeOpacity={0.85} style={[styles.payBtn, !canPay && { opacity: 0.55 }]} onPress={onPay}>
+        <MaterialCommunityIcons name="cellphone-check" size={17} color="#fff" />
+        <Text style={styles.payBtnText}>
+          {canPay && Number.isFinite(amtNum) ? `Send STK Push · ${ksh(amtNum)}` : 'Send STK Push'}
         </Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+};
+
+const PresetCard: React.FC<{ title: string; amountLabel: string; active: boolean; onPress: () => void }> =
+  ({ title, amountLabel, active, onPress }) => (
+    <TouchableOpacity style={[styles.preset, active && styles.presetOn]} activeOpacity={0.85} onPress={onPress}>
+      <View style={[styles.presetRadio, active && styles.presetRadioOn]}>
+        {active && <View style={styles.presetRadioDot} />}
       </View>
-    )}
-
-    <View style={{ flex: 1 }} />
-
-    <TouchableOpacity activeOpacity={0.85} style={styles.payBtn} onPress={onPay}>
-      <Ionicons name="phone-portrait-outline" size={16} color="#fff" />
-      <Text style={styles.payBtnText}>Send STK Push</Text>
+      <Text style={[styles.presetTitle, active && { color: colors.primary }]}>{title}</Text>
+      <Text style={[styles.presetAmt, active && { color: colors.primary }]}>{amountLabel}</Text>
     </TouchableOpacity>
-  </>
-);
+  );
 
 // =================================================================
 // State view (loading / success / failure)
@@ -366,6 +433,47 @@ const styles = StyleSheet.create({
   },
   mpesaBadgeText: { color: '#fff', fontSize: 10.5, fontWeight: '800', letterSpacing: 0.6 },
   bannerText: { flex: 1, fontSize: 12.5, color: '#15803d', fontWeight: '700', lineHeight: 17 },
+
+  // Balance summary card at the top of the form.
+  balCard: {
+    backgroundColor: '#0b3d2e', borderRadius: radius.xl,
+    padding: spacing.lg, marginBottom: spacing.lg, overflow: 'hidden',
+  },
+  mpesaBadgeLg: {
+    alignSelf: 'flex-start', backgroundColor: '#25c764',
+    paddingHorizontal: 9, paddingVertical: 3.5, borderRadius: 6, marginBottom: 12,
+  },
+  balLabel: { fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
+  balValue: { fontSize: 30, color: '#fff', fontWeight: '800', letterSpacing: -0.8, marginTop: 3 },
+
+  // Full / Half preset cards.
+  presetRow: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  preset: {
+    flex: 1, backgroundColor: '#fff', borderRadius: radius.lg,
+    borderWidth: 1.5, borderColor: colors.border, padding: 13,
+  },
+  presetOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  presetRadio: {
+    width: 18, height: 18, borderRadius: 9, borderWidth: 2, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 9,
+  },
+  presetRadioOn: { borderColor: colors.primary },
+  presetRadioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
+  presetTitle: { fontSize: 12.5, fontWeight: '700', color: colors.textSecondary },
+  presetAmt: { fontSize: 15, fontWeight: '800', color: colors.text, marginTop: 2, letterSpacing: -0.3 },
+
+  customChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.lg,
+    paddingVertical: 11, paddingHorizontal: 13, backgroundColor: '#fff',
+  },
+  customChipOn: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  customChipText: { fontSize: 12.5, fontWeight: '700', color: colors.textSecondary },
+
+  reassure: {
+    fontSize: 11, color: colors.textTertiary, textAlign: 'center',
+    lineHeight: 16, marginTop: spacing.lg, marginBottom: spacing.md, paddingHorizontal: 8,
+  },
 
   label: {
     ...typography.label, color: colors.textSecondary, marginBottom: 6,

@@ -1,17 +1,23 @@
 // =================================================================
-// Authenticated file download helper.
+// Authenticated file download helpers.
 //
-// Supports both expo-file-system v54+ (File / Paths API) and the
-// legacy API (FileSystem.downloadAsync). Tries the new API first;
-// falls back to legacy silently if unavailable.
+//   downloadAuthFile()      → download + open in the system viewer / share
+//                             sheet (good for "View").
+//   saveAuthFileToDevice()  → download + SAVE onto the device. On Android it
+//                             writes into a folder the parent picks once (via
+//                             the Storage Access Framework, remembered after),
+//                             so the file really lands in their storage; on
+//                             iOS it opens the share sheet where "Save to
+//                             Files" does the same. Falls back to sharing on
+//                             any error, so it never dead-ends.
 //
-// Required packages:
-//   - expo-file-system
-//   - expo-sharing  (optional but recommended)
+// Required packages: expo-file-system (+ expo-sharing recommended).
 // =================================================================
 
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import { API_BASE_URL } from '../config/api';
+
+const SAF_DIR_KEY = 'shuleone:downloads-dir';
 
 interface DownloadOptions {
   /** Display name (e.g., "fees-statement-Term-2-2024.pdf") */
@@ -20,11 +26,55 @@ interface DownloadOptions {
   mimeType?: string;
 }
 
+const fullUrlOf = (remoteUrl: string) =>
+  remoteUrl.startsWith('http')
+    ? remoteUrl
+    : `${API_BASE_URL}${remoteUrl.startsWith('/') ? '' : '/'}${remoteUrl}`;
+
 /**
- * Download an authenticated file and open it in the system viewer.
- * Returns the local file URI on success, or null on failure.
+ * Download an authenticated file and open it in the system viewer / share
+ * sheet. Returns the local file URI on success, or null on failure.
  */
 export async function downloadAuthFile(
+  accessToken: string,
+  remoteUrl: string,
+  opts: DownloadOptions,
+): Promise<string | null> {
+  const localUri = await downloadToCache(accessToken, remoteUrl, opts);
+  if (!localUri) return null;
+  await openWithSharing(localUri, opts);
+  return localUri;
+}
+
+/**
+ * Download an authenticated file and save it onto the device. Returns true if
+ * the file was saved or handed to the share sheet, false on hard failure.
+ */
+export async function saveAuthFileToDevice(
+  accessToken: string,
+  remoteUrl: string,
+  opts: DownloadOptions,
+): Promise<boolean> {
+  const localUri = await downloadToCache(accessToken, remoteUrl, opts);
+  if (!localUri) return false;
+
+  if (Platform.OS === 'android') {
+    try {
+      const saved = await saveViaSAF(localUri, opts);
+      if (saved) return true;
+    } catch {
+      // fall through to sharing
+    }
+  }
+  // iOS (Save to Files) and Android fallback.
+  await openWithSharing(localUri, opts);
+  return true;
+}
+
+// =================================================================
+// Cache download (shared by both helpers)
+// =================================================================
+async function downloadToCache(
   accessToken: string,
   remoteUrl: string,
   opts: DownloadOptions,
@@ -33,96 +83,108 @@ export async function downloadAuthFile(
     Alert.alert('Not signed in', 'Please sign in again to download.');
     return null;
   }
-
-  const fullUrl = remoteUrl.startsWith('http')
-    ? remoteUrl
-    : `${API_BASE_URL}${remoteUrl.startsWith('/') ? '' : '/'}${remoteUrl}`;
+  const url = fullUrlOf(remoteUrl);
   const safeName = opts.fileName.replace(/[^a-zA-Z0-9._-]+/g, '_');
   const headers = { Authorization: `Bearer ${accessToken}` };
 
   let localUri: string | null = null;
   try {
-    localUri = await downloadViaNewApi(fullUrl, safeName, headers);
+    localUri = await downloadViaNewApi(url, safeName, headers);
   } catch {
     // Fall through to legacy
   }
   if (!localUri) {
     try {
-      localUri = await downloadViaLegacy(fullUrl, safeName, headers);
+      localUri = await downloadViaLegacy(url, safeName, headers);
     } catch (e: any) {
       Alert.alert('Download failed', e?.message ?? 'Could not download the file.');
       return null;
     }
   }
-  if (!localUri) return null;
-
-  // Open in the share/preview sheet
-  await openWithSharing(localUri, opts);
   return localUri;
 }
 
-// =================================================================
-// New API (expo-file-system v54+) - File / Paths
-// =================================================================
+// New API (expo-file-system v54+) — File / Paths
 async function downloadViaNewApi(
   url: string,
   fileName: string,
   headers: Record<string, string>,
 ): Promise<string | null> {
   let fs: any;
-  try {
-    fs = require('expo-file-system');
-  } catch {
-    return null;
-  }
+  try { fs = require('expo-file-system'); } catch { return null; }
   const { File, Paths } = fs;
-  if (!File || !Paths || typeof File.downloadFileAsync !== 'function') {
-    return null;
-  }
+  if (!File || !Paths || typeof File.downloadFileAsync !== 'function') return null;
   const destination = new File(Paths.cache, fileName);
-  try {
-    // If the file already exists from a previous attempt, clear it
-    if (destination.exists) {
-      try { destination.delete(); } catch {}
-    }
-  } catch {}
+  try { if (destination.exists) { try { destination.delete(); } catch {} } } catch {}
   const output = await File.downloadFileAsync(url, destination, { headers });
   return output?.uri ?? destination.uri ?? null;
 }
 
-// =================================================================
 // Legacy API (works on all SDK versions)
-// =================================================================
 async function downloadViaLegacy(
   url: string,
   fileName: string,
   headers: Record<string, string>,
 ): Promise<string | null> {
-  // Import from /legacy to suppress the deprecation warning on SDK 54+
-  let FileSystem: any;
-  try {
-    FileSystem = require('expo-file-system/legacy');
-  } catch {
-    try {
-      FileSystem = require('expo-file-system');
-    } catch {
-      Alert.alert(
-        'Install expo-file-system',
-        'Run: npx expo install expo-file-system',
-      );
-      return null;
-    }
+  const FileSystem = legacyFs();
+  if (!FileSystem) {
+    Alert.alert('Install expo-file-system', 'Run: npx expo install expo-file-system');
+    return null;
   }
   const localUri = `${FileSystem.cacheDirectory}${fileName}`;
   const dl = await FileSystem.downloadAsync(url, localUri, { headers });
-  if (dl.status >= 400) {
-    throw new Error(`Server responded with ${dl.status}.`);
-  }
+  if (dl.status >= 400) throw new Error(`Server responded with ${dl.status}.`);
   return dl.uri;
 }
 
 // =================================================================
-// Sharing
+// Android: save into a user-chosen folder via Storage Access Framework.
+// The folder is remembered so it's a one-time prompt.
+// =================================================================
+async function saveViaSAF(localUri: string, opts: DownloadOptions): Promise<boolean> {
+  const FileSystem = legacyFs();
+  const SAF = FileSystem?.StorageAccessFramework;
+  if (!SAF) return false;
+
+  let store: any = null;
+  try { store = require('@react-native-async-storage/async-storage').default; } catch { store = null; }
+
+  let dirUri: string | null = null;
+  try { dirUri = store ? await store.getItem(SAF_DIR_KEY) : null; } catch { dirUri = null; }
+
+  if (!dirUri) {
+    const perm = await SAF.requestDirectoryPermissionsAsync();
+    if (!perm.granted) return false;
+    dirUri = perm.directoryUri;
+    try { if (store) await store.setItem(SAF_DIR_KEY, dirUri); } catch {}
+  }
+
+  const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
+  const displayName = opts.fileName.replace(/\.[^.]+$/, '');
+  try {
+    const destUri = await SAF.createFileAsync(dirUri, displayName, opts.mimeType ?? 'application/pdf');
+    await FileSystem.writeAsStringAsync(destUri, base64, { encoding: 'base64' });
+  } catch {
+    // Stored folder may have been revoked — clear it and re-ask once.
+    try { if (store) await store.removeItem(SAF_DIR_KEY); } catch {}
+    const perm = await SAF.requestDirectoryPermissionsAsync();
+    if (!perm.granted) return false;
+    try { if (store) await store.setItem(SAF_DIR_KEY, perm.directoryUri); } catch {}
+    const destUri = await SAF.createFileAsync(perm.directoryUri, displayName, opts.mimeType ?? 'application/pdf');
+    await FileSystem.writeAsStringAsync(destUri, base64, { encoding: 'base64' });
+  }
+  Alert.alert('Saved to device', `${opts.fileName} was saved to your chosen folder.`);
+  return true;
+}
+
+function legacyFs(): any {
+  try { return require('expo-file-system/legacy'); } catch {}
+  try { return require('expo-file-system'); } catch {}
+  return null;
+}
+
+// =================================================================
+// Sharing / preview
 // =================================================================
 async function openWithSharing(localUri: string, opts: DownloadOptions) {
   let Sharing: any;
