@@ -233,6 +233,20 @@ export const TransportScreen: React.FC = () => {
                 )}
               </View>
 
+              {/* ── Bus details — the vehicle & route info, key values in bold ── */}
+              <Text style={styles.sectionTitle}>Bus details</Text>
+              <View style={styles.card}>
+                <DetailRow styles={styles} colors={colors} icon="bus" label="Bus"
+                  value={child.vehiclePlate || 'Not assigned yet'} strong={!!child.vehiclePlate} />
+                <DetailRow styles={styles} colors={colors} icon="map-marker-path" label="Route" divider strong
+                  value={[child.routeCode, child.routeName].filter(Boolean).join(' · ') || 'School bus'} />
+                <DetailRow styles={styles} colors={colors} icon="map-marker" label="Pickup point" divider strong
+                  value={child.pickupPointName || 'Not set'} />
+                <DetailRow styles={styles} colors={colors} icon="seat-passenger" label="Today" divider
+                  value={child.seatStatus ? (SEAT_LABEL[child.seatStatus] || child.seatStatus) : 'No status yet'}
+                  valueColor={child.seatStatus ? seatHex : undefined} strong={!!child.seatStatus} />
+              </View>
+
               {/* Recent trips — timeline */}
               {trips.length > 0 && (
                 <>
@@ -329,6 +343,24 @@ export const TransportScreen: React.FC = () => {
   );
 };
 
+// One labelled bus-detail row; `strong` renders the value bold (the required
+// items — bus plate, route, pickup — stand out).
+const DetailRow: React.FC<{
+  styles: any; colors: ColorPalette; icon: any; label: string; value: string;
+  strong?: boolean; divider?: boolean; valueColor?: string;
+}> = ({ styles, colors, icon, label, value, strong, divider, valueColor }) => (
+  <View style={[styles.detailRow, divider && styles.divider]}>
+    <View style={styles.detailIcon}>
+      <MaterialCommunityIcons name={icon} size={17} color={BUS_BLUE} />
+    </View>
+    <Text style={styles.detailLabel}>{label}</Text>
+    <Text style={[styles.detailValue, strong && styles.detailValueStrong, valueColor ? { color: valueColor } : null]}
+      numberOfLines={1}>
+      {value}
+    </Text>
+  </View>
+);
+
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
@@ -404,6 +436,15 @@ function makeStyles(c: ColorPalette) {
 
     sectionTitle: { fontSize: 14.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3, marginBottom: 12 },
     card: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, marginBottom: 22 },
+
+    detailRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 13 },
+    detailIcon: {
+      width: 32, height: 32, borderRadius: 10, backgroundColor: BUS_BLUE + '14',
+      alignItems: 'center', justifyContent: 'center',
+    },
+    detailLabel: { fontSize: 12.5, fontFamily: fonts.medium, color: c.textSecondary },
+    detailValue: { flex: 1, textAlign: 'right', fontSize: 13, fontFamily: fonts.regular, color: c.text },
+    detailValueStrong: { fontFamily: fonts.extrabold, fontSize: 13.5, letterSpacing: -0.2 },
     card2: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 14, marginBottom: 22 },
     divider: { borderTopWidth: 1, borderTopColor: c.border },
     tripRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12 },

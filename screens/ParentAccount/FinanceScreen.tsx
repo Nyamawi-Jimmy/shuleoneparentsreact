@@ -59,6 +59,8 @@ export const FinanceScreen: React.FC = () => {
   const [payments, setPayments] = useState<FeePayment[]>([]);
   const [options, setOptions] = useState<PaymentOptions | null>(null);
   const [allLines, setAllLines] = useState(false);
+  // Which segment is shown — keeps the page short instead of one long scroll.
+  const [section, setSection] = useState<'receipts' | 'statement' | 'payments'>('receipts');
   // Per-receipt busy state, keyed by "<ref>:<save>" (view opens the in-app viewer).
   const [receiptBusy, setReceiptBusy] = useState<string | null>(null);
   // In-app PDF viewer target.
@@ -95,7 +97,6 @@ export const FinanceScreen: React.FC = () => {
 
   const lines = statement?.lines ?? [];
   const visibleLines = allLines ? lines : lines.slice(0, LEDGER_PREVIEW);
-  const successPayments = payments.filter((p) => isPaymentSuccess(p.status));
 
   // Recent receipts = the school's own ledger credits (money in) that carry a
   // reference, newest first — each has a printable receipt PDF (view/download).
@@ -185,29 +186,27 @@ export const FinanceScreen: React.FC = () => {
               )}
             </View>
 
-            {/* ── Statements — two independent downloads ─────────────────── */}
-            <Text style={styles.sectionTitle}>Statements</Text>
-            <View style={styles.dlRow}>
-              <DownloadTile
-                styles={styles} colors={colors}
-                icon="document-text-outline" title="This term"
-                desc={statement?.term != null ? `Term ${statement.term}${statement.year ? ` · ${statement.year}` : ''}` : 'Current term'}
-                busy={downloading === 'term'}
-                onPress={() => downloadStatement('term')}
-              />
-              <DownloadTile
-                styles={styles} colors={colors}
-                icon="albums-outline" title="Whole history"
-                desc="All terms, one PDF"
-                busy={downloading === 'all'}
-                onPress={() => downloadStatement('all')}
-              />
+            {/* ── Segmented control — one section at a time (no long scroll) ── */}
+            <View style={styles.segment}>
+              {([
+                { key: 'receipts', label: 'Receipts', icon: 'receipt-outline' },
+                { key: 'statement', label: 'Statement', icon: 'document-text-outline' },
+                { key: 'payments', label: 'Payments', icon: 'card-outline' },
+              ] as const).map((s) => {
+                const on = section === s.key;
+                return (
+                  <TouchableOpacity key={s.key} style={[styles.segBtn, on && styles.segBtnOn]}
+                    activeOpacity={0.85} onPress={() => setSection(s.key)}>
+                    <Ionicons name={s.icon} size={15} color={on ? '#FFF' : colors.textSecondary} />
+                    <Text style={[styles.segText, on && styles.segTextOn]}>{s.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
-            {/* ── Recent receipts — view or save each one ────────────────── */}
-            {receipts.length > 0 && (
-              <>
-                <Text style={styles.sectionTitle}>Recent receipts</Text>
+            {/* ── RECEIPTS — view or save each one ──────────────────────── */}
+            {section === 'receipts' && (
+              receipts.length > 0 ? (
                 <View style={styles.card}>
                   {receipts.slice(0, 6).map((l, i) => {
                     const ref = String(l.reference);
@@ -237,10 +236,31 @@ export const FinanceScreen: React.FC = () => {
                     );
                   })}
                 </View>
-              </>
+              ) : (
+                <EmptyLine styles={styles} text="No receipts yet — they’ll appear here after a payment." />
+              )
             )}
 
-            {/* ── Ledger ─────────────────────────────────────────────────── */}
+            {/* ── STATEMENT — downloads + full ledger ───────────────────── */}
+            {section === 'statement' && (
+            <>
+            <View style={styles.dlRow}>
+              <DownloadTile
+                styles={styles} colors={colors}
+                icon="document-text-outline" title="This term"
+                desc={statement?.term != null ? `Term ${statement.term}${statement.year ? ` · ${statement.year}` : ''}` : 'Current term'}
+                busy={downloading === 'term'}
+                onPress={() => downloadStatement('term')}
+              />
+              <DownloadTile
+                styles={styles} colors={colors}
+                icon="albums-outline" title="Whole history"
+                desc="All terms, one PDF"
+                busy={downloading === 'all'}
+                onPress={() => downloadStatement('all')}
+              />
+            </View>
+
             <View style={styles.sectionRow}>
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Statement entries</Text>
               <Text style={styles.metaSmall}>{lines.length} {lines.length === 1 ? 'entry' : 'entries'}</Text>
@@ -279,8 +299,12 @@ export const FinanceScreen: React.FC = () => {
             ) : (
               <EmptyLine styles={styles} text="No statement entries yet." />
             )}
+            </>
+            )}
 
-            {/* ── Payments from this app ─────────────────────────────────── */}
+            {/* ── PAYMENTS — app M-Pesa payments + how to pay ───────────── */}
+            {section === 'payments' && (
+            <>
             <Text style={styles.sectionTitle}>M-Pesa payments from this app</Text>
             {payments.length > 0 ? (
               <View style={styles.card}>
@@ -288,9 +312,9 @@ export const FinanceScreen: React.FC = () => {
                   <ReceiptRow key={p.id ?? i} styles={styles} colors={colors} p={p} first={i === 0} />
                 ))}
               </View>
-            ) : successPayments.length === 0 ? (
+            ) : (
               <EmptyLine styles={styles} text="You haven’t paid through the app yet." />
-            ) : null}
+            )}
 
             {!!options?.payInstructions && (
               <>
@@ -300,6 +324,8 @@ export const FinanceScreen: React.FC = () => {
                   {!!options.shortcode && <Text style={styles.shortcode}>Paybill / Till: {options.shortcode}</Text>}
                 </View>
               </>
+            )}
+            </>
             )}
           </>
         )}
@@ -462,6 +488,23 @@ function makeStyles(c: ColorPalette) {
     },
     rcptBtnAlt: { backgroundColor: c.backgroundAlt, paddingHorizontal: 9 },
     rcptBtnText: { fontSize: 12, fontFamily: fonts.bold, color: c.primary },
+
+    // Segmented control — a pill track with the active tab as a filled pill.
+    segment: {
+      flexDirection: 'row', backgroundColor: c.backgroundAlt, borderRadius: 14,
+      padding: 4, marginBottom: 18, gap: 4,
+    },
+    segBtn: {
+      flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+      paddingVertical: 10, borderRadius: 11,
+    },
+    segBtnOn: {
+      backgroundColor: c.primary,
+      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.25, shadowRadius: 6, elevation: 3,
+    },
+    segText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.textSecondary },
+    segTextOn: { color: '#FFF' },
 
     sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
     sectionTitle: { fontSize: 15.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.4, marginBottom: 12 },
