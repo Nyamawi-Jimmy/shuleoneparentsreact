@@ -246,7 +246,7 @@ export const TransportScreen: React.FC = () => {
               </View>
 
               {/* ── Bus details — the vehicle & route info, key values in bold ── */}
-              <Text style={styles.sectionTitle}>Bus details</Text>
+              <SectionHead styles={styles} title="Bus details" />
               <View style={styles.card}>
                 <DetailRow styles={styles} colors={colors} icon="bus" label="Bus"
                   value={child.vehiclePlate || 'Not assigned yet'} strong={!!child.vehiclePlate} />
@@ -262,7 +262,7 @@ export const TransportScreen: React.FC = () => {
               {/* Recent trips — timeline */}
               {trips.length > 0 && (
                 <>
-                  <Text style={styles.sectionTitle}>Recent trips</Text>
+                  <SectionHead styles={styles} title="Recent trips" />
                   <View style={styles.card}>
                     {trips.map((r, i) => {
                       const times = [r.boardedAt && `Boarded ${hhmm(r.boardedAt)}`, r.arrivedAt && `arrived ${hhmm(r.arrivedAt)}`, r.droppedAt && `dropped ${hhmm(r.droppedAt)}`].filter(Boolean).join(' · ');
@@ -287,7 +287,7 @@ export const TransportScreen: React.FC = () => {
               )}
 
               {/* Not using transport */}
-              <Text style={styles.sectionTitle}>Not using the bus?</Text>
+              <SectionHead styles={styles} title="Not using the bus?" />
               <View style={styles.card2}>
                 <Text style={styles.optIntro}>Travelling separately on a given day? Flag it — the driver’s list updates and the bus won’t wait at your stop.</Text>
                 {child.optedOutToday && (
@@ -296,7 +296,14 @@ export const TransportScreen: React.FC = () => {
                     <Text style={styles.optBannerText}>Flagged as not using transport today.</Text>
                   </View>
                 )}
-                <Text style={styles.optLabel}>Pick a date</Text>
+                <View style={styles.optLabelRow}>
+                  <Text style={styles.optLabel}>Pick a date</Text>
+                  {/* Always-visible calendar button — pick ANY future day */}
+                  <TouchableOpacity style={styles.pickDateBtn} activeOpacity={0.85} onPress={() => setCalOpen(true)}>
+                    <Ionicons name="calendar-outline" size={14} color={BUS_BLUE} />
+                    <Text style={styles.pickDateBtnText}>Choose date</Text>
+                  </TouchableOpacity>
+                </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateStrip}>
                   {(() => {
                     const chips = dateChips(14);
@@ -323,11 +330,6 @@ export const TransportScreen: React.FC = () => {
                             </TouchableOpacity>
                           );
                         })}
-                        {/* Custom date — opens the calendar for any future day */}
-                        <TouchableOpacity style={[styles.dateChip, styles.dateChipOther]} activeOpacity={0.8} onPress={() => setCalOpen(true)}>
-                          <Ionicons name="calendar-outline" size={16} color={BUS_BLUE} />
-                          <Text style={styles.dateChipOtherText}>Other</Text>
-                        </TouchableOpacity>
                       </>
                     );
                   })()}
@@ -382,6 +384,15 @@ export const TransportScreen: React.FC = () => {
     </View>
   );
 };
+
+// Section heading with a small bus-blue accent bar — a cleaner, more modern
+// hierarchy than a bare title.
+const SectionHead: React.FC<{ styles: any; title: string }> = ({ styles, title }) => (
+  <View style={styles.sectionHead}>
+    <View style={styles.sectionAccent} />
+    <Text style={styles.sectionTitle}>{title}</Text>
+  </View>
+);
 
 // One labelled bus-detail row; `strong` renders the value bold (the required
 // items — bus plate, route, pickup — stand out).
@@ -474,8 +485,15 @@ function makeStyles(c: ColorPalette) {
     infoChipText: { fontSize: 12, fontFamily: fonts.bold, color: c.textSecondary },
     seatDot: { width: 7, height: 7, borderRadius: 4 },
 
-    sectionTitle: { fontSize: 14.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3, marginBottom: 12 },
-    card: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, paddingHorizontal: 14, marginBottom: 22 },
+    sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 2 },
+    sectionAccent: { width: 3, height: 15, borderRadius: 2, backgroundColor: BUS_BLUE },
+    sectionTitle: { fontSize: 14.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3 },
+    card: {
+      backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.border,
+      paddingHorizontal: 14, marginBottom: 22,
+      shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.05, shadowRadius: 10, elevation: 2,
+    },
 
     detailRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 13 },
     detailIcon: {
@@ -485,7 +503,12 @@ function makeStyles(c: ColorPalette) {
     detailLabel: { fontSize: 12.5, fontFamily: fonts.medium, color: c.textSecondary },
     detailValue: { flex: 1, textAlign: 'right', fontSize: 13, fontFamily: fonts.regular, color: c.text },
     detailValueStrong: { fontFamily: fonts.extrabold, fontSize: 13.5, letterSpacing: -0.2 },
-    card2: { backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 14, marginBottom: 22 },
+    card2: {
+      backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.border,
+      padding: 16, marginBottom: 22,
+      shadowColor: '#0F172A', shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.05, shadowRadius: 10, elevation: 2,
+    },
     divider: { borderTopWidth: 1, borderTopColor: c.border },
     tripRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12 },
     tripIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
@@ -497,16 +520,18 @@ function makeStyles(c: ColorPalette) {
     optIntro: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 18 },
     optBanner: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: c.warning + '1A', borderRadius: 10, padding: 10, marginTop: 12 },
     optBannerText: { fontSize: 12, fontFamily: fonts.semibold, color: c.warning, flex: 1 },
-    optLabel: { fontSize: 11.5, fontFamily: fonts.bold, color: c.textSecondary, marginTop: 14, marginBottom: 8 },
+    optLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 10 },
+    optLabel: { fontSize: 11.5, fontFamily: fonts.bold, color: c.textSecondary, letterSpacing: 0.3, textTransform: 'uppercase' },
+    pickDateBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      backgroundColor: BUS_BLUE + '12', borderRadius: 999,
+      paddingHorizontal: 12, paddingVertical: 7,
+    },
+    pickDateBtnText: { fontSize: 12, fontFamily: fonts.bold, color: BUS_BLUE },
     dateStrip: { gap: 8, paddingBottom: 2 },
     dateChip: { alignItems: 'center', borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, minWidth: 58 },
     dateChipLabel: { fontSize: 12, fontFamily: fonts.bold, color: c.text },
     dateChipSub: { fontSize: 10, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
-    dateChipOther: {
-      flexDirection: 'row', gap: 5, justifyContent: 'center',
-      borderStyle: 'dashed', borderColor: BUS_BLUE + '66', backgroundColor: BUS_BLUE + '0D',
-    },
-    dateChipOtherText: { fontSize: 12, fontFamily: fonts.bold, color: BUS_BLUE },
     optInput: { borderWidth: 1, borderColor: c.border, borderRadius: 12, backgroundColor: c.background, paddingHorizontal: 12, height: 46, fontSize: 13.5, fontFamily: fonts.regular, color: c.text, marginTop: 12 },
     flagBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, paddingVertical: 13, marginTop: 12 },
     flagBtnText: { color: '#FFF', fontSize: 14, fontFamily: fonts.bold },
