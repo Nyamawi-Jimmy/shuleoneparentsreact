@@ -608,7 +608,7 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   },
 
   noteRow: { backgroundColor: S.warnSoft, borderRadius: 14, padding: 12, marginTop: 12 },
-  noteText: { color: '#92400e', fontSize: 12, fontWeight: '600', lineHeight: 17 },
+  noteText: { color: S.warnInk, fontSize: 12, fontWeight: '600', lineHeight: 17 },
 });
 
 // Scheme-proxied sheets: each style key resolves against the ACTIVE scheme

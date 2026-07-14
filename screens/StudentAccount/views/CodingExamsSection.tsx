@@ -300,7 +300,7 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   },
   optOn: { borderColor: '#7c5cff', backgroundColor: S.ring },
   optText: { fontSize: 13, fontWeight: '600', color: S.ink },
-  optTextOn: { color: '#5b45c9', fontWeight: '800' },
+  optTextOn: { color: S.ringInk, fontWeight: '800' },
   input: {
     borderWidth: 2, borderColor: S.line, borderRadius: 12,
     paddingHorizontal: 12, paddingVertical: 10,

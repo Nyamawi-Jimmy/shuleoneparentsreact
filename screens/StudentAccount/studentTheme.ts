@@ -27,6 +27,13 @@ export interface StudentColors {
   badSoft: string;     // danger tint fill
   warnSoft: string;    // warning tint fill
   infoSoft: string;    // info tint fill
+  // Readable text/icon colours to sit ON the matching soft tint in EITHER
+  // scheme (dark accent on light chip → light accent on dark chip).
+  ringInk: string;     // accent text on ring/ringStrong
+  okInk: string;       // on okSoft
+  badInk: string;      // on badSoft
+  warnInk: string;     // on warnSoft
+  infoInk: string;     // on infoSoft
 }
 
 export const STUDENT_LIGHT: StudentColors = {
@@ -44,6 +51,11 @@ export const STUDENT_LIGHT: StudentColors = {
   badSoft: '#fee2e2',
   warnSoft: '#fff3da',
   infoSoft: '#e3f1ff',
+  ringInk: '#5b45c9',
+  okInk: '#0fae78',
+  badInk: '#e11d48',
+  warnInk: '#b45309',
+  infoInk: '#2779c7',
 };
 
 export const STUDENT_DARK: StudentColors = {
@@ -61,6 +73,11 @@ export const STUDENT_DARK: StudentColors = {
   badSoft: 'rgba(239, 68, 68, 0.18)',
   warnSoft: 'rgba(244, 167, 22, 0.18)',
   infoSoft: 'rgba(58, 160, 255, 0.18)',
+  ringInk: '#c4b5fd',
+  okInk: '#5ee6ac',
+  badInk: '#fda4af',
+  warnInk: '#fcd34d',
+  infoInk: '#93c5fd',
 };
 
 export const STUDENT_SCHEMES = { light: STUDENT_LIGHT, dark: STUDENT_DARK } as const;

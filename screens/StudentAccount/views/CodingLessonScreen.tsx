@@ -736,8 +736,8 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: S.ring, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5,
   },
-  pairChipText: { fontSize: 11.5, fontWeight: '800', color: '#5b45c9' },
-  pairChipX: { fontSize: 15, fontWeight: '800', color: '#8b7fd0' },
+  pairChipText: { fontSize: 11.5, fontWeight: '800', color: S.ringInk },
+  pairChipX: { fontSize: 15, fontWeight: '800', color: S.ringInk },
   pairHint: { fontSize: 11.5, color: S.inkSoft, fontWeight: '600', marginTop: 9 },
   searchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
@@ -756,8 +756,8 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     flexDirection: 'row', gap: 10, alignItems: 'flex-start',
     backgroundColor: S.warnSoft, borderRadius: 16, padding: 12, marginBottom: 12,
   },
-  practiceTitle: { fontSize: 12.5, fontWeight: '800', color: '#92400e' },
-  practiceBody: { fontSize: 11.5, color: '#92400e', fontWeight: '500', marginTop: 2, lineHeight: 16 },
+  practiceTitle: { fontSize: 12.5, fontWeight: '800', color: S.warnInk },
+  practiceBody: { fontSize: 11.5, color: S.warnInk, fontWeight: '500', marginTop: 2, lineHeight: 16 },
 
   hero: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -845,7 +845,7 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   },
   qOptOn: { borderColor: '#7c5cff', backgroundColor: S.ring },
   qOptText: { fontSize: 13, fontWeight: '600', color: S.ink },
-  qOptTextOn: { color: '#5b45c9', fontWeight: '800' },
+  qOptTextOn: { color: S.ringInk, fontWeight: '800' },
   qInput: {
     borderWidth: 2, borderColor: S.line, borderRadius: 13,
     paddingHorizontal: 13, paddingVertical: 10,
@@ -877,7 +877,7 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   scorePts: { fontSize: 11, fontWeight: '700', color: S.inkSoft },
   resultTitle: { fontSize: 17, fontWeight: '800', color: S.ink, textAlign: 'center', marginTop: 10 },
   practiceNote: {
-    fontSize: 12, fontWeight: '700', color: '#92400e', textAlign: 'center',
+    fontSize: 12, fontWeight: '700', color: S.warnInk, textAlign: 'center',
     backgroundColor: S.warnSoft, borderRadius: 10, padding: 8, marginTop: 8,
   },
   reviewRow: { flexDirection: 'row', gap: 9, alignItems: 'flex-start', borderTopWidth: 1, borderTopColor: S.divider, paddingVertical: 9 },

@@ -291,7 +291,7 @@ export const TaskPlayer: React.FC<{
                     <View style={[styles.choiceLbl, on && { backgroundColor: '#7c5cff' }]}>
                       <Text style={[styles.choiceLblText, on && { color: '#fff' }]}>{c.label}</Text>
                     </View>
-                    <Text style={[styles.choiceText, on && { color: '#5b45c9', fontWeight: '800' }]}>{c.text}</Text>
+                    <Text style={[styles.choiceText, on && { color: C.ringInk, fontWeight: '800' }]}>{c.text}</Text>
                   </TouchableOpacity>
                 );
               })
@@ -530,7 +530,7 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   topTitle: { flex: 1, fontSize: 15.5, fontWeight: '800', color: S.ink },
   timer: { backgroundColor: S.ring, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   timerLow: { backgroundColor: '#ef4444' },
-  timerText: { fontSize: 12.5, fontWeight: '800', color: '#5b45c9' },
+  timerText: { fontSize: 12.5, fontWeight: '800', color: S.ringInk },
   closeX: {
     width: 32, height: 32, borderRadius: 16,
     backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
@@ -682,7 +682,7 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     backgroundColor: S.ring, borderRadius: 9,
     paddingHorizontal: 9, paddingVertical: 4,
   },
-  rvQChipText: { fontSize: 11.5, fontWeight: '800', color: '#5b45c9' },
+  rvQChipText: { fontSize: 11.5, fontWeight: '800', color: S.ringInk },
   rvMarksChip: { backgroundColor: S.soft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   rvMarksText: { fontSize: 11, fontWeight: '800', color: S.inkSoft },
   rvText: { fontSize: 14, fontWeight: '700', color: S.ink, lineHeight: 20, marginBottom: 11 },
@@ -695,10 +695,10 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     width: 24, height: 24, borderRadius: 12, backgroundColor: S.soft,
     alignItems: 'center', justifyContent: 'center',
   },
-  rvChoiceLbl: { fontSize: 11, fontWeight: '800', color: '#5b45c9' },
+  rvChoiceLbl: { fontSize: 11, fontWeight: '800', color: S.ringInk },
   rvChoiceText: { flex: 1, fontSize: 13, fontWeight: '600', color: S.ink, lineHeight: 18 },
   rvTagChip: { backgroundColor: S.ring, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-  rvTagText: { fontSize: 9.5, fontWeight: '800', color: '#5b45c9' },
+  rvTagText: { fontSize: 9.5, fontWeight: '800', color: S.ringInk },
   rvAnswerLbl: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.7, color: S.faint, marginBottom: 5 },
   rvAnswerBox: {
     backgroundColor: S.soft, borderRadius: 13, padding: 12,
@@ -709,8 +709,8 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     backgroundColor: S.warnSoft, borderRadius: 13, padding: 12, marginTop: 8,
     borderWidth: 1.5, borderColor: S.warnSoft,
   },
-  rvSchemeLbl: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.7, color: '#b45309', marginBottom: 4 },
-  rvSchemeText: { fontSize: 12, fontWeight: '600', color: '#7a5b2f', lineHeight: 17 },
+  rvSchemeLbl: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.7, color: S.warnInk, marginBottom: 4 },
+  rvSchemeText: { fontSize: 12, fontWeight: '600', color: S.warnInk, lineHeight: 17 },
 });
 
 // Scheme-proxied sheets: each style key resolves against the ACTIVE scheme

@@ -855,8 +855,8 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: S.warnSoft, borderRadius: 14, padding: 16,
   },
-  placeholderText: { flex: 1, color: '#92400e', fontSize: 13, fontWeight: '600' },
-  placeholderSkip: { color: '#b45309', fontWeight: '800', fontSize: 13 },
+  placeholderText: { flex: 1, color: S.warnInk, fontSize: 13, fontWeight: '600' },
+  placeholderSkip: { color: S.warnInk, fontWeight: '800', fontSize: 13 },
 
   footer: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
