@@ -206,46 +206,46 @@ const SessionList: React.FC<{
     >
       {/* Hero — rides over the app bar edge. When signatures are pending it's a
           call to action that drops straight onto the first unsigned day. */}
-      <LinearGradient
-        colors={[colors.primary, colors.primaryDeep]}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroCard}
-      >
+      <View style={styles.heroCard}>
         <View style={styles.heroTop}>
           <View style={styles.heroIcon}>
-            <MaterialCommunityIcons name={totalUnsigned > 0 ? 'draw-pen' : 'check-decagram'} size={20} color="#FFF" />
+            <MaterialCommunityIcons name={totalUnsigned > 0 ? 'draw-pen' : 'check-decagram'} size={21} color={colors.primary} />
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.heroTitle}>
               {totalUnsigned > 0
-                ? `${totalUnsigned} ${totalUnsigned === 1 ? 'response' : 'responses'} waiting for your signature`
+                ? `${totalUnsigned} ${totalUnsigned === 1 ? 'response' : 'responses'} to sign`
                 : 'All caught up'}
             </Text>
             <Text style={styles.heroSub}>
               {totalUnsigned > 0
-                ? 'Teachers can see when you’ve read and signed the diary.'
-                : `Every teacher comment in ${childName}’s diary is signed. 🎉`}
+                ? 'Teachers can see when you’ve read and signed.'
+                : `Every teacher comment in ${childName}’s diary is signed.`}
             </Text>
           </View>
         </View>
+
+        <View style={styles.heroStats}>
+          <Stat styles={styles} value={String(sessions.length)} label="Weeks" sub="published" color={colors.text} />
+          <View style={styles.statDivider} />
+          <Stat styles={styles} value={String(totalComments)} label="Comments" sub="from teachers" color={colors.text} />
+          <View style={styles.statDivider} />
+          <Stat styles={styles} value={String(totalUnsigned)} label="To sign" sub="your responses" color={totalUnsigned > 0 ? colors.primary : colors.text} />
+        </View>
+
         {totalUnsigned > 0 && (() => {
           const target = sessions.find((s) => firstPending(s) != null);
           if (!target) return null;
           return (
             <TouchableOpacity style={styles.heroBtn} activeOpacity={0.85}
               onPress={() => onOpen(target.id, firstPending(target) ?? 0)}>
+              <MaterialCommunityIcons name="draw-pen" size={15} color="#FFF" />
               <Text style={styles.heroBtnText}>Sign now</Text>
-              <Ionicons name="arrow-forward" size={14} color={colors.primaryDeep} />
+              <Ionicons name="arrow-forward" size={14} color="#FFF" />
             </TouchableOpacity>
           );
         })()}
-        <View style={styles.heroStats}>
-          <Stat styles={styles} value={String(sessions.length)} label="Weeks" sub="published" color="#FFF" />
-          <View style={styles.statDivider} />
-          <Stat styles={styles} value={String(totalComments)} label="Comments" sub="from teachers" color="#FFF" />
-          <View style={styles.statDivider} />
-          <Stat styles={styles} value={String(totalUnsigned)} label="To sign" sub="your responses" color="#FFF" />
-        </View>
-      </LinearGradient>
+      </View>
 
       {error && <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View>}
 
@@ -633,34 +633,34 @@ function makeStyles(c: ColorPalette) {
     errorBox: { backgroundColor: c.dangerSoft, borderRadius: 12, padding: 12, marginBottom: 14 },
     errorText: { fontSize: 12.5, fontFamily: fonts.medium, color: c.danger },
 
-    // Hero — gradient CTA card riding over the app bar edge
+    // Hero — a clean white summary card riding over the app bar edge
     heroCard: {
-      borderRadius: 22, padding: 16,
-      marginBottom: 16,
-      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.25, shadowRadius: 18, elevation: 7,
+      backgroundColor: c.card, borderRadius: 22, padding: 16, marginBottom: 16,
+      borderWidth: 1, borderColor: c.border,
+      shadowColor: '#1e1b3a', shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.1, shadowRadius: 20, elevation: 6,
     },
     heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     heroIcon: {
-      width: 42, height: 42, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.2)',
+      width: 44, height: 44, borderRadius: 14, backgroundColor: c.primarySoft,
       alignItems: 'center', justifyContent: 'center',
     },
-    heroTitle: { color: '#FFF', fontSize: 15.5, fontFamily: fonts.extrabold, letterSpacing: -0.3, lineHeight: 20 },
-    heroSub: { color: 'rgba(255,255,255,0.88)', fontSize: 12, fontFamily: fonts.regular, marginTop: 3, lineHeight: 17 },
+    heroTitle: { color: c.text, fontSize: 15.5, fontFamily: fonts.extrabold, letterSpacing: -0.3, lineHeight: 20 },
+    heroSub: { color: c.textSecondary, fontSize: 12, fontFamily: fonts.regular, marginTop: 3, lineHeight: 17 },
     heroBtn: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-      backgroundColor: '#FFF', borderRadius: 12, paddingVertical: 11, marginTop: 14,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
+      backgroundColor: c.primary, borderRadius: 13, paddingVertical: 13, marginTop: 16,
     },
-    heroBtnText: { fontSize: 13.5, fontFamily: fonts.extrabold, color: c.primaryDeep },
+    heroBtnText: { fontSize: 13.5, fontFamily: fonts.extrabold, color: '#FFF' },
     heroStats: {
-      flexDirection: 'row', gap: 10, marginTop: 14, paddingTop: 12,
-      borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.2)',
+      flexDirection: 'row', gap: 10, marginTop: 16, paddingTop: 14,
+      borderTopWidth: 1, borderTopColor: c.border,
     },
     stat: { flex: 1, alignItems: 'center' },
-    statValue: { fontSize: 19, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
+    statValue: { fontSize: 20, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
     statLabel: { fontSize: 11, fontFamily: fonts.bold, color: c.textSecondary, marginTop: 2 },
     statSub: { fontSize: 9.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 1 },
-    statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.25)', marginVertical: 4 },
+    statDivider: { width: 1, backgroundColor: c.border, marginVertical: 4 },
 
     searchBox: {
       flexDirection: 'row', alignItems: 'center', gap: 8,
