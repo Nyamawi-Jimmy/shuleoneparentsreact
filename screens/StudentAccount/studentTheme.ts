@@ -68,11 +68,19 @@ export const STUDENT_SCHEMES = { light: STUDENT_LIGHT, dark: STUDENT_DARK } as c
 /**
  * A pair of same-shaped objects (stylesheets or palettes) behind one proxy:
  * every property read resolves against the scheme active RIGHT NOW.
+ *
+ * The active scheme is read straight from the globalThis singleton (not a
+ * captured module binding), so even a stale Fast-Refresh copy of this module
+ * resolves the one true value — no cold restart needed after theme edits.
  */
 export function themedSheets<T extends object>(light: T, dark: T): T {
   const pair = { light, dark };
   return new Proxy(light, {
-    get: (_t, key) => (pair[schemeHolder.current] as any)[key],
+    get: (_t, key) => {
+      const s = (globalThis as { __shuleoneSchemeStore?: { current: 'light' | 'dark' } })
+        .__shuleoneSchemeStore?.current ?? schemeHolder.current;
+      return (pair[s] as any)[key];
+    },
   }) as T;
 }
 
