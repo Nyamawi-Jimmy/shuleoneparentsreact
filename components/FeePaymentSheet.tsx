@@ -220,10 +220,11 @@ export const FeePaymentSheet: React.FC<Props> = ({
 
           {step === 'failed' && (
             <StateView
-              icon="close-circle"
+              icon="alert-circle-outline"
               tint={colors.danger}
+              tone="danger"
               title="Payment didn't go through"
-              subtitle={error ?? 'Please try again.'}
+              subtitle={error ?? 'The payment was not completed. No money has left your account — you can try again.'}
               actionLabel="Try again"
               onAction={() => setStep('form')}
               secondary="Close"
@@ -385,26 +386,45 @@ const StateView: React.FC<{
   actionLabel?: string; onAction?: () => void;
   secondary?: string; onSecondary?: () => void;
   footnote?: string;
-}> = ({ icon, tint, title, subtitle, spinner, actionLabel, onAction, secondary, onSecondary, footnote }) => (
+  tone?: 'neutral' | 'success' | 'danger';
+}> = ({ icon, tint, title, subtitle, spinner, actionLabel, onAction, secondary, onSecondary, footnote, tone = 'neutral' }) => (
   <View style={styles.stateView}>
-    <View style={[styles.stateIcon, { backgroundColor: tint + '20' }]}>
-      <MaterialCommunityIcons name={icon} size={48} color={tint} />
+    <View style={styles.stateTop}>
+      <View style={[styles.stateHalo, { backgroundColor: tint + '14' }]}>
+        <View style={[styles.stateIcon, { backgroundColor: tint + '22' }]}>
+          <MaterialCommunityIcons name={icon} size={44} color={tint} />
+        </View>
+      </View>
+      <Text style={styles.stateTitle}>{title}</Text>
+
+      {tone === 'danger' ? (
+        <View style={styles.reasonCard}>
+          <Ionicons name="alert-circle" size={16} color={colors.danger} style={{ marginTop: 1 }} />
+          <Text style={styles.reasonText}>{subtitle}</Text>
+        </View>
+      ) : (
+        <Text style={styles.stateSubtitle}>{subtitle}</Text>
+      )}
+
+      {spinner && <ActivityIndicator size="small" color={tint} style={{ marginTop: spacing.lg }} />}
+      {footnote && (
+        <View style={[styles.footChip, { backgroundColor: tint + '14' }]}>
+          <View style={[styles.footDot, { backgroundColor: tint }]} />
+          <Text style={[styles.footChipText, { color: tint }]}>{footnote}</Text>
+        </View>
+      )}
     </View>
-    <Text style={styles.stateTitle}>{title}</Text>
-    <Text style={styles.stateSubtitle}>{subtitle}</Text>
-    {spinner && <ActivityIndicator size="small" color={tint} style={{ marginTop: spacing.md }} />}
-    {footnote && <Text style={styles.stateFootnote}>{footnote}</Text>}
 
     <View style={{ flex: 1 }} />
 
     {actionLabel && (
-      <TouchableOpacity activeOpacity={0.85} style={[styles.payBtn, { backgroundColor: tint }]} onPress={onAction}>
-        <Text style={styles.payBtnText}>{actionLabel}</Text>
+      <TouchableOpacity activeOpacity={0.85} style={[styles.stateBtn, { backgroundColor: tint }]} onPress={onAction}>
+        <Text style={styles.stateBtnText}>{actionLabel}</Text>
       </TouchableOpacity>
     )}
     {secondary && (
-      <TouchableOpacity activeOpacity={0.7} onPress={onSecondary} style={{ marginTop: spacing.sm }}>
-        <Text style={styles.secondaryBtnText}>{secondary}</Text>
+      <TouchableOpacity activeOpacity={0.7} onPress={onSecondary} style={styles.stateBtnGhost}>
+        <Text style={styles.stateBtnGhostText}>{secondary}</Text>
       </TouchableOpacity>
     )}
   </View>
@@ -512,22 +532,47 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
   },
   payBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
-  secondaryBtnText: {
-    textAlign: 'center', color: colors.textSecondary,
-    fontSize: 13, fontWeight: '700', paddingVertical: 8,
-  },
 
-  stateView: { flex: 1, alignItems: 'center', paddingTop: 40 },
-  stateIcon: {
-    width: 96, height: 96, borderRadius: 48,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: spacing.lg,
+  stateView: { flex: 1, alignItems: 'stretch', paddingTop: 44 },
+  stateTop: { alignItems: 'center' },
+  stateHalo: {
+    width: 118, height: 118, borderRadius: 59,
+    alignItems: 'center', justifyContent: 'center', marginBottom: spacing.lg,
   },
-  stateTitle: { ...typography.h2, color: colors.text, textAlign: 'center' },
+  stateIcon: {
+    width: 84, height: 84, borderRadius: 42,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  stateTitle: { ...typography.h2, color: colors.text, textAlign: 'center', fontWeight: '800' },
   stateSubtitle: {
     ...typography.body, color: colors.textSecondary,
-    textAlign: 'center', marginTop: spacing.sm, lineHeight: 20,
-    paddingHorizontal: spacing.lg,
+    textAlign: 'center', marginTop: spacing.sm, lineHeight: 21,
+    paddingHorizontal: spacing.md,
   },
-  stateFootnote: { fontSize: 11, color: colors.textTertiary, marginTop: spacing.md, fontWeight: '600', letterSpacing: 0.5 },
+  reasonCard: {
+    flexDirection: 'row', gap: 8, alignItems: 'flex-start',
+    backgroundColor: '#fef2f2', borderRadius: radius.lg,
+    borderWidth: 1, borderColor: '#fecaca',
+    paddingHorizontal: spacing.md, paddingVertical: spacing.md,
+    marginTop: spacing.md, marginHorizontal: spacing.sm,
+  },
+  reasonText: { flex: 1, fontSize: 12.5, color: '#b91c1c', lineHeight: 18, fontWeight: '600' },
+  footChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, marginTop: spacing.lg,
+  },
+  footDot: { width: 6, height: 6, borderRadius: 3 },
+  footChipText: { fontSize: 11.5, fontWeight: '700', letterSpacing: 0.3 },
+
+  stateBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 15, borderRadius: radius.xl,
+  },
+  stateBtnText: { color: '#fff', fontWeight: '800', fontSize: 14.5 },
+  stateBtnGhost: {
+    alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 13, borderRadius: radius.xl, marginTop: spacing.sm,
+    borderWidth: 1.5, borderColor: colors.border,
+  },
+  stateBtnGhostText: { color: colors.textSecondary, fontSize: 13.5, fontWeight: '700' },
 });

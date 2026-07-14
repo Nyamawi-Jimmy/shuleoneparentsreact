@@ -66,6 +66,11 @@ export const FinanceScreen: React.FC = () => {
 
   const studentId = selectedChild?.studentId ?? null;
 
+  const refetchPayments = useCallback(() => {
+    if (!accessToken || studentId == null) return;
+    getChildFeePayments(accessToken, studentId).then(setPayments).catch(() => {});
+  }, [accessToken, studentId]);
+
   useFocusEffect(useCallback(() => {
     if (!accessToken || studentId == null) return;
     getChildFeePayments(accessToken, studentId).then(setPayments).catch(() => setPayments([]));
@@ -308,7 +313,9 @@ export const FinanceScreen: React.FC = () => {
           // balance (Pay-in-full reflects immediately, no toggle needed).
           key={payOpen ? `pay-${Math.round(balance)}` : 'pay-closed'}
           visible={payOpen}
-          onClose={() => setPayOpen(false)}
+          // Refresh the payments list on close so a failed/cancelled attempt
+          // shows up in "M-Pesa payments from this app", like the web.
+          onClose={() => { setPayOpen(false); refetchPayments(); }}
           studentId={studentId}
           studentName={selectedChild?.fullName}
           defaultAmount={balance > 0 ? balance : undefined}

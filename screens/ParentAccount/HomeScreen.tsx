@@ -65,6 +65,21 @@ const ATTN_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
 const attnIcon = (kind: string, isFee: boolean): keyof typeof Ionicons.glyphMap =>
   ATTN_ICON[String(kind || '').toUpperCase()] || (isFee ? 'wallet' : 'alert-circle');
 
+// Renders a subtitle with the money amount emphasised (bold + bigger); the
+// rest of the text stays as-is.
+const MONEY_RE = /((?:KSh|KES|Ksh|KSH)\s?[\d,]+(?:\.\d{1,2})?|\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?)/;
+function emphasizeAmount(text: string, styles: any): React.ReactNode {
+  const m = text.match(MONEY_RE);
+  if (!m || m.index == null) return text;
+  return (
+    <>
+      {text.slice(0, m.index)}
+      <Text style={styles.attnAmt}>{m[0]}</Text>
+      {text.slice(m.index + m[0].length)}
+    </>
+  );
+}
+
 function greetingKey(): string {
   const h = new Date().getHours();
   if (h < 12) return 'home.greetingMorning';
@@ -283,8 +298,8 @@ export const HomeScreen: React.FC = () => {
                       </View>
                       <Text style={styles.attnTileTitle} numberOfLines={2}>{a.title}</Text>
                       {!!a.subtitle && (
-                        <Text style={[styles.attnTileSub, isFee && styles.attnTileSubStrong]} numberOfLines={1}>
-                          {a.subtitle}
+                        <Text style={styles.attnTileSub} numberOfLines={1}>
+                          {isFee ? emphasizeAmount(a.subtitle, styles) : a.subtitle}
                         </Text>
                       )}
                       <View style={[styles.attnTileCta, { backgroundColor: isFee ? colors.primary : tintSoft }]}>
@@ -656,7 +671,7 @@ function makeStyles(c: ColorPalette) {
     attnBadgeText: { fontSize: 10, fontFamily: fonts.bold, letterSpacing: 0.4, textTransform: 'uppercase' },
     attnTileTitle: { fontSize: 15, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2, lineHeight: 20 },
     attnTileSub: { fontSize: 12, color: c.textSecondary, marginTop: 3, fontFamily: fonts.regular },
-    attnTileSubStrong: { fontFamily: fonts.bold, color: c.text },
+    attnAmt: { fontSize: 14.5, fontFamily: fonts.extrabold, color: c.text },
     attnTileCta: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
       alignSelf: 'flex-start', marginTop: 13,

@@ -162,6 +162,23 @@ async function downloadViaLegacy(
 // Android: save into a user-chosen folder via Storage Access Framework.
 // The folder is remembered so it's a one-time prompt.
 // =================================================================
+// A short date-time suffix so every save writes a NEW file (never "already
+// exists") — the parent can download the same statement/receipt any number
+// of times, each landing as its own dated copy.
+function stampSuffix(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
+async function writeToDir(
+  FileSystem: any, SAF: any, dirUri: string, base64: string, opts: DownloadOptions,
+): Promise<void> {
+  const displayName = `${opts.fileName.replace(/\.[^.]+$/, '')}-${stampSuffix()}`;
+  const destUri = await SAF.createFileAsync(dirUri, displayName, opts.mimeType ?? 'application/pdf');
+  await FileSystem.writeAsStringAsync(destUri, base64, { encoding: 'base64' });
+}
+
 async function saveViaSAF(localUri: string, opts: DownloadOptions): Promise<boolean> {
   const FileSystem = legacyFs();
   const SAF = FileSystem?.StorageAccessFramework;
@@ -181,18 +198,15 @@ async function saveViaSAF(localUri: string, opts: DownloadOptions): Promise<bool
   }
 
   const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: 'base64' });
-  const displayName = opts.fileName.replace(/\.[^.]+$/, '');
   try {
-    const destUri = await SAF.createFileAsync(dirUri, displayName, opts.mimeType ?? 'application/pdf');
-    await FileSystem.writeAsStringAsync(destUri, base64, { encoding: 'base64' });
+    await writeToDir(FileSystem, SAF, dirUri as string, base64, opts);
   } catch {
-    // Stored folder may have been revoked — clear it and re-ask once.
+    // Stored folder was revoked/removed — ask for a fresh one, once.
     try { if (store) await store.removeItem(SAF_DIR_KEY); } catch {}
     const perm = await SAF.requestDirectoryPermissionsAsync();
     if (!perm.granted) return false;
     try { if (store) await store.setItem(SAF_DIR_KEY, perm.directoryUri); } catch {}
-    const destUri = await SAF.createFileAsync(perm.directoryUri, displayName, opts.mimeType ?? 'application/pdf');
-    await FileSystem.writeAsStringAsync(destUri, base64, { encoding: 'base64' });
+    await writeToDir(FileSystem, SAF, perm.directoryUri, base64, opts);
   }
   Alert.alert('Saved to device', `${opts.fileName} was saved to your chosen folder.`);
   return true;
