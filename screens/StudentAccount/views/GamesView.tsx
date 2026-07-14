@@ -261,8 +261,8 @@ const QuizGame: React.FC<GameProps> = ({ launched, playful, tier, onExit }) => {
       <View style={round.optionKind === 'glyph' || round.optionKind === 'swatch' ? styles.optGrid : styles.optRow}>
         {round.options.map((opt) => {
           const state = flash && flash.key === opt.key ? (flash.correct ? 'right' : 'wrong') : null;
-          const border = state === 'right' ? '#15c98c' : state === 'wrong' ? '#ef4444' : '#ece8fb';
-          const bg = state === 'right' ? '#eafef3' : state === 'wrong' ? '#fee2e2' : '#fff';
+          const border = state === 'right' ? '#15c98c' : state === 'wrong' ? '#ef4444' : C.line;
+          const bg = state === 'right' ? C.okSoft : state === 'wrong' ? C.badSoft : C.card;
           if (round.optionKind === 'swatch') {
             return (
               <TouchableOpacity key={opt.key} activeOpacity={0.85} disabled={locked}
