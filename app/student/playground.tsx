@@ -1,2 +1,7 @@
+import React from 'react';
 import { PlaygroundRunner } from '../../screens/StudentAccount/views/PlaygroundRunner';
-export default PlaygroundRunner;
+import { SchemeFresh } from '../../screens/StudentAccount/SchemeFresh';
+
+export default function Route() {
+  return <SchemeFresh><PlaygroundRunner /></SchemeFresh>;
+}
