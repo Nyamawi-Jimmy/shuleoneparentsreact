@@ -21,6 +21,7 @@ const TIER_ORDER: Tier[] = ['sprout', 'explorer', 'voyager', 'scholar', 'campus'
 export const AgeSwitcher: React.FC = () => {
   const { tier, setTier } = useTier();
   const tokens = useTokens(tier);
+  useSchemeTick(); // re-render on scheme flips (styles are scheme proxies)
   const [open, setOpen] = useState(false);
 
   return (
