@@ -48,11 +48,22 @@ function toMobileRoute(deepLink?: string | null): string {
   return '/';
 }
 
-const PRIORITY: Record<string, { tintKey: keyof ColorPalette; label: string }> = {
-  URGENT: { tintKey: 'danger', label: 'Urgent' },
-  SOON: { tintKey: 'warning', label: 'Soon' },
-  WHENEVER: { tintKey: 'info', label: '' },
+const PRIORITY: Record<string, { tintKey: keyof ColorPalette; softKey: keyof ColorPalette; label: string }> = {
+  URGENT: { tintKey: 'danger', softKey: 'dangerSoft', label: 'Urgent' },
+  SOON: { tintKey: 'warning', softKey: 'warningSoft', label: 'Soon' },
+  WHENEVER: { tintKey: 'info', softKey: 'infoSoft', label: 'Heads-up' },
 };
+
+// Per-kind glyph for the attention cards (falls back to a generic alert).
+const ATTN_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
+  PAY_FEES: 'wallet', FEES: 'wallet',
+  ATTENDANCE: 'calendar', EVENT: 'calendar-outline',
+  ANNOUNCEMENTS: 'megaphone', ANNOUNCEMENT: 'megaphone',
+  MESSAGE: 'chatbubble-ellipses', RESULT: 'ribbon', EXAM: 'document-text',
+  HOMEWORK: 'book', ASSIGNMENT: 'book',
+};
+const attnIcon = (kind: string, isFee: boolean): keyof typeof Ionicons.glyphMap =>
+  ATTN_ICON[String(kind || '').toUpperCase()] || (isFee ? 'wallet' : 'alert-circle');
 
 function greetingKey(): string {
   const h = new Date().getHours();
@@ -235,26 +246,37 @@ export const HomeScreen: React.FC = () => {
           {actions.length > 0 && (
             <>
               <SectionHeader styles={styles} colors={colors} title="Needs your attention" />
-              <View style={styles.card}>
+              <View style={styles.attnList}>
                 {actions.map((a, i) => {
                   const pr = PRIORITY[String(a.priority || 'WHENEVER').toUpperCase()] || PRIORITY.WHENEVER;
                   const tint = colors[pr.tintKey] as string;
+                  const tintSoft = colors[pr.softKey] as string;
                   const isFee = a.kind === 'PAY_FEES';
+                  const ctaText = a.cta
+                    || (isFee ? (a.amount ? `Pay ${formatKsh(a.amount)}` : 'Pay now') : 'Review');
                   return (
-                    <TouchableOpacity key={a.id || i} style={[styles.attnRow, i > 0 && styles.divider]} activeOpacity={0.7}
+                    <TouchableOpacity key={a.id || i} style={styles.attnCard} activeOpacity={0.85}
                       onPress={() => router.push(toMobileRoute(a.deepLink) as any)}>
-                      <View style={[styles.attnIcon, { backgroundColor: tint + '1A' }]}>
-                        <Ionicons name={isFee ? 'wallet' : 'alert-circle'} size={18} color={tint} />
+                      <View style={[styles.attnAccent, { backgroundColor: tint }]} />
+                      <View style={styles.attnCardBody}>
+                        <View style={styles.attnCardTop}>
+                          <View style={[styles.attnIconTile, { backgroundColor: tintSoft }]}>
+                            <Ionicons name={attnIcon(a.kind, isFee)} size={20} color={tint} />
+                          </View>
+                          <View style={[styles.attnBadge, { backgroundColor: tintSoft }]}>
+                            <View style={[styles.attnBadgeDot, { backgroundColor: tint }]} />
+                            <Text style={[styles.attnBadgeText, { color: tint }]}>{pr.label}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.attnCardTitle}>{a.title}</Text>
+                        {!!a.subtitle && <Text style={styles.attnCardSub} numberOfLines={2}>{a.subtitle}</Text>}
+                        <View style={styles.attnCardFoot}>
+                          <View style={[styles.attnCta, { backgroundColor: isFee ? colors.primary : tintSoft }]}>
+                            <Text style={[styles.attnCtaText, { color: isFee ? '#FFF' : tint }]}>{ctaText}</Text>
+                            <Feather name="arrow-right" size={14} color={isFee ? '#FFF' : tint} />
+                          </View>
+                        </View>
                       </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.attnTitle}>{a.title}</Text>
-                        {!!a.subtitle && <Text style={styles.attnSub} numberOfLines={1}>{a.subtitle}</Text>}
-                      </View>
-                      {isFee ? (
-                        <View style={styles.payBtn}><Text style={styles.payBtnText}>Pay now</Text></View>
-                      ) : (
-                        <Feather name="chevron-right" size={18} color={colors.textTertiary} />
-                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -594,12 +616,33 @@ function makeStyles(c: ColorPalette) {
     },
     divider: { borderTopWidth: 1, borderTopColor: c.border },
 
-    attnRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
-    attnIcon: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-    attnTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
-    attnSub: { fontSize: 12, color: c.textSecondary, marginTop: 2, fontFamily: fonts.regular },
-    payBtn: { backgroundColor: c.primary, borderRadius: 11, paddingHorizontal: 15, paddingVertical: 9 },
-    payBtnText: { color: '#FFF', fontSize: 12.5, fontFamily: fonts.bold },
+    // "Needs your attention" — each item is its own priority card with a
+    // colour-coded accent edge, priority badge and action button.
+    attnList: { marginBottom: 24, gap: 12 },
+    attnCard: {
+      flexDirection: 'row', backgroundColor: c.card, borderRadius: 18,
+      borderWidth: 1, borderColor: c.border, overflow: 'hidden',
+      shadowColor: '#1e1b3a', shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.06, shadowRadius: 12, elevation: 2,
+    },
+    attnAccent: { width: 5 },
+    attnCardBody: { flex: 1, padding: 14 },
+    attnCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 11 },
+    attnIconTile: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    attnBadge: {
+      flexDirection: 'row', alignItems: 'center', gap: 5,
+      paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
+    },
+    attnBadgeDot: { width: 6, height: 6, borderRadius: 3 },
+    attnBadgeText: { fontSize: 10.5, fontFamily: fonts.bold, letterSpacing: 0.4, textTransform: 'uppercase' },
+    attnCardTitle: { fontSize: 15, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    attnCardSub: { fontSize: 12.5, color: c.textSecondary, marginTop: 3, fontFamily: fonts.regular, lineHeight: 17 },
+    attnCardFoot: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 13 },
+    attnCta: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      paddingHorizontal: 15, paddingVertical: 9, borderRadius: 999,
+    },
+    attnCtaText: { fontSize: 12.5, fontFamily: fonts.bold },
 
     eventRow: { flexDirection: 'row', alignItems: 'center', gap: 13, paddingVertical: 12 },
     eventDate: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
