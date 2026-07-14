@@ -61,7 +61,12 @@ export async function saveAuthFileToDevice(
   if (Platform.OS === 'android') {
     try {
       const saved = await saveViaSAF(localUri, opts);
-      if (saved) return true;
+      if (saved) {
+        // Take the parent straight to the file so they can see what was
+        // downloaded (open it / share it / re-save it).
+        await openWithSharing(localUri, opts);
+        return true;
+      }
     } catch {
       // fall through to sharing
     }
@@ -209,7 +214,7 @@ async function saveViaSAF(localUri: string, opts: DownloadOptions): Promise<bool
     try { if (store) await store.setItem(SAF_DIR_KEY, perm.directoryUri); } catch {}
     await writeToDir(FileSystem, SAF, perm.directoryUri, base64, opts);
   }
-  Alert.alert('Downloaded', 'A new copy was saved to your device.');
+  // No blocking alert — the caller opens the file next so the parent sees it.
   return true;
 }
 

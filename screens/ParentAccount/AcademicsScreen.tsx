@@ -25,7 +25,7 @@ import { useChildAcademics, useChildAttendance } from '../../hooks/useAcademics'
 import { useSelectedChild } from '../../context/SelectedChildContext';
 import { useAuth } from '../../context/AuthContext';
 import { ExamResult, SubjectScore, AttendanceDay } from '../../api/academics.types';
-import { downloadAuthFile } from '../../utils/downloadAuthFile';
+import { saveAuthFileToDevice } from '../../utils/downloadAuthFile';
 import { API_BASE_URL } from '../../config/api';
 
 type Tab = 'results' | 'attendance';
@@ -131,7 +131,7 @@ const ResultsView: React.FC<{ styles: any; colors: ColorPalette; childName: stri
     if (!examId || !selectedChild?.studentId || !accessToken || downloading) return;
     setDownloading(true);
     const slug = (selectedChild.fullName || 'student').replace(/\s+/g, '-');
-    await downloadAuthFile(
+    await saveAuthFileToDevice(
       accessToken,
       `${API_BASE_URL}/api/parent/children/${selectedChild.studentId}/academics/report-pdf?examId=${examId}`,
       { fileName: `report-${slug}-${examId}.pdf` },
