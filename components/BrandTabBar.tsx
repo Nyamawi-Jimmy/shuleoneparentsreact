@@ -7,6 +7,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { fonts } from '../constants/theme';
+import { useChatContacts } from '../hooks/useChatContacts';
 
 // Icon per route name (filled when active, outline otherwise).
 const ICONS: Record<string, (active: boolean, color: string) => React.ReactNode> = {
@@ -32,6 +33,9 @@ interface TabBarProps {
 
 export const BrandTabBar: React.FC<TabBarProps> = ({ state, descriptors, navigation }) => {
   const { colors } = useTheme();
+  // Unread chat count → a notification badge on the Messages tab.
+  const { contacts } = useChatContacts();
+  const unread = contacts.reduce((s, c) => s + (c.unreadCount ?? 0), 0);
 
   return (
     <View style={[styles.bar, {
@@ -61,7 +65,14 @@ export const BrandTabBar: React.FC<TabBarProps> = ({ state, descriptors, navigat
             style={styles.slot}
           >
             <View style={[styles.indicator, active && { backgroundColor: colors.primary }]} />
-            {ICONS[route.name]?.(active, color) ?? <Ionicons name="ellipse-outline" size={20} color={color} />}
+            <View>
+              {ICONS[route.name]?.(active, color) ?? <Ionicons name="ellipse-outline" size={20} color={color} />}
+              {route.name === 'communication' && unread > 0 && (
+                <View style={[styles.badge, { backgroundColor: colors.danger, borderColor: colors.card }]}>
+                  <Text style={styles.badgeText}>{unread > 99 ? '99+' : unread}</Text>
+                </View>
+              )}
+            </View>
             <Text
               style={[styles.label, { color, fontFamily: active ? fonts.bold : fonts.medium }]}
               numberOfLines={1}
@@ -94,4 +105,10 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   label: { fontSize: 9.5, marginTop: 3, maxWidth: '96%', letterSpacing: -0.1 },
+  badge: {
+    position: 'absolute', top: -6, right: -10,
+    minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1.5,
+  },
+  badgeText: { color: '#FFF', fontSize: 9.5, fontFamily: fonts.extrabold },
 });
