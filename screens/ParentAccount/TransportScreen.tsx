@@ -21,6 +21,17 @@ import { useSelectedChild } from '../../context/SelectedChildContext';
 import { useAuth } from '../../context/AuthContext';
 import { getChildTransportTrips } from '../../api/transport';
 import { TransportTrip, OptOut } from '../../api/transport.types';
+import { DatePickerModal } from '../../components/DatePickerModal';
+
+// Labels for a custom (calendar-picked) date chip.
+const customChipLabel = (iso: string) => {
+  const d = new Date(`${iso}T00:00:00`);
+  return isNaN(d.getTime()) ? iso : d.toLocaleDateString('en-GB', { weekday: 'short' });
+};
+const customChipSub = (iso: string) => {
+  const d = new Date(`${iso}T00:00:00`);
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+};
 
 // Transport's accent — the same bus blue used on Today's quick access & cards.
 const BUS_BLUE = '#2563EB';
@@ -87,6 +98,7 @@ export const TransportScreen: React.FC = () => {
   const [trips, setTrips] = useState<TransportTrip[]>([]);
   const [optDate, setOptDate] = useState(todayIso());
   const [optNote, setOptNote] = useState('');
+  const [calOpen, setCalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState('');
 
@@ -286,20 +298,39 @@ export const TransportScreen: React.FC = () => {
                 )}
                 <Text style={styles.optLabel}>Pick a date</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateStrip}>
-                  {dateChips(14).map((d) => {
-                    const active = d.iso === optDate;
-                    return active ? (
-                      <View key={d.iso} style={[styles.dateChip, { borderColor: BUS_BLUE, backgroundColor: BUS_BLUE + '14' }]}>
-                        <Text style={[styles.dateChipLabel, { color: BUS_BLUE }]}>{d.label}</Text>
-                        <Text style={[styles.dateChipSub, { color: BUS_BLUE }]}>{d.sub}</Text>
-                      </View>
-                    ) : (
-                      <TouchableOpacity key={d.iso} style={styles.dateChip} activeOpacity={0.8} onPress={() => setOptDate(d.iso)}>
-                        <Text style={styles.dateChipLabel}>{d.label}</Text>
-                        <Text style={styles.dateChipSub}>{d.sub}</Text>
-                      </TouchableOpacity>
+                  {(() => {
+                    const chips = dateChips(14);
+                    const isCustom = !!optDate && !chips.some((d) => d.iso === optDate);
+                    return (
+                      <>
+                        {isCustom && (
+                          <View style={[styles.dateChip, { borderColor: BUS_BLUE, backgroundColor: BUS_BLUE + '14' }]}>
+                            <Text style={[styles.dateChipLabel, { color: BUS_BLUE }]}>{customChipLabel(optDate)}</Text>
+                            <Text style={[styles.dateChipSub, { color: BUS_BLUE }]}>{customChipSub(optDate)}</Text>
+                          </View>
+                        )}
+                        {chips.map((d) => {
+                          const active = d.iso === optDate;
+                          return active ? (
+                            <View key={d.iso} style={[styles.dateChip, { borderColor: BUS_BLUE, backgroundColor: BUS_BLUE + '14' }]}>
+                              <Text style={[styles.dateChipLabel, { color: BUS_BLUE }]}>{d.label}</Text>
+                              <Text style={[styles.dateChipSub, { color: BUS_BLUE }]}>{d.sub}</Text>
+                            </View>
+                          ) : (
+                            <TouchableOpacity key={d.iso} style={styles.dateChip} activeOpacity={0.8} onPress={() => setOptDate(d.iso)}>
+                              <Text style={styles.dateChipLabel}>{d.label}</Text>
+                              <Text style={styles.dateChipSub}>{d.sub}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                        {/* Custom date — opens the calendar for any future day */}
+                        <TouchableOpacity style={[styles.dateChip, styles.dateChipOther]} activeOpacity={0.8} onPress={() => setCalOpen(true)}>
+                          <Ionicons name="calendar-outline" size={16} color={BUS_BLUE} />
+                          <Text style={styles.dateChipOtherText}>Other</Text>
+                        </TouchableOpacity>
+                      </>
                     );
-                  })}
+                  })()}
                 </ScrollView>
                 <TextInput
                   style={styles.optInput}
@@ -339,6 +370,15 @@ export const TransportScreen: React.FC = () => {
           <View style={{ height: 32 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <DatePickerModal
+        visible={calOpen}
+        onClose={() => setCalOpen(false)}
+        selected={optDate}
+        minIso={todayIso()}
+        accent={BUS_BLUE}
+        onSelect={(iso) => setOptDate(iso)}
+      />
     </View>
   );
 };
@@ -462,6 +502,11 @@ function makeStyles(c: ColorPalette) {
     dateChip: { alignItems: 'center', borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, minWidth: 58 },
     dateChipLabel: { fontSize: 12, fontFamily: fonts.bold, color: c.text },
     dateChipSub: { fontSize: 10, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
+    dateChipOther: {
+      flexDirection: 'row', gap: 5, justifyContent: 'center',
+      borderStyle: 'dashed', borderColor: BUS_BLUE + '66', backgroundColor: BUS_BLUE + '0D',
+    },
+    dateChipOtherText: { fontSize: 12, fontFamily: fonts.bold, color: BUS_BLUE },
     optInput: { borderWidth: 1, borderColor: c.border, borderRadius: 12, backgroundColor: c.background, paddingHorizontal: 12, height: 46, fontSize: 13.5, fontFamily: fonts.regular, color: c.text, marginTop: 12 },
     flagBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 12, paddingVertical: 13, marginTop: 12 },
     flagBtnText: { color: '#FFF', fontSize: 14, fontFamily: fonts.bold },
