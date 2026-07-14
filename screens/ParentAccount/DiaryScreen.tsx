@@ -286,6 +286,8 @@ const SessionList: React.FC<{
 
           return (
             <TouchableOpacity key={s.id} style={styles.weekCard} activeOpacity={0.85} onPress={() => onOpen(s.id)}>
+              <View style={[styles.weekAccent, { backgroundColor: pending > 0 ? colors.primary : totalSignable > 0 ? colors.success : colors.border }]} />
+              <View style={styles.weekInner}>
               <View style={styles.weekCardTop}>
                 <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.weekBadge}>
                   <Text style={styles.weekBadgeKicker}>WEEK</Text>
@@ -337,6 +339,7 @@ const SessionList: React.FC<{
                     </Text>
                   </TouchableOpacity>
                 ))}
+              </View>
               </View>
             </TouchableOpacity>
           );
@@ -667,11 +670,13 @@ function makeStyles(c: ColorPalette) {
     searchInput: { flex: 1, fontSize: 13.5, fontFamily: fonts.regular, color: c.text, paddingVertical: 0 },
 
     weekCard: {
-      backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.border,
-      padding: 13, marginBottom: 10,
-      shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+      flexDirection: 'row', backgroundColor: c.card, borderRadius: 18,
+      borderWidth: 1, borderColor: c.border, overflow: 'hidden', marginBottom: 11,
+      shadowColor: '#1e1b3a', shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.06, shadowRadius: 12, elevation: 3,
     },
+    weekAccent: { width: 4, alignSelf: 'stretch' },
+    weekInner: { flex: 1, padding: 13 },
     weekCardTop: { flexDirection: 'row', alignItems: 'center', gap: 13 },
     slotRow: {
       flexDirection: 'row', justifyContent: 'space-between',
