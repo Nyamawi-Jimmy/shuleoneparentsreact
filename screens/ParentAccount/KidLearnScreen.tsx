@@ -217,22 +217,20 @@ const QuestStageMap: React.FC<{
   const stages = detail.stages;
   const accent = detail.quest.accentColor || colors.primary;
   const n = stages.length;
-  // Use the quest's authored coordinates when every stage has them; otherwise
-  // spread the stages evenly bottom→top in a zig-zag so ALL of them fit — no
-  // wrapping/overlap past the 8 defaults, and nothing runs off the bottom.
-  const hasAuthored = n > 0 && stages.every((s) => s.mapX != null && s.mapY != null);
+  // Lay every stage out with a FIXED vertical gap, bottom → top, in a zig-zag.
+  // Deriving the map height from the count (not from authored % coords) means
+  // all stages always get their own slot — none overlap or run off the map,
+  // however many there are.
   const ZIG = [20, 44, 66, 80, 60, 36];
+  const SPACING = 118;          // px between stage centres
+  const PAD_TOP = 56;
+  const PAD_BOTTOM = 92;        // room for the lowest bubble + its label
+  const mapHeight = PAD_TOP + PAD_BOTTOM + Math.max(1, n - 1) * SPACING;
   const positions = stages.map((s, i) => {
-    if (hasAuthored) return { x: s.mapX as number, y: s.mapY as number };
-    const y = n > 1 ? 82 - (i / (n - 1)) * 74 : 50; // bottom (82%) → top (8%)
-    return { x: ZIG[i % ZIG.length], y };
+    // stage 0 sits at the bottom, the last stage at the top
+    const yPx = mapHeight - PAD_BOTTOM - i * SPACING;
+    return { x: ZIG[i % ZIG.length], y: (yPx / mapHeight) * 100 };
   });
-  const maxY = positions.length ? Math.max(...positions.map((p) => p.y)) : 82;
-  // Each node needs ~120px below its centre for the bubble + 2-line label, so
-  // pick a height where the LOWEST node's label still fits, with a per-stage
-  // minimum for breathing room. The ScrollView (flex:1) scrolls the rest.
-  const fitH = 120 / Math.max(0.12, 1 - maxY / 100);
-  const mapHeight = Math.min(2600, Math.max(hasAuthored ? 560 : n * 96, Math.round(fitH)));
   const pathD = buildPath(positions);
 
   return (
