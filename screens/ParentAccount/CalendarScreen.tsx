@@ -18,7 +18,7 @@ import { listChildReminders, setReminder, cancelReminder } from '../../api/notif
 type Cat = 'all' | 'school' | 'live';
 interface AgendaItem {
   id: string; kind: 'event' | 'live'; category: 'school' | 'live';
-  title: string; desc: string; dateKey: string; time: string; isNow: boolean;
+  title: string; desc: string; dateKey: string; endKey: string; time: string; isNow: boolean;
   live?: LiveClass;
 }
 
@@ -63,7 +63,8 @@ export const CalendarScreen: React.FC = () => {
       items.push({
         id: `EV:${e.id}`, kind: 'event', category: 'school',
         title: e.title || 'School event', desc: e.className || 'School event',
-        dateKey: toKey(e.startDate), time: 'All day', isNow: false,
+        dateKey: toKey(e.startDate), endKey: toKey(e.endDate) || toKey(e.startDate),
+        time: 'All day', isNow: false,
       });
     });
     (liveClasses ?? []).forEach((c: LiveClass) => {
@@ -73,15 +74,17 @@ export const CalendarScreen: React.FC = () => {
       items.push({
         id: `LV:${c.id}`, kind: 'live', category: 'live',
         title: c.title || 'Live class', desc: c.className || 'Live class',
-        dateKey: toKey(c.startsOn), time: now ? 'Now' : timeLabel(c.startsOn), isNow: now, live: c,
+        dateKey: toKey(c.startsOn), endKey: toKey(c.endsOn) || toKey(c.startsOn),
+        time: now ? 'Now' : timeLabel(c.startsOn), isNow: now, live: c,
       });
     });
     return items;
   }, [events, liveClasses]);
 
   const filtered = filter === 'all' ? agenda : agenda.filter((i) => i.category === filter);
+  // Past only once ENDED: a multi-day event stays listed while it is still running.
   const upcoming = useMemo(() =>
-    filtered.filter((i) => i.dateKey && (i.dateKey >= TODAY || i.isNow))
+    filtered.filter((i) => i.dateKey && (i.isNow || (i.endKey || i.dateKey) >= TODAY))
       .sort((a, b) => (a.isNow === b.isNow ? a.dateKey.localeCompare(b.dateKey) || a.time.localeCompare(b.time) : a.isNow ? -1 : 1)),
     [filtered, TODAY]);
 

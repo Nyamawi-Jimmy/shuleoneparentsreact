@@ -5,7 +5,7 @@
 // the bus is moving, recent trips, and the "not using the bus" flag flow.
 // The brand color stays on the app bar only.
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
   RefreshControl, TextInput, Linking, KeyboardAvoidingView, Platform,
@@ -107,6 +107,19 @@ export const TransportScreen: React.FC = () => {
     if (!accessToken || sid == null) { setTrips([]); return; }
     getChildTransportTrips(accessToken, sid).then((t) => setTrips(Array.isArray(t) ? t : [])).catch(() => setTrips([]));
   }, [accessToken, child]));
+
+  // Live poll (web parity: refresh every 30s while the screen is open) so the
+  // journey stepper and seat status stay current without a manual pull.
+  const pollRef = useRef({ refresh, accessToken, sid: child?.studentId ?? null });
+  pollRef.current = { refresh, accessToken, sid: child?.studentId ?? null };
+  useEffect(() => {
+    const id = setInterval(() => {
+      const { refresh: r, accessToken: tok, sid } = pollRef.current;
+      r();
+      if (tok && sid != null) getChildTransportTrips(tok, sid).then((t) => setTrips(Array.isArray(t) ? t : [])).catch(() => {});
+    }, 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const upcoming = (child?.upcomingOptOuts?.length ? child.upcomingOptOuts : optOuts) as OptOut[];
 
