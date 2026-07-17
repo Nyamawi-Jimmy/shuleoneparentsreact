@@ -2,10 +2,21 @@ import { apiFetch } from '../config/api';
 import {
   QuestSummary,
   QuestDetail,
+  QuestCatalog,
   Lesson,
   StageCompletionResult,
   AgeTier,
 } from './quest.types';
+
+/**
+ * GET /api/quests/catalog
+ *
+ * All active quests tagged with their class code, the grade list, and the
+ * student's own class (so the UI can default there). Every grade is browsable.
+ */
+export function getQuestCatalog(accessToken: string) {
+  return apiFetch<QuestCatalog>('/api/quests/catalog', { accessToken });
+}
 
 // =================================================================
 // QuestController endpoints. Most require a Bearer token; pass

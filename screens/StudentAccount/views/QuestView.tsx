@@ -5,7 +5,7 @@ import {
   Image,
 } from 'react-native';
 
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
@@ -15,8 +15,17 @@ import { TopBar } from '../components/TopBar';
 import { AgeSwitcher } from '../components/AgeSwitcher';
 import { useAuth } from '../../../context/AuthContext';
 import { tierToAgeTier } from '../../../config/tier';
-import { listQuests, getQuest } from '../../../api/quests';
+import { listQuests, getQuest, getQuestCatalog } from '../../../api/quests';
 import { QuestDetail, QuestSummary, Stage } from '../../../api/quest.types';
+
+// Friendly label for a canonical class code (PLAYGROUP/PP1/GRADE1../FORM1..).
+function gradeLabel(code?: string | null): string {
+  if (!code) return '';
+  if (code === 'PLAYGROUP') return 'Play Group';
+  const m = /^(GRADE|FORM)(\d+)$/.exec(code);
+  if (m) return `${m[1] === 'GRADE' ? 'Grade' : 'Form'} ${m[2]}`;
+  return code; // PP1 / PP2
+}
 import { ApiError } from '../../../config/api';
 
 // Default node positions for the 0..100 SVG coordinate space (kid-design.html)
@@ -38,6 +47,9 @@ export const QuestView: React.FC = () => {
   const { accessToken } = useAuth();
 
   const [quests, setQuests] = useState<QuestSummary[]>([]);
+  const [grades, setGrades] = useState<string[]>([]);
+  const [myGrade, setMyGrade] = useState<string | null>(null);
+  const [gradeSel, setGradeSel] = useState<string>('ALL'); // 'ALL' | class code
   const [selectedQuestId, setSelectedQuestId] = useState<number | null>(null);
   const [questDetail, setQuestDetail] = useState<QuestDetail | null>(null);
 
@@ -46,6 +58,8 @@ export const QuestView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // ── Fetch quest list ──────────────────────────────────
+  // Prefer the class-organised catalog (quests tagged by grade + the student's own
+  // class); fall back to the flat tier list on older backends.
   const loadList = useCallback(async () => {
     if (!accessToken) {
       setError('Please sign in again.');
@@ -55,10 +69,21 @@ export const QuestView: React.FC = () => {
     setError(null);
     setLoadingList(true);
     try {
-      const list = await listQuests(accessToken, tierToAgeTier(tier));
-      setQuests(list);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Could not load quests.');
+      const cat = await getQuestCatalog(accessToken);
+      setQuests(cat?.quests ?? []);
+      setGrades(cat?.grades ?? []);
+      setMyGrade(cat?.myGrade ?? null);
+      setGradeSel((prev) => (prev !== 'ALL' ? prev
+        : (cat?.myGrade && (cat.grades ?? []).includes(cat.myGrade) ? cat.myGrade : 'ALL')));
+    } catch {
+      try {
+        const list = await listQuests(accessToken, tierToAgeTier(tier));
+        setQuests(list);
+        setGrades([]);
+        setMyGrade(null);
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : 'Could not load quests.');
+      }
     } finally {
       setLoadingList(false);
     }
@@ -132,6 +157,11 @@ export const QuestView: React.FC = () => {
   }
 
   // ── Quest LIST view (default) ─────────────────────────
+  // Class filter: default to the student's own class, but every grade stays open.
+  const shown = gradeSel === 'ALL' ? quests : quests.filter((q) => (q.grade ?? null) === gradeSel);
+  // Spotlight the quest to continue: the one in progress, else the next available.
+  const resumeQuest = shown.find((q) => q.status === 'IN_PROGRESS') || shown.find((q) => q.status === 'AVAILABLE');
+
   return (
     <View style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
       <TopBar />
@@ -158,21 +188,109 @@ export const QuestView: React.FC = () => {
           </View>
         )}
 
-        {quests.length === 0 && !error && (
+        {/* Class picker — default is the student's own class; every grade stays open
+            so they can revise earlier classes or read ahead. */}
+        {grades.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.classStrip}>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => setGradeSel('ALL')}
+              style={[styles.classChip, gradeSel === 'ALL' && { backgroundColor: tokens.accent1, borderColor: tokens.accent1 }]}>
+              <Text style={[styles.classChipText, gradeSel === 'ALL' && { color: '#fff' }]}>All classes</Text>
+            </TouchableOpacity>
+            {grades.map((g) => {
+              const active = gradeSel === g;
+              return (
+                <TouchableOpacity key={g} activeOpacity={0.85} onPress={() => setGradeSel(g)}
+                  style={[styles.classChip, active && { backgroundColor: tokens.accent1, borderColor: tokens.accent1 }]}>
+                  <Text style={[styles.classChipText, active && { color: '#fff' }]}>{gradeLabel(g)}</Text>
+                  {g === myGrade && <View style={[styles.mineDot, active && { backgroundColor: '#fff' }]} />}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        {/* Continue spotlight */}
+        {resumeQuest && (
+          <ContinueCard quest={resumeQuest} tokens={tokens} onPress={() => handleSelectQuest(resumeQuest)} />
+        )}
+
+        {quests.length === 0 && !error ? (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🌱</Text>
             <Text style={styles.emptyTitle}>No quests yet</Text>
             <Text style={styles.emptyText}>Your teacher will publish some soon!</Text>
           </View>
+        ) : shown.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyIcon}>🌱</Text>
+            <Text style={styles.emptyTitle}>Nothing in {gradeLabel(gradeSel)} yet</Text>
+            <Text style={styles.emptyText}>Try another class!</Text>
+          </View>
+        ) : (
+          <>
+            {resumeQuest && (
+              <View style={[styles.secH, { marginTop: 4 }]}>
+                <Text style={styles.allQuestsTitle}>All quests</Text>
+                <View style={styles.secHLine} />
+              </View>
+            )}
+            {shown.map((q) => (
+              <QuestCard key={q.id} quest={q} onPress={() => handleSelectQuest(q)} />
+            ))}
+          </>
         )}
-
-        {quests.map((q) => (
-          <QuestCard key={q.id} quest={q} onPress={() => handleSelectQuest(q)} />
-        ))}
 
         <View style={{ height: 100 }} />
       </ScrollView>
       <AgeSwitcher />
+    </View>
+  );
+};
+
+// Darken a hex colour for the continue-card gradient end.
+function darken(hex: string, amt = 0.22): string {
+  const h = (hex || '').replace('#', '');
+  if (h.length !== 6) return hex;
+  const n = parseInt(h, 16);
+  const r = Math.round(((n >> 16) & 255) * (1 - amt));
+  const g = Math.round(((n >> 8) & 255) * (1 - amt));
+  const b = Math.round((n & 255) * (1 - amt));
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
+
+// "Continue where you left off" — a bold accent-gradient spotlight with a white
+// progress ring. Distinct from the flat quest cards below it.
+const ContinueCard: React.FC<{ quest: QuestSummary; tokens: any; onPress: () => void }> = ({ quest, tokens, onPress }) => {
+  const accent = quest.accentColor || tokens.accent1;
+  const pct = quest.totalStages ? Math.round((quest.completedStages / quest.totalStages) * 100) : 0;
+  const stage = Math.min((quest.completedStages || 0) + 1, quest.totalStages || 1);
+  return (
+    <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={styles.continueWrap}>
+      <LinearGradient colors={[accent, darken(accent)]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.continueCard, { borderRadius: tokens.radius }]}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.continueKick}>▶  CONTINUE WHERE YOU LEFT OFF</Text>
+          <Text style={styles.continueTitle} numberOfLines={2}>{quest.title}</Text>
+          <Text style={styles.continueMeta} numberOfLines={1}>{quest.subject || 'Quest'} · Stage {stage} of {quest.totalStages || 1}</Text>
+          <View style={styles.continueBar}><View style={[styles.continueFill, { width: `${pct}%` }]} /></View>
+        </View>
+        <RingProgress pct={pct} />
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+};
+
+const RingProgress: React.FC<{ pct: number }> = ({ pct }) => {
+  const size = 66, stroke = 6, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(100, pct));
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size} style={{ position: 'absolute' }}>
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.3)" strokeWidth={stroke} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke="#fff" strokeWidth={stroke} fill="none"
+          strokeDasharray={c} strokeDashoffset={c * (1 - p / 100)} strokeLinecap="round"
+          transform={`rotate(-90 ${size / 2} ${size / 2})`} />
+      </Svg>
+      <Text style={{ color: '#fff', fontWeight: '900', fontSize: 14 }}>{p}%</Text>
     </View>
   );
 };
@@ -459,7 +577,31 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
 
   secH: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
   secHTitle: { fontSize: 17, fontWeight: '800', color: S.ink },
+  allQuestsTitle: { fontSize: 14, fontWeight: '800', color: S.inkSoft },
   secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: S.line },
+
+  // Class picker
+  classStrip: { gap: 8, paddingBottom: 4, marginBottom: 16 },
+  classChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1.5, borderColor: S.line, backgroundColor: S.card,
+    borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8,
+  },
+  classChipText: { fontSize: 12.5, fontWeight: '800', color: S.inkSoft },
+  mineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#f4a716' },
+
+  // Continue spotlight
+  continueWrap: {
+    marginBottom: 18,
+    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22, shadowRadius: 16, elevation: 6,
+  },
+  continueCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
+  continueKick: { color: 'rgba(255,255,255,0.9)', fontSize: 9.5, fontWeight: '800', letterSpacing: 0.6 },
+  continueTitle: { color: '#fff', fontSize: 16, fontWeight: '900', marginTop: 4, lineHeight: 20 },
+  continueMeta: { color: 'rgba(255,255,255,0.9)', fontSize: 11.5, fontWeight: '700', marginTop: 4 },
+  continueBar: { height: 7, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.28)', overflow: 'hidden', marginTop: 10 },
+  continueFill: { height: '100%', borderRadius: 99, backgroundColor: '#fff' },
 
   errorBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 8,

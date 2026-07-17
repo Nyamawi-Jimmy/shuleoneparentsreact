@@ -31,6 +31,15 @@ export interface QuestSummary {
   totalXp: number;
   earnedXp: number;
   status: ProgressStatus;
+  grade?: string | null;            // class code (PLAYGROUP/PP1/GRADE1/FORM1…)
+  lastActivityAt?: string | null;
+}
+
+/** GET /api/quests/catalog — quests tagged by class + the student's own class. */
+export interface QuestCatalog {
+  myGrade: string | null;
+  grades: string[];
+  quests: QuestSummary[];
 }
 
 // =================================================================
