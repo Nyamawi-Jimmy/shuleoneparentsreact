@@ -19,7 +19,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
-  KeyboardAvoidingView, Platform, Linking,
+  KeyboardAvoidingView, Platform, Linking, ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -43,7 +43,8 @@ const KINDS: Record<string, { icon: string; label: string; language: string; c1:
   ROBOT: { icon: '🤖', label: 'Robot', language: 'mBot2', c1: '#e91e63', c2: '#ff8fc0' },
 };
 
-const SCRATCH_URL = 'https://shuleonescratch.shule.co.ke/';
+// The self-hosted Shule One Scratch editor (matches the web's SCRATCH_LAUNCH_URL).
+const SCRATCH_URL = 'https://scratch.shuleone.co.ke/';
 const MAKECODE_URL = 'https://makecode.microbit.org/';
 
 // Starter snippets — same as the web Sandbox.
@@ -145,23 +146,7 @@ export const PlaygroundRunner: React.FC = () => {
   // ── External editors: Scratch / Blocks / MakeCode ─────
   if (kind === 'SCRATCH' || kind === 'BLOCKS' || kind === 'MICROBIT') {
     const url = kind === 'MICROBIT' ? MAKECODE_URL : SCRATCH_URL;
-    return (
-      <View style={styles.safe}>
-        <View style={[styles.head, { paddingTop: topPad + 8 }]}>
-          <TouchableOpacity style={styles.backBtn} hitSlop={8} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={18} color={C.ink} />
-          </TouchableOpacity>
-          <View style={styles.headTitleRow}>
-            <Text style={styles.headIcon}>{k.icon}</Text>
-            <Text style={styles.headTitle} numberOfLines={1}>{k.label}</Text>
-          </View>
-          <TouchableOpacity style={styles.extBtn} hitSlop={8} onPress={() => Linking.openURL(url)}>
-            <Ionicons name="open-outline" size={16} color="#7c5cff" />
-          </TouchableOpacity>
-        </View>
-        <WebView source={{ uri: url }} style={{ flex: 1 }} />
-      </View>
-    );
+    return <ExternalEditor url={url} k={k} topPad={topPad} />;
   }
 
   return (
@@ -183,6 +168,68 @@ export const PlaygroundRunner: React.FC = () => {
         : kind === 'BASH' ? <BashPlayground />
         : (kind === 'ARDUINO' || kind === 'ROBOT') ? <NotesEditor kind={kind} k={k} />
         : <EnginePlayground kind={kind} k={k} />}
+    </View>
+  );
+};
+
+// =================================================================
+// External editors (Scratch / Blocks / MakeCode) — a full WebView with a
+// loading spinner and an honest "open in browser" fallback if the in-app view
+// is blocked (some editors reject embedding on certain networks).
+// =================================================================
+const ExternalEditor: React.FC<{ url: string; k: typeof KINDS[string]; topPad: number }> = ({ url, k, topPad }) => {
+  useSchemeTick();
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  return (
+    <View style={styles.safe}>
+      <View style={[styles.head, { paddingTop: topPad + 8 }]}>
+        <TouchableOpacity style={styles.backBtn} hitSlop={8} onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={18} color={C.ink} />
+        </TouchableOpacity>
+        <View style={styles.headTitleRow}>
+          <Text style={styles.headIcon}>{k.icon}</Text>
+          <Text style={styles.headTitle} numberOfLines={1}>{k.label}</Text>
+        </View>
+        <TouchableOpacity style={styles.extBtn} hitSlop={8} onPress={() => Linking.openURL(url)}>
+          <Ionicons name="open-outline" size={16} color="#7c5cff" />
+        </TouchableOpacity>
+      </View>
+      {failed ? (
+        <View style={styles.webErr}>
+          <Text style={{ fontSize: 46 }}>{k.icon}</Text>
+          <Text style={styles.webErrTitle}>Couldn’t open {k.label} here</Text>
+          <Text style={styles.webErrText}>
+            The editor couldn’t load inside the app. Open it in your browser — you’ll stay signed in.
+          </Text>
+          <TouchableOpacity style={styles.webErrBtn} activeOpacity={0.85} onPress={() => Linking.openURL(url)}>
+            <Ionicons name="open-outline" size={15} color="#fff" />
+            <Text style={styles.webErrBtnText}>Open in browser</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={{ flex: 1 }}>
+          <WebView
+            source={{ uri: url }}
+            style={{ flex: 1, backgroundColor: 'transparent' }}
+            originWhitelist={['*']}
+            javaScriptEnabled
+            domStorageEnabled
+            allowsInlineMediaPlayback
+            mediaPlaybackRequiresUserAction={false}
+            setSupportMultipleWindows={false}
+            onLoadEnd={() => setLoading(false)}
+            onError={() => { setLoading(false); setFailed(true); }}
+            onRenderProcessGone={() => setFailed(true)}
+          />
+          {loading && (
+            <View style={styles.webLoading} pointerEvents="none">
+              <ActivityIndicator size="large" color="#7c5cff" />
+              <Text style={styles.webLoadingText}>Loading {k.label}…</Text>
+            </View>
+          )}
+        </View>
+      )}
     </View>
   );
 };
@@ -527,6 +574,21 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     width: 36, height: 36, borderRadius: 18,
     backgroundColor: S.ring, alignItems: 'center', justifyContent: 'center',
   },
+
+  // External-editor WebView loading + error fallback
+  webLoading: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: S.soft,
+  },
+  webLoadingText: { fontSize: 13, fontWeight: '700', color: S.inkSoft },
+  webErr: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, gap: 6 },
+  webErrTitle: { fontSize: 16, fontWeight: '800', color: S.ink, marginTop: 8 },
+  webErrText: { fontSize: 13, fontWeight: '600', color: S.inkSoft, textAlign: 'center', lineHeight: 19 },
+  webErrBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14,
+    backgroundColor: '#7c5cff', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 12,
+  },
+  webErrBtnText: { color: '#fff', fontWeight: '800', fontSize: 13.5 },
 
   body: { padding: 14 },
 

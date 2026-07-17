@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { LearningHeader } from '../components/LearningHeader';
@@ -30,7 +31,8 @@ export const ScratchView: React.FC = () => {
               Drag blocks to make games, stories, and animations.
             </Text>
           </View>
-          <TouchableOpacity activeOpacity={0.85} style={styles.heroBtn}>
+          <TouchableOpacity activeOpacity={0.85} style={styles.heroBtn}
+            onPress={() => router.push('/student/playground?kind=SCRATCH' as any)}>
             <Ionicons name="open-outline" size={14} color="#ff5e9c" />
             <Text style={styles.heroBtnText}>Launch</Text>
           </TouchableOpacity>
