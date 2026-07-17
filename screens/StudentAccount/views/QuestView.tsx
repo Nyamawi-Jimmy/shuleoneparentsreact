@@ -403,18 +403,23 @@ const QuestMapView: React.FC<{
   const stages = [...questDetail.stages].sort((a, b) => a.position - b.position);
   const accent = q.accentColor || tokens.accent1;
 
-  // Winding path positions: honour the backend's mapX/mapY when every stage has
-  // them, otherwise lay out a serpentine that scales to ANY number of stages
-  // (climbing bottom → top). The canvas grows with the stage count so nodes never
-  // overlap and the whole map scrolls — the fix for the old fixed-height/8-slot map.
+  // Winding path positions. The canvas GROWS with the stage count, and every
+  // node's y is normalised into a safe band [TOP..BOT]% so the extreme nodes
+  // (and their labels below the bubble) always have margin and never clip — the
+  // fix for the old fixed-720 canvas that cut the last node past ~8 stages.
   const hasCoords = stages.length > 0 && stages.every((s) => s.mapX != null && s.mapY != null);
   const cols = [20, 44, 68, 80, 56, 32];
+  // Raw y: backend coords when present, else a serpentine climbing bottom→top.
+  const rawY = stages.map((s, i) => hasCoords ? (s.mapY as number) : 92 - (i / Math.max(1, stages.length - 1)) * 84);
+  const minY = Math.min(...rawY), maxY = Math.max(...rawY);
+  const spanY = Math.max(1, maxY - minY);
+  const TOP = 8, BOT = 86; // leaves room at the top and (for labels) the bottom
   const positions = stages.map((s, i) => ({
     x: hasCoords ? (s.mapX as number) : cols[i % cols.length],
-    y: hasCoords ? (s.mapY as number) : 92 - (i / Math.max(1, stages.length - 1)) * 84,
+    y: stages.length <= 1 ? 50 : TOP + ((rawY[i] - minY) / spanY) * (BOT - TOP),
   }));
   const pathD = buildPath(positions);
-  const mapHeight = hasCoords ? 720 : Math.max(560, stages.length * 92);
+  const mapHeight = Math.max(640, stages.length * 98);
 
   return (
     <View style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
