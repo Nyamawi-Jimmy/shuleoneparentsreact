@@ -142,6 +142,18 @@ screen, redesigned for mobile with the indigo/Inter design system (`fonts` from
       children, notifications, language, appearance (light/dark/system), help, sign-out.
       Added **Documents** and **Plans & subscriptions** rows. (`/subscriptions` already existed.)
 
+## 5f. Student-side real-data wiring (Phase 4, started)
+
+- [x] **Quests** (`QuestView`) — replaced the fixed 720px winding map (8 repeating
+      positions → overlap/off-screen when >8 stages) with a **compact scrollable vertical
+      path**: one row per stage (node on a rail + title/XP/stars/action), sorted by position.
+- [x] **Live Classes** (`LiveClassesView`) — `useStudentLiveClasses` → `GET /api/student/live-classes`;
+      Join mints Jitsi `joinUrl` via `/live-classes/{id}/join`, opens in-app browser. No mock.
+- [x] **Stars / leaderboard** (`StarsView`) — `getLeague`/`useLeague` → `GET /api/learner/league`
+      (`LeagueBoardDto`): real podium + ranking, me-highlight, players count, week-reset
+      countdown, pinned "your rank". Deterministic avatars from names. No mock.
+- [ ] Still mock: `TestsView` (exams), `PortfolioView`, `LibraryView`, `VideosView`.
+
 ## 5b. Corrected gap analysis (parent side is more complete than first assumed)
 
 Tracing the code (not just the web-app summary) revealed the parent side already
