@@ -144,3 +144,30 @@ export function initialsFor(profile: StudentProfile | null): string {
     .split(/\s+/).filter(Boolean).slice(0, 2)
     .map((s) => s[0]?.toUpperCase() ?? '').join('') || '?';
 }
+
+// =================================================================
+// Portfolio — mirrors PortfolioDtos.Portfolio (GET /api/learner/{id}/portfolio)
+// =================================================================
+export interface PortfolioProject {
+  id?: number | null;
+  title: string | null;
+  summary: string | null;
+  artifactUrl: string | null;
+  repoUrl: string | null;
+  status: string | null;          // SUBMITTED | GRADED | PUBLISHED ...
+  scorePct: number | null;        // null until graded
+  band: number | null;            // CBC competency band, if graded
+  feedback: string | null;
+  [key: string]: unknown;
+}
+export interface PortfolioSkill {
+  subStrandId: number | null;
+  name: string | null;
+  masteryPct: number;
+}
+export interface PortfolioStats { projects: number; skillsMastered: number; }
+export interface StudentPortfolio {
+  stats: PortfolioStats | null;
+  projects: PortfolioProject[] | null;
+  skills: PortfolioSkill[] | null;
+}

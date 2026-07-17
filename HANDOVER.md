@@ -152,7 +152,13 @@ screen, redesigned for mobile with the indigo/Inter design system (`fonts` from
 - [x] **Stars / leaderboard** (`StarsView`) — `getLeague`/`useLeague` → `GET /api/learner/league`
       (`LeagueBoardDto`): real podium + ranking, me-highlight, players count, week-reset
       countdown, pinned "your rank". Deterministic avatars from names. No mock.
-- [ ] Still mock: `TestsView` (exams), `PortfolioView`, `LibraryView`, `VideosView`.
+- [x] **Tests / Exams** (`TestsView`) — `useStudentExams` → `GET /api/student/academics`
+      (`AcademicReportDTO`, same as parent). Exam selector strip + grade/mean/remark +
+      subject breakdown + **report-card PDF** (`/student/academics/report-pdf?examId=`). No mock.
+- [x] **Portfolio** (`PortfolioView`) — `useStudentPortfolio` resolves studentId from the
+      profile then `GET /api/learner/{id}/portfolio`: projects (status/score/band/feedback +
+      artifact/repo links) and skill mastery bars, with stats. No mock.
+- [ ] Still mock: `LibraryView`, `VideosView` (curriculum resources).
 
 ## 5b. Corrected gap analysis (parent side is more complete than first assumed)
 

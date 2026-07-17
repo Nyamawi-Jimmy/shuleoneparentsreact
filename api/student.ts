@@ -1,9 +1,26 @@
-import { apiFetch } from '../config/api';
+import { apiFetch, API_BASE_URL } from '../config/api';
 import {
   StudentProfile, StudentCalendarItem, StudentFeeSummary,
   StudentAssignment, StudentLiveClass,
   AssignmentExam, AssignmentSubmitResult, AssignmentReview,
+  StudentPortfolio,
 } from './student.types';
+import { AcademicReport } from './academics.types';
+
+/** GET /api/student/academics — the signed-in student's exam results (AcademicReportDTO). */
+export function getStudentAcademics(accessToken: string) {
+  return apiFetch<AcademicReport>('/api/student/academics', { accessToken });
+}
+
+/** Authed PDF URL for one exam's report card (open via downloadAuthFile). */
+export function buildStudentReportPdfUrl(examId: number): string {
+  return `${API_BASE_URL}/api/student/academics/report-pdf?examId=${examId}`;
+}
+
+/** GET /api/learner/{studentId}/portfolio — the student's projects + skills. */
+export function getStudentPortfolio(accessToken: string, studentId: number) {
+  return apiFetch<StudentPortfolio>(`/api/learner/${studentId}/portfolio`, { accessToken });
+}
 
 // =================================================================
 // /api/student/me, /api/student/calendar, /api/student/fees
