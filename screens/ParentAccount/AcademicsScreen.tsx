@@ -295,7 +295,7 @@ const AnalyticsModal: React.FC<{
           </View>
 
           <Text style={styles.breakdownTitle}>Subject breakdown</Text>
-          <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 4 }} showsVerticalScrollIndicator>
             {subjects.length > 0 ? subjects.map((s, i) => {
               const hex = gradeHex(s.grade, colors);
               const d = num(s.scoreDiff);
@@ -630,7 +630,7 @@ function makeStyles(c: ColorPalette) {
 
     // Analytics sheet
     backdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.5)', justifyContent: 'flex-end' },
-    sheet: { backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, paddingBottom: 30 },
+    sheet: { backgroundColor: c.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18, paddingBottom: 30, maxHeight: '90%' },
     sheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: c.border, marginBottom: 14 },
     sheetHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14 },
     sheetKicker: { fontSize: 10, fontFamily: fonts.bold, color: c.primary, letterSpacing: 1 },

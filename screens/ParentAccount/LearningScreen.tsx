@@ -277,6 +277,45 @@ export const LearningScreen: React.FC = () => {
             <>
               <Text style={styles.sectionTitle}>By subject</Text>
               <View style={styles.subjectGrid}>
+                {/* Coding & Robotics FIRST — its own accent, full-width, above subjects. */}
+                {!hasCodingQuest && hasCoding && (
+                  <TouchableOpacity style={[styles.subjectCard, styles.codingCard]} activeOpacity={0.7} onPress={() => router.push('/coding' as any)}>
+                    <View style={styles.subjectCardHead}>
+                      <View style={[styles.subjectIcon, { backgroundColor: '#10B9811F' }]}>
+                        <MaterialCommunityIcons name="robot-happy" size={18} color="#059669" />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.subjectName}>Coding & Robotics</Text>
+                        <Text style={styles.subjectLatest} numberOfLines={1}>
+                          {codingSource === 'school' ? 'With Educraft tutors at school' : 'Educraft programme'}
+                        </Text>
+                      </View>
+                      <Feather name="chevron-right" size={16} color={colors.textTertiary} />
+                    </View>
+                    <Text style={styles.subjectPctText}>
+                      {codingSource === 'school'
+                        ? `${firstName} takes coding & robotics with Educraft tutors at school.`
+                        : `Coding & robotics activities are available for ${firstName}.`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {!hasCodingQuest && !hasCoding && (
+                  <TouchableOpacity style={[styles.subjectCard, styles.codingCard]} activeOpacity={0.7} onPress={() => router.push('/subscriptions' as any)}>
+                    <View style={styles.subjectCardHead}>
+                      <View style={[styles.subjectIcon, { backgroundColor: colors.backgroundAlt }]}>
+                        <MaterialCommunityIcons name="robot-outline" size={18} color={colors.textTertiary} />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.subjectName}>Coding & Robotics</Text>
+                        <Text style={styles.subjectLatest}>Not active yet</Text>
+                      </View>
+                      <Feather name="chevron-right" size={16} color={colors.textTertiary} />
+                    </View>
+                    <Text style={styles.subjectPctText}>Add coding & robotics to {firstName}’s learning.</Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Then the academic subjects */}
                 {academicCards.map((s) => {
                   const accent = s.accent || colors.primary;
                   const questCount = quests.filter((q) => (q.subject || 'General') === s.subject).length;
@@ -309,47 +348,6 @@ export const LearningScreen: React.FC = () => {
                     </TouchableOpacity>
                   );
                 })}
-
-                {/* Coding & Robotics — only when it isn't already a real quest subject.
-                    Honest about its source; never shows a fabricated percentage. */}
-                {!hasCodingQuest && hasCoding && (
-                  <TouchableOpacity style={styles.subjectCard} activeOpacity={0.7} onPress={() => router.push('/coding' as any)}>
-                    <View style={styles.subjectCardHead}>
-                      <View style={[styles.subjectIcon, { backgroundColor: '#10B9811F' }]}>
-                        <MaterialCommunityIcons name="code-tags" size={18} color="#059669" />
-                      </View>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.subjectName}>Coding & Robotics</Text>
-                        <Text style={styles.subjectLatest} numberOfLines={1}>
-                          {codingSource === 'school' ? 'With Educraft tutors at school' : 'Educraft programme'}
-                        </Text>
-                      </View>
-                      <Feather name="chevron-right" size={16} color={colors.textTertiary} />
-                    </View>
-                    <Text style={styles.subjectPctText}>
-                      {codingSource === 'school'
-                        ? `${firstName} takes coding & robotics with Educraft tutors at school.`
-                        : `Coding & robotics activities are available for ${firstName}.`}
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* Not available — soft upsell, no fake data. */}
-                {!hasCodingQuest && !hasCoding && (
-                  <TouchableOpacity style={styles.subjectCard} activeOpacity={0.7} onPress={() => router.push('/subscriptions' as any)}>
-                    <View style={styles.subjectCardHead}>
-                      <View style={[styles.subjectIcon, { backgroundColor: colors.backgroundAlt }]}>
-                        <Ionicons name="lock-closed" size={17} color={colors.textTertiary} />
-                      </View>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.subjectName}>Coding & Robotics</Text>
-                        <Text style={styles.subjectLatest}>Not active yet</Text>
-                      </View>
-                      <Feather name="chevron-right" size={16} color={colors.textTertiary} />
-                    </View>
-                    <Text style={styles.subjectPctText}>Add coding & robotics to {firstName}’s learning.</Text>
-                  </TouchableOpacity>
-                )}
               </View>
             </>
           )}
@@ -837,6 +835,7 @@ function makeStyles(c: ColorPalette) {
 
     subjectGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 22 },
     subjectCard: { flexBasis: '47.5%', flexGrow: 1, backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 12 },
+    codingCard: { flexBasis: '100%', borderColor: '#10B98133', backgroundColor: '#10B9810A' },
     subjectCardHead: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 10 },
     subjectIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     subjectName: { fontSize: 14.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
