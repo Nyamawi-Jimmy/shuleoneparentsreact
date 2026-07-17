@@ -242,7 +242,7 @@ export const CodeView: React.FC = () => {
                     return (
                       <TouchableOpacity key={r.lessonId} activeOpacity={0.8} onPress={() => open(r)} disabled={opening} style={styles.pathRow}>
                         <View style={styles.rail}>
-                          <View style={[styles.connSeg, { backgroundColor: i === 0 ? 'transparent' : (prevDone ? SHARED.green1 : S.line) }]} />
+                          <View style={[styles.connSeg, { backgroundColor: i === 0 ? 'transparent' : (prevDone ? SHARED.green1 : C.line) }]} />
                           {state === 'done' ? (
                             <LinearGradient colors={[SHARED.green1, '#0fae78']} style={styles.numBubble}><Text style={styles.numBubbleText}>✓</Text></LinearGradient>
                           ) : state === 'cur' ? (
@@ -250,13 +250,13 @@ export const CodeView: React.FC = () => {
                           ) : (
                             <View style={[styles.numBubble, { backgroundColor: '#d9d4ee' }]}><Text style={[styles.numBubbleText, { color: C.faint }]}>🔒</Text></View>
                           )}
-                          <View style={[styles.connSeg, { backgroundColor: isDone ? SHARED.green1 : S.line }]} />
+                          <View style={[styles.connSeg, { backgroundColor: isDone ? SHARED.green1 : C.line }]} />
                         </View>
                         <View style={styles.pathBody}>
                           <Text style={styles.lessonKick}>LESSON {r.lessonNumber}{r.teacherOpen && state !== 'done' ? '  ·  📣 IN CLASS' : ''}</Text>
                           <Text style={[styles.lessonTitle, state === 'lock' && { color: C.faint }]} numberOfLines={2}>{r.title ?? `Lesson ${r.lessonNumber}`}</Text>
                           <View style={styles.lessonMetaRow}>
-                            <View style={[styles.stateChip, { backgroundColor: state === 'done' ? C.okSoft : state === 'cur' ? '#FFF1E6' : S.soft }]}>
+                            <View style={[styles.stateChip, { backgroundColor: state === 'done' ? C.okSoft : state === 'cur' ? '#FFF1E6' : C.soft }]}>
                               <Text style={[styles.stateChipText, { color: state === 'done' ? C.okInk : state === 'cur' ? SHARED.orange1 : C.faint }]}>
                                 {state === 'done' ? 'Completed' : state === 'cur' ? 'Start now' : 'Locked'}
                               </Text>
@@ -276,7 +276,7 @@ export const CodeView: React.FC = () => {
                   {/* Boss / champion — the terminal node of the path */}
                   <TouchableOpacity activeOpacity={0.8} onPress={openBoss} style={styles.pathRow}>
                     <View style={styles.rail}>
-                      <View style={[styles.connSeg, { backgroundColor: done >= rows.length && rows.length > 0 ? SHARED.green1 : S.line }]} />
+                      <View style={[styles.connSeg, { backgroundColor: done >= rows.length && rows.length > 0 ? SHARED.green1 : C.line }]} />
                       <LinearGradient colors={['#f4a716', '#ff9d2e']} style={[styles.numBubble, { width: 42, height: 42, borderRadius: 21 }]}><Text style={{ fontSize: 19 }}>🏆</Text></LinearGradient>
                       <View style={[styles.connSeg, { backgroundColor: 'transparent' }]} />
                     </View>
