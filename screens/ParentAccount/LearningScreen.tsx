@@ -171,18 +171,35 @@ export const LearningScreen: React.FC = () => {
             />
           )}
 
-          {/* Quests — shown directly as the SAME gamified cards as the student side */}
-          {quests.length > 0 && (
-            <>
-              <Text style={styles.sectionTitle}>{firstName}’s quests</Text>
-              {[...quests]
-                .filter((q) => q.id !== resumeQuest?.id)
-                .sort((a, b) => rankStatus(a.status) - rankStatus(b.status))
-                .map((q) => (
-                  <GamifiedQuestCard key={String(q.id ?? q.key)} styles={styles} quest={q} onPlay={playQuest} />
-                ))}
-            </>
-          )}
+          {/* Quests — a horizontal swipe carousel so a long list stays one row tall
+              and the sections below (By subject, Coding) stay within easy reach. */}
+          {(() => {
+            const carouselQuests = [...quests]
+              .filter((q) => q.id !== resumeQuest?.id)
+              .sort((a, b) => rankStatus(a.status) - rankStatus(b.status));
+            if (carouselQuests.length === 0) return null;
+            return (
+              <>
+                <View style={styles.sectionHeadRow}>
+                  <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{firstName}’s quests</Text>
+                  <View style={styles.countPill}><Text style={styles.countPillText}>{carouselQuests.length}</Text></View>
+                  <Text style={styles.swipeHint}>Swipe →</Text>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.questCarouselWrap}
+                  contentContainerStyle={styles.questCarousel}
+                  snapToInterval={300}
+                  decelerationRate="fast"
+                >
+                  {carouselQuests.map((q) => (
+                    <GamifiedQuestCard key={String(q.id ?? q.key)} styles={styles} quest={q} onPlay={playQuest} carousel />
+                  ))}
+                </ScrollView>
+              </>
+            );
+          })()}
 
           {/* Focus card — the web hero's content on a quiet card */}
           {subscribed ? (
@@ -443,8 +460,8 @@ const QUEST_BADGE: Record<string, { label: string; bg: string }> = {
 
 const GamifiedQuestCard: React.FC<{
   styles: any; quest: QuestSummary; onPlay: (id: number | null) => void;
-  featured?: boolean; kicker?: string;
-}> = ({ styles, quest, onPlay, featured, kicker }) => {
+  featured?: boolean; kicker?: string; carousel?: boolean;
+}> = ({ styles, quest, onPlay, featured, kicker, carousel }) => {
   const accent = quest.accentColor || '#7c5cff';
   const pct = quest.totalXp > 0
     ? (quest.earnedXp / quest.totalXp) * 100
@@ -456,7 +473,7 @@ const GamifiedQuestCard: React.FC<{
     : quest.status === 'IN_PROGRESS' ? 'Continue →' : 'Start →';
   return (
     <TouchableOpacity activeOpacity={0.9} onPress={() => onPlay(quest.id)} disabled={locked}
-      style={[styles.gqCard, { borderColor: accent + '3D' }, featured && styles.gqCardFeatured]}>
+      style={[styles.gqCard, { borderColor: accent + '3D' }, featured && styles.gqCardFeatured, carousel && styles.gqCardCarousel]}>
       <View style={[styles.gqCover, featured && styles.gqCoverTall]}>
         {quest.coverImageUrl ? (
           <Image source={{ uri: quest.coverImageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -809,6 +826,14 @@ function makeStyles(c: ColorPalette) {
 
 
     sectionTitle: { fontSize: 15.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3, marginBottom: 12 },
+    sectionHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+    countPill: { backgroundColor: c.primarySofter, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2 },
+    countPillText: { fontSize: 11.5, fontFamily: fonts.bold, color: c.primary },
+    swipeHint: { marginLeft: 'auto', fontSize: 11.5, fontFamily: fonts.semibold, color: c.textTertiary },
+    // Full-bleed horizontal carousel: cards run edge-to-edge and snap.
+    questCarouselWrap: { marginHorizontal: -16, marginBottom: 22 },
+    questCarousel: { gap: 12, paddingHorizontal: 16, paddingBottom: 8 },
+    gqCardCarousel: { width: 288, marginBottom: 0 },
 
     subjectGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 22 },
     subjectCard: { flexBasis: '47.5%', flexGrow: 1, backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 12 },
