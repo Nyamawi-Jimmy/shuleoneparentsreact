@@ -8,7 +8,7 @@
 //                grid and the recent days log.
 // Deep link: /academics?tab=attendance (Today's quick access + stat card).
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
   RefreshControl, Dimensions, Modal, Pressable,
@@ -109,6 +109,8 @@ export const AcademicsScreen: React.FC = () => {
 };
 
 // ── Results ──────────────────────────────────────────────────────────────────
+const EXAM_CHIP_STRIDE = 158; // chip width (148) + strip gap (10) — drives auto-scroll
+
 const ResultsView: React.FC<{ styles: any; colors: ColorPalette; childName: string }> = ({ styles, colors, childName }) => {
   const { exams: rawExams, loading, refreshing, error, refresh } = useChildAcademics();
   const { selectedChild } = useSelectedChild();
@@ -116,9 +118,15 @@ const ResultsView: React.FC<{ styles: any; colors: ColorPalette; childName: stri
   const [selected, setSelected] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const stripRef = useRef<ScrollView>(null);
 
   const exams = useMemo(() => [...(rawExams ?? [])].sort((a, b) => (num(b.examId) || 0) - (num(a.examId) || 0)), [rawExams]);
   const safe = Math.min(selected, Math.max(0, exams.length - 1));
+
+  // Keep the selected exam chip in view as the selection changes.
+  useEffect(() => {
+    stripRef.current?.scrollTo({ x: Math.max(0, safe * EXAM_CHIP_STRIDE - 48), animated: true });
+  }, [safe]);
   const sel = exams[safe] as ExamResult | undefined;
   const selMean = num(sel?.mean);
   const prevMean = exams[safe + 1] ? num(exams[safe + 1].mean) : null;
@@ -165,18 +173,20 @@ const ResultsView: React.FC<{ styles: any; colors: ColorPalette; childName: stri
           {/* Exam picker — a horizontal strip at the top so switching an exam never
               means scrolling down to a list and back up to the summary. */}
           {exams.length > 1 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.examStrip}>
+            <ScrollView ref={stripRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.examStrip}>
               {exams.map((e, i) => {
                 const active = i === safe;
                 const hex = gradeHex(e.grade, colors);
                 return (
                   <TouchableOpacity key={e.examId ?? i} activeOpacity={0.85} onPress={() => setSelected(i)}
                     style={[styles.examChip, active && { borderColor: hex, backgroundColor: hex + '12' }]}>
-                    <View style={[styles.examChipGrade, { backgroundColor: hex + '1A' }]}>
-                      <Text style={[styles.examChipGradeText, { color: hex }]}>{e.grade || '—'}</Text>
+                    <View style={styles.examChipTop}>
+                      <View style={[styles.examChipGrade, { backgroundColor: hex + '1A' }]}>
+                        <Text style={[styles.examChipGradeText, { color: hex }]}>{e.grade || '—'}</Text>
+                      </View>
+                      <Text style={styles.examChipMean}>Mean {e.mean ?? '—'}</Text>
                     </View>
-                    <Text style={[styles.examChipName, active && { color: colors.text }]} numberOfLines={1}>{shortName(e.examName)}</Text>
-                    <Text style={styles.examChipMean}>Mean {e.mean ?? '—'}</Text>
+                    <Text style={[styles.examChipName, active && { color: colors.text }]} numberOfLines={2}>{e.examName || shortName(e.examName)}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -530,34 +540,41 @@ const LineChart: React.FC<{ data: { label: string; mean: number }[]; color: stri
   const showValues = data.length <= 8; // above-point mean labels only when they won't collide
 
   return (
-    <Svg width={W} height={H}>
-      {[domHi, Math.round((domHi + domLo) / 2), domLo].map((gl, i) => (
-        <SvgLine key={i} x1={padX} y1={y(gl)} x2={W - padX} y2={y(gl)} stroke={colors.border} strokeWidth={1} strokeDasharray="3 4" />
-      ))}
-      <Path d={areaPath} fill={color} fillOpacity={0.12} />
-      <Polyline points={polyline} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-      {pts.map((p, i) => {
-        const on = i === selectedIndex;
-        return <Circle key={`c${i}`} cx={p.x} cy={p.y} r={on ? 5.5 : 3.5} fill={on ? color : colors.card} stroke={color} strokeWidth={on ? 3 : 2} />;
-      })}
-      {showValues && pts.map((p, i) => (
-        <SvgText key={`v${i}`} x={p.x} y={p.y - 9} fontSize={9} fontWeight="700" fill={colors.textSecondary} textAnchor="middle">
-          {Math.round(data[i].mean)}
-        </SvgText>
-      ))}
-      {/* Every exam labelled on the x-axis (rotated so many still fit) */}
+    <View style={{ width: W, height: H }}>
+      <Svg width={W} height={H}>
+        {[domHi, Math.round((domHi + domLo) / 2), domLo].map((gl, i) => (
+          <SvgLine key={i} x1={padX} y1={y(gl)} x2={W - padX} y2={y(gl)} stroke={colors.border} strokeWidth={1} strokeDasharray="3 4" />
+        ))}
+        <Path d={areaPath} fill={color} fillOpacity={0.12} />
+        <Polyline points={polyline} fill="none" stroke={color} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+        {pts.map((p, i) => {
+          const on = i === selectedIndex;
+          return <Circle key={`c${i}`} cx={p.x} cy={p.y} r={on ? 5.5 : 3.5} fill={on ? color : colors.card} stroke={color} strokeWidth={on ? 3 : 2} />;
+        })}
+        {showValues && pts.map((p, i) => (
+          <SvgText key={`v${i}`} x={p.x} y={p.y - 9} fontSize={9} fontWeight="700" fill={colors.textSecondary} textAnchor="middle">
+            {Math.round(data[i].mean)}
+          </SvgText>
+        ))}
+      </Svg>
+      {/* Every exam labelled on the x-axis — rendered as RN Text so long names
+          aren't clipped by the SVG bounds; centered under each point, rotated. */}
       {pts.map((p, i) => (
-        <SvgText
+        <Text
           key={`x${i}`}
-          x={p.x} y={baseY + 14} fontSize={9}
-          fontWeight={i === selectedIndex ? '800' : '400'}
-          fill={i === selectedIndex ? color : colors.textTertiary}
-          textAnchor="end" transform={`rotate(-38 ${p.x} ${baseY + 14})`}
+          numberOfLines={1}
+          style={{
+            position: 'absolute', left: p.x - 46, width: 92, top: baseY + 7,
+            textAlign: 'center', transform: [{ rotate: '-30deg' }],
+            fontSize: 9.5,
+            fontFamily: i === selectedIndex ? fonts.bold : fonts.medium,
+            color: i === selectedIndex ? color : colors.textTertiary,
+          }}
         >
           {data[i].label}
-        </SvgText>
+        </Text>
       ))}
-    </Svg>
+    </View>
   );
 };
 
@@ -631,11 +648,12 @@ function makeStyles(c: ColorPalette) {
     divider: { borderTopWidth: 1, borderTopColor: c.border },
 
     examStrip: { gap: 10, paddingRight: 4, paddingBottom: 4, marginBottom: 16 },
-    examChip: { width: 128, backgroundColor: c.card, borderRadius: 14, borderWidth: 1.5, borderColor: c.border, padding: 12 },
-    examChipGrade: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+    examChip: { width: 148, minHeight: 96, backgroundColor: c.card, borderRadius: 14, borderWidth: 1.5, borderColor: c.border, padding: 12 },
+    examChipTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+    examChipGrade: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
     examChipGradeText: { fontSize: 14, fontFamily: fonts.extrabold },
-    examChipName: { fontSize: 12.5, fontFamily: fonts.bold, color: c.textSecondary },
-    examChipMean: { fontSize: 11, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
+    examChipName: { fontSize: 12.5, fontFamily: fonts.bold, color: c.textSecondary, lineHeight: 16 },
+    examChipMean: { fontSize: 11, fontFamily: fonts.medium, color: c.textTertiary },
 
     examRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
     examRowGrade: { width: 38, height: 38, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
