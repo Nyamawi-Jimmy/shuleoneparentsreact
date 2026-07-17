@@ -280,10 +280,23 @@ const QuestMapView: React.FC<{
   onBack: () => void;
   onStageTap: (s: Stage) => void;
 }> = ({ questDetail, tier, tokens, loadingDetail, onBack, onStageTap }) => {
-  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
+  const mapScheme = useSchemeTick(); // dark map surface + fresh proxy styles
   const q = questDetail.quest;
   const stages = [...questDetail.stages].sort((a, b) => a.position - b.position);
   const accent = q.accentColor || tokens.accent1;
+
+  // Winding path positions: honour the backend's mapX/mapY when every stage has
+  // them, otherwise lay out a serpentine that scales to ANY number of stages
+  // (climbing bottom → top). The canvas grows with the stage count so nodes never
+  // overlap and the whole map scrolls — the fix for the old fixed-height/8-slot map.
+  const hasCoords = stages.length > 0 && stages.every((s) => s.mapX != null && s.mapY != null);
+  const cols = [20, 44, 68, 80, 56, 32];
+  const positions = stages.map((s, i) => ({
+    x: hasCoords ? (s.mapX as number) : cols[i % cols.length],
+    y: hasCoords ? (s.mapY as number) : 92 - (i / Math.max(1, stages.length - 1)) * 84,
+  }));
+  const pathD = buildPath(positions);
+  const mapHeight = hasCoords ? 720 : Math.max(560, stages.length * 92);
 
   return (
     <View style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
@@ -317,67 +330,59 @@ const QuestMapView: React.FC<{
           <Text style={styles.metaStages}>{q.completedStages}/{q.totalStages} stages complete</Text>
         </View>
 
-        {/* Path — every stage as a compact, scrollable row */}
-        <View style={styles.secH}>
-          <Text style={styles.secHTitle}>
-            {pickByTier(tier, { base: '🧭 Your path', sprout: '🧭 Your path!', scholar: 'Your path', campus: 'Module stages' })}
-          </Text>
-          <View style={styles.secHLine} />
+        {/* Legend — the map key sits ABOVE the map */}
+        <View style={styles.legend}>
+          <LegendItem colors={['#15c98c', '#0fae78']} label={pickByTier(tier, { base: 'Completed', sprout: 'Done' })} />
+          <LegendItem colors={['#ff9d2e', '#ff5e9c']} label={pickByTier(tier, { base: 'Available', sprout: 'Play now' })} />
+          <LegendItem solid="#9b93c4" label="Locked" />
+          <LegendItem colors={['#f4a716', '#ff9d2e']} label={pickByTier(tier, { base: 'Boss', sprout: 'Big challenge' })} />
         </View>
 
-        <View style={{ position: 'relative' }}>
+        {/* Map */}
+        <LinearGradient
+          colors={mapScheme === 'dark' ? ['#182a26', '#182238'] : ['#eafef3', '#e7f7ff']}
+          start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+          style={[styles.mapWrap, { borderRadius: tokens.radius }]}
+        >
+          <View style={[styles.map, { height: mapHeight }]}>
+            <Svg
+              width="100%" height="100%"
+              viewBox="0 0 100 100" preserveAspectRatio="none"
+              style={StyleSheet.absoluteFill}
+            >
+              <Path d={pathD} fill="none" stroke="#ffffff" strokeWidth={4} strokeLinecap="round" />
+              <Path d={pathD} fill="none" stroke="#c9b8ff" strokeWidth={1.6} strokeLinecap="round" strokeDasharray="0.1 3" />
+            </Svg>
+
+            {stages.map((stage, i) => {
+              const pos = positions[i];
+              const isBoss = String(stage.type).toUpperCase().includes('BOSS');
+              return (
+                <View key={stage.id} style={[styles.node, { left: `${pos.x}%`, top: `${pos.y}%` }]}>
+                  <TouchableOpacity activeOpacity={0.85} onPress={() => onStageTap(stage)}>
+                    <NodeBubble stage={stage} size={isBoss ? 92 : 74} />
+                  </TouchableOpacity>
+                  <View style={[styles.lbl, stage.status === 'AVAILABLE' && styles.lblCur]}>
+                    <Text style={[styles.lblText, stage.status === 'AVAILABLE' && styles.lblTextCur]} numberOfLines={2}>
+                      {stage.title}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+
           {loadingDetail && (
-            <View style={styles.inlineLoading}><ActivityIndicator color={accent} /></View>
+            <View style={styles.overlayLoading}>
+              <ActivityIndicator size="large" color="#fff" />
+            </View>
           )}
-          {stages.map((stage, i) => (
-            <StageRow
-              key={stage.id}
-              stage={stage}
-              accent={accent}
-              isLast={i === stages.length - 1}
-              onPress={() => onStageTap(stage)}
-            />
-          ))}
-        </View>
+        </LinearGradient>
 
         <View style={{ height: 90 }} />
       </ScrollView>
       <AgeSwitcher />
     </View>
-  );
-};
-
-// One stage as a compact row: a status node on a connecting rail + an info card.
-const StageRow: React.FC<{ stage: Stage; accent: string; isLast: boolean; onPress: () => void }> = ({ stage, accent, isLast, onPress }) => {
-  const isBoss = String(stage.type).toUpperCase().includes('BOSS');
-  const locked = stage.status === 'LOCKED';
-  const done = stage.status === 'COMPLETED';
-  const action = locked ? 'Locked' : done ? 'Replay' : stage.status === 'IN_PROGRESS' ? 'Continue' : 'Play';
-
-  return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress} disabled={locked} style={styles.stageRow}>
-      <View style={styles.rail}>
-        <NodeBubble stage={stage} size={isBoss ? 60 : 52} />
-        {!isLast && <View style={[styles.railLine, { backgroundColor: done ? '#15c98c' : C.line }]} />}
-      </View>
-      <View style={[styles.stageCard, locked && { opacity: 0.65 }]}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={[styles.stageNum, { color: accent }]}>STAGE {stage.position}{isBoss ? ' · BOSS' : ''}</Text>
-          <Text style={styles.stageTitle} numberOfLines={2}>{stage.title}</Text>
-          <View style={styles.stageMetaRow}>
-            <View style={styles.stageChip}>
-              <Ionicons name="flash" size={11} color="#f4a716" />
-              <Text style={styles.stageChipText}>{stage.xpReward} XP</Text>
-            </View>
-            {done && stage.stars > 0 && <Text style={styles.stageStars}>{'★'.repeat(Math.min(3, stage.stars))}</Text>}
-          </View>
-        </View>
-        <View style={[styles.stageAction, { backgroundColor: locked ? C.soft : accent + '18' }]}>
-          <Text style={[styles.stageActionText, { color: locked ? C.inkSoft : accent }]}>{action}</Text>
-          {!locked && <Ionicons name="chevron-forward" size={13} color={accent} />}
-        </View>
-      </View>
-    </TouchableOpacity>
   );
 };
 
