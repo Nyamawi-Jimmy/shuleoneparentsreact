@@ -11,6 +11,7 @@ import {
   RefreshControl, TextInput, Linking, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import { GradientAppBar } from '../../components/GradientAppBar';
 import { fonts } from '../../constants/theme';
@@ -170,11 +171,11 @@ export const TransportScreen: React.FC = () => {
             </View>
           ) : (
             <>
-              {/* ── Route card — neutral, blue-accented, rides over the app bar ── */}
-              <View style={styles.hero}>
+              {/* ── Journey hero — bold bus-blue gradient with a live progress timeline ── */}
+              <LinearGradient colors={[BUS_BLUE, '#1E3A8A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
                 <View style={styles.heroTop}>
                   <View style={styles.busIcon}>
-                    <MaterialCommunityIcons name="bus" size={22} color={BUS_BLUE} />
+                    <MaterialCommunityIcons name="bus" size={22} color="#FFF" />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.routeCode}>{child.routeCode || 'ROUTE'}</Text>
@@ -207,7 +208,7 @@ export const TransportScreen: React.FC = () => {
                           <View style={styles.step}>
                             <View style={[styles.stepDot, (done || current) && styles.stepDotOn, current && styles.stepDotCurrent]}>
                               {done
-                                ? <Ionicons name="checkmark" size={11} color="#FFF" />
+                                ? <Ionicons name="checkmark" size={12} color={BUS_BLUE} />
                                 : current
                                   ? <View style={styles.stepDotInner} />
                                   : null}
@@ -220,12 +221,12 @@ export const TransportScreen: React.FC = () => {
                   </View>
                 ) : child.seatStatus ? (
                   <View style={styles.seatNote}>
-                    <Ionicons name="information-circle" size={14} color={colors.textSecondary} />
+                    <Ionicons name="information-circle" size={14} color="rgba(255,255,255,0.9)" />
                     <Text style={styles.seatNoteText}>{SEAT_LABEL[child.seatStatus] || child.seatStatus}</Text>
                   </View>
                 ) : (
                   <View style={styles.seatNote}>
-                    <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+                    <Ionicons name="time-outline" size={14} color="rgba(255,255,255,0.9)" />
                     <Text style={styles.seatNoteText}>No trip today yet — status appears when the school starts the trip.</Text>
                   </View>
                 )}
@@ -234,15 +235,15 @@ export const TransportScreen: React.FC = () => {
                 {live && (
                   child.trackingUrl ? (
                     <TouchableOpacity style={styles.trackBtn} activeOpacity={0.85} onPress={() => Linking.openURL(child.trackingUrl!)}>
-                      <Ionicons name="navigate" size={16} color="#FFF" />
+                      <Ionicons name="navigate" size={16} color={BUS_BLUE} />
                       <Text style={styles.trackBtnText}>Open live tracking</Text>
-                      <Feather name="external-link" size={14} color="#FFF" />
+                      <Feather name="external-link" size={14} color={BUS_BLUE} />
                     </TouchableOpacity>
                   ) : (
                     <Text style={styles.trackNote}>A live tracking link appears here as the bus nears your stop.</Text>
                   )
                 )}
-              </View>
+              </LinearGradient>
 
               {/* Today chips — direction + seat status at a glance */}
               <View style={styles.chipRow}>
@@ -437,58 +438,57 @@ function makeStyles(c: ColorPalette) {
     emptyTitle: { fontSize: 15.5, fontFamily: fonts.bold, color: c.text, marginTop: 12 },
     emptyText: { fontSize: 13, fontFamily: fonts.regular, color: c.textSecondary, textAlign: 'center', marginTop: 5, lineHeight: 19 },
 
-    // Route card — neutral surface riding over the app bar edge, blue accents
+    // Journey hero — bold bus-blue gradient, white content, live timeline
     hero: {
-      backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.border,
-      padding: 16, marginBottom: 12,
-      shadowColor: '#0F172A', shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.1, shadowRadius: 14, elevation: 5,
+      borderRadius: 22, padding: 18, marginBottom: 12, overflow: 'hidden',
+      shadowColor: BUS_BLUE, shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.32, shadowRadius: 20, elevation: 8,
     },
     heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     busIcon: {
-      width: 46, height: 46, borderRadius: 14, backgroundColor: BUS_BLUE + '14',
+      width: 46, height: 46, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.22)',
       alignItems: 'center', justifyContent: 'center',
     },
-    routeCode: { fontSize: 10, fontFamily: fonts.bold, color: BUS_BLUE, letterSpacing: 1 },
-    routeName: { fontSize: 16.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3, marginTop: 1 },
-    routeMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 3 },
+    routeCode: { fontSize: 10, fontFamily: fonts.bold, color: 'rgba(255,255,255,0.85)', letterSpacing: 1 },
+    routeName: { fontSize: 16.5, fontFamily: fonts.extrabold, color: '#FFF', letterSpacing: -0.3, marginTop: 1 },
+    routeMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: 'rgba(255,255,255,0.85)', marginTop: 3 },
     livePill: {
       flexDirection: 'row', alignItems: 'center', gap: 5,
-      backgroundColor: c.successSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5,
+      backgroundColor: '#FFF', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5,
     },
     liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: c.success },
     livePillText: { fontSize: 10.5, fontFamily: fonts.extrabold, color: c.success, letterSpacing: 0.8 },
-    tripPill: { backgroundColor: c.backgroundAlt, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-    tripPillText: { fontSize: 10.5, fontFamily: fonts.bold, color: c.textSecondary },
+    tripPill: { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+    tripPillText: { fontSize: 10.5, fontFamily: fonts.bold, color: '#FFF' },
 
-    // Journey stepper — blue for progress, neutral for the rest
-    stepper: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 18 },
+    // Journey timeline — white stops on a translucent track over the gradient
+    stepper: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 20 },
     step: { alignItems: 'center', width: 76 },
     stepDot: {
-      width: 22, height: 22, borderRadius: 11,
-      borderWidth: 2, borderColor: c.border, backgroundColor: c.card,
+      width: 24, height: 24, borderRadius: 12,
+      borderWidth: 2, borderColor: 'rgba(255,255,255,0.5)', backgroundColor: 'transparent',
       alignItems: 'center', justifyContent: 'center',
     },
-    stepDotOn: { backgroundColor: BUS_BLUE, borderColor: BUS_BLUE },
-    stepDotCurrent: { backgroundColor: BUS_BLUE + '1F', borderColor: BUS_BLUE },
-    stepDotInner: { width: 8, height: 8, borderRadius: 4, backgroundColor: BUS_BLUE },
-    stepLine: { flex: 1, height: 2, backgroundColor: c.border, marginTop: 10, marginHorizontal: -14 },
-    stepLineOn: { backgroundColor: BUS_BLUE },
-    stepLabel: { fontSize: 9.5, fontFamily: fonts.semibold, color: c.textTertiary, textAlign: 'center', marginTop: 6, lineHeight: 12 },
-    stepLabelOn: { color: c.text, fontFamily: fonts.bold },
+    stepDotOn: { backgroundColor: '#FFF', borderColor: '#FFF' },
+    stepDotCurrent: { backgroundColor: '#FFF', borderColor: '#FFF' },
+    stepDotInner: { width: 9, height: 9, borderRadius: 5, backgroundColor: BUS_BLUE },
+    stepLine: { flex: 1, height: 2.5, backgroundColor: 'rgba(255,255,255,0.3)', marginTop: 11, marginHorizontal: -14 },
+    stepLineOn: { backgroundColor: '#FFF' },
+    stepLabel: { fontSize: 9.5, fontFamily: fonts.semibold, color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginTop: 7, lineHeight: 12 },
+    stepLabelOn: { color: '#FFF', fontFamily: fonts.bold },
 
     seatNote: {
       flexDirection: 'row', alignItems: 'center', gap: 7,
-      backgroundColor: c.backgroundAlt, borderRadius: 12, padding: 11, marginTop: 16,
+      backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 12, padding: 11, marginTop: 16,
     },
-    seatNoteText: { flex: 1, fontSize: 12, fontFamily: fonts.semibold, color: c.textSecondary, lineHeight: 17 },
+    seatNoteText: { flex: 1, fontSize: 12, fontFamily: fonts.semibold, color: '#FFF', lineHeight: 17 },
 
     trackBtn: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-      backgroundColor: BUS_BLUE, borderRadius: 12, paddingVertical: 12, marginTop: 16,
+      backgroundColor: '#FFF', borderRadius: 12, paddingVertical: 13, marginTop: 16,
     },
-    trackBtnText: { fontSize: 13.5, fontFamily: fonts.extrabold, color: '#FFF' },
-    trackNote: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 14, lineHeight: 16 },
+    trackBtnText: { fontSize: 13.5, fontFamily: fonts.extrabold, color: BUS_BLUE },
+    trackNote: { fontSize: 11.5, fontFamily: fonts.regular, color: 'rgba(255,255,255,0.85)', marginTop: 14, lineHeight: 16 },
 
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
     infoChip: {
