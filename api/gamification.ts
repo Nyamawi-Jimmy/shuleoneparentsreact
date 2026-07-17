@@ -1,5 +1,5 @@
 import { apiFetch } from '../config/api';
-import { GamificationState, Badge } from './gamification.types';
+import { GamificationState, Badge, LeagueBoard } from './gamification.types';
 
 // =================================================================
 // /api/gamification/me, /api/gamification/catalog
@@ -22,4 +22,9 @@ export interface GamesGate {
 
 export async function getGamesGate(accessToken: string): Promise<GamesGate> {
   return apiFetch<GamesGate>('/api/gamification/games-gate', { accessToken });
+}
+
+/** Weekly leaderboard for the signed-in student/learner. Free (auth only). */
+export async function getLeague(accessToken: string, top = 20): Promise<LeagueBoard> {
+  return apiFetch<LeagueBoard>(`/api/learner/league?top=${top}`, { accessToken });
 }

@@ -52,3 +52,21 @@ export function xpToNextLevel(state: GamificationState | null): number {
 export function levelProgressFraction(state: GamificationState | null): number {
   return xpInCurrentLevel(state) / XP_PER_LEVEL;
 }
+
+// =================================================================
+// Weekly league / leaderboard — mirrors LeagueBoardDto + LeagueEntryDto.
+//   GET /api/learner/league?top=20
+// =================================================================
+export interface LeagueEntry {
+  rank: number;
+  name: string;
+  xp: number;
+  me: boolean;
+}
+
+export interface LeagueBoard {
+  top: LeagueEntry[];
+  me: LeagueEntry | null;
+  totalPlayers: number;
+  weekResetsInDays: number;
+}
