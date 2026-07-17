@@ -71,6 +71,10 @@ export const GamesView: React.FC = () => {
   // While XP is still loading (null), don't lock — avoids a flash of locks.
   const isLocked = (i: number) => gateOn && stars != null && stars < reqFor(i);
   const anyLocked = GAMES.some((_, i) => isLocked(i));
+  const unlocked = GAMES.filter((_, i) => !isLocked(i)).length;
+  const firstLockedIdx = GAMES.findIndex((_, i) => isLocked(i));
+  const nextReq = firstLockedIdx >= 0 ? reqFor(firstLockedIdx) : 0;
+  const nextPct = nextReq > 0 ? Math.min(100, Math.round(((stars ?? 0) / nextReq) * 100)) : 0;
 
   const launch = (g: GameDef) => {
     setActive({
@@ -102,6 +106,26 @@ export const GamesView: React.FC = () => {
           <Text style={styles.secHTitle}>{playful ? '🧠 Brain Games' : '🧠 Games & Quizzes'}</Text>
           <View style={styles.secHLine} />
         </View>
+        {/* XP overview — stars, games unlocked, and progress to the next unlock. */}
+        <View style={[styles.xpCard, { borderRadius: tokens.radius }]}>
+          <View style={styles.xpLeft}>
+            <View style={styles.xpIcon}><Text style={{ fontSize: 22 }}>⭐</Text></View>
+            <View style={{ minWidth: 0 }}>
+              <Text style={styles.xpNum}>{stars ?? 0}<Text style={styles.xpUnit}> XP</Text></Text>
+              <Text style={styles.xpLabel}>{unlocked}/{GAMES.length} games unlocked</Text>
+            </View>
+          </View>
+          {gateOn && nextReq > 0 ? (
+            <View style={styles.xpNext}>
+              <Text style={styles.xpNextLabel}>NEXT UNLOCK</Text>
+              <View style={styles.xpBar}><View style={[styles.xpFill, { width: `${nextPct}%` }]} /></View>
+              <Text style={styles.xpNextVal}>{stars ?? 0}/{nextReq} ⭐</Text>
+            </View>
+          ) : (
+            <View style={styles.allInPill}><Text style={styles.allInText}>All unlocked 🎉</Text></View>
+          )}
+        </View>
+
         <Text style={styles.subline}>
           {gateOn && anyLocked
             ? (playful ? 'Read lessons to earn ⭐ and unlock more games!' : 'Earn stars by finishing lessons to unlock more games.')
@@ -127,14 +151,19 @@ export const GamesView: React.FC = () => {
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                   style={[styles.tileGrad, { borderRadius: tokens.radius }]}
                 >
-                  <Text style={styles.tileIcon}>{g.icon}</Text>
+                  <View style={styles.tileIconWrap}><Text style={styles.tileIcon}>{g.icon}</Text></View>
                   <Text style={styles.tileTitle}>{title}</Text>
-                  <Text style={styles.tileSub}>{blurb}</Text>
+                  <Text style={styles.tileSub} numberOfLines={2}>{blurb}</Text>
                   <View style={styles.tileFoot}>
                     {locked ? (
-                      <Text style={styles.tileLock}>🔒 {stars ?? 0}/{reqFor(i)} ⭐</Text>
+                      <View style={{ width: '100%' }}>
+                        <View style={styles.lockBar}>
+                          <View style={[styles.lockFill, { width: `${Math.min(100, Math.round(((stars ?? 0) / Math.max(1, reqFor(i))) * 100))}%` }]} />
+                        </View>
+                        <Text style={styles.tileLock}>🔒 {stars ?? 0}/{reqFor(i)} ⭐</Text>
+                      </View>
                     ) : (
-                      <Text style={styles.tileGo}>Play ▶</Text>
+                      <View style={styles.tileGoPill}><Text style={styles.tileGo}>Play ▶</Text></View>
                     )}
                   </View>
                 </LinearGradient>
@@ -454,27 +483,46 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: S.line },
   subline: { fontSize: 12.5, color: S.inkSoft, fontWeight: '600', marginBottom: 14 },
 
+  // XP overview card
+  xpCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line, padding: 14, marginBottom: 12,
+    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2,
+  },
+  xpLeft: { flexDirection: 'row', alignItems: 'center', gap: 11, flex: 1, minWidth: 0 },
+  xpIcon: { width: 46, height: 46, borderRadius: 14, backgroundColor: '#FEF3C7', alignItems: 'center', justifyContent: 'center' },
+  xpNum: { fontSize: 20, fontWeight: '900', color: S.ink },
+  xpUnit: { fontSize: 12, fontWeight: '800', color: S.inkSoft },
+  xpLabel: { fontSize: 11, fontWeight: '700', color: S.inkSoft, marginTop: 1 },
+  xpNext: { width: 108, alignItems: 'flex-end' },
+  xpNextLabel: { fontSize: 8, fontWeight: '800', color: S.faint, letterSpacing: 0.5 },
+  xpBar: { width: '100%', height: 7, borderRadius: 99, backgroundColor: S.line, overflow: 'hidden', marginTop: 4 },
+  xpFill: { height: '100%', borderRadius: 99, backgroundColor: '#f4a716' },
+  xpNextVal: { fontSize: 10, fontWeight: '800', color: S.inkSoft, marginTop: 3 },
+  allInPill: { backgroundColor: S.okSoft, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 6 },
+  allInText: { fontSize: 11, fontWeight: '800', color: S.okInk },
+
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   tile: { flexBasis: '47%', flexGrow: 1 },
   tileGrad: {
-    padding: 14, minHeight: 128,
+    padding: 14, minHeight: 150,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.18, shadowRadius: 12, elevation: 3,
   },
-  tileIcon: { fontSize: 30 },
-  tileTitle: { color: '#fff', fontSize: 15, fontWeight: '800', marginTop: 8 },
-  tileSub: { color: '#fff', fontSize: 11, fontWeight: '600', opacity: 0.92, marginTop: 2 },
-  tileFoot: { marginTop: 10, alignItems: 'flex-start' },
-  tileGo: {
-    color: '#fff', fontWeight: '800', fontSize: 11.5,
-    backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 99,
-    paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden',
-  },
+  tileIconWrap: { width: 46, height: 46, borderRadius: 15, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center' },
+  tileIcon: { fontSize: 26 },
+  tileTitle: { color: '#fff', fontSize: 15, fontWeight: '800', marginTop: 10 },
+  tileSub: { color: '#fff', fontSize: 11, fontWeight: '600', opacity: 0.92, marginTop: 2, lineHeight: 15 },
+  tileFoot: { marginTop: 'auto', paddingTop: 10, alignItems: 'flex-start' },
+  tileGoPill: { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 99, paddingHorizontal: 12, paddingVertical: 5 },
+  tileGo: { color: '#fff', fontWeight: '800', fontSize: 11.5 },
+  lockBar: { width: '100%', height: 6, borderRadius: 99, backgroundColor: 'rgba(0,0,0,0.22)', overflow: 'hidden', marginBottom: 6 },
+  lockFill: { height: '100%', borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.85)' },
   tileLock: {
-    color: '#fff', fontWeight: '800', fontSize: 11.5,
+    color: '#fff', fontWeight: '800', fontSize: 11,
     backgroundColor: 'rgba(0,0,0,0.22)', borderRadius: 99,
-    paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden',
+    paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden', alignSelf: 'flex-start',
   },
 
   // In-game

@@ -167,11 +167,7 @@ export const EventsView: React.FC = () => {
             {/* Live now */}
             {liveNow.length > 0 && (
               <View style={{ marginBottom: 16 }}>
-                <View style={styles.sectionHead}>
-                  <View style={[styles.sectionDot, { backgroundColor: '#e11d48' }]} />
-                  <Text style={styles.sectionTitle}>Live now</Text>
-                  <View style={styles.countBadge}><Text style={styles.countBadgeText}>{liveNow.length}</Text></View>
-                </View>
+                <SectionHead tone="#e11d48" name="Live now" count={liveNow.length} />
                 {liveNow.map((c) => (
                   <ClassCard key={`c${c.id}`} it={c} radius={tokens.radius}
                     joinable joining={joining === c.id} error={joinErr[c.id]} onJoin={() => join(c)} />
@@ -220,11 +216,7 @@ export const EventsView: React.FC = () => {
             {/* Coming up */}
             {coming.length > 0 && (
               <View>
-                <View style={styles.sectionHead}>
-                  <View style={[styles.sectionDot, { backgroundColor: '#3aa0ff' }]} />
-                  <Text style={styles.sectionTitle}>Coming up</Text>
-                  <View style={styles.countBadge}><Text style={styles.countBadgeText}>{shown.length}</Text></View>
-                </View>
+                <SectionHead tone="#3aa0ff" name="Coming up" count={shown.length} />
                 {shown.length === 0 && (
                   <Text style={styles.emptyText}>Nothing on this day.</Text>
                 )}
@@ -251,12 +243,24 @@ export const EventsView: React.FC = () => {
   );
 };
 
+// Section header — a tinted pill (dot + name + count) with a trailing rule.
+const SectionHead: React.FC<{ tone: string; name: string; count: number }> = ({ tone, name, count }) => (
+  <View style={styles.sectionHeadRow}>
+    <View style={[styles.sectionPill, { backgroundColor: tone + '1F' }]}>
+      <View style={[styles.sectionDot, { backgroundColor: tone }]} />
+      <Text style={[styles.sectionTitle, { color: tone }]}>{name}</Text>
+      <Text style={[styles.sectionCount, { color: tone }]}>{count}</Text>
+    </View>
+    <View style={styles.sectionLine} />
+  </View>
+);
+
 // =================================================================
 const EventCard: React.FC<{ it: StudentCalendarItem; radius: number }> = ({ it, radius }) => {
   const target = it.targetClass && String(it.targetClass).toLowerCase() !== 'all'
     ? `For ${it.targetClass}` : 'School-wide';
   return (
-    <View style={[styles.card, { borderRadius: radius }]}>
+    <View style={[styles.card, { borderRadius: radius, borderLeftColor: C.infoInk }]}>
       <View style={[styles.tile, { backgroundColor: C.infoSoft }]}>
         <Text style={{ fontSize: 19 }}>🎪</Text>
       </View>
@@ -278,7 +282,7 @@ const ClassCard: React.FC<{
 }> = ({ it, radius, joinable, joining, error, onJoin }) => {
   const isLive = String(it.status).toLowerCase() === 'live';
   return (
-    <View style={[styles.card, { borderRadius: radius }, isLive && { borderColor: '#fda4af' }]}>
+    <View style={[styles.card, { borderRadius: radius, borderLeftColor: isLive ? '#e11d48' : '#7c5cff' }, isLive && styles.cardLive]}>
       <View style={[styles.tile, { backgroundColor: isLive ? C.badSoft : C.ring }]}>
         <Text style={{ fontSize: 19 }}>{isLive ? '🔴' : '🎥'}</Text>
       </View>
@@ -322,14 +326,12 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     backgroundColor: S.badSoft, borderRadius: 12, padding: 10, marginBottom: 12, overflow: 'hidden',
   },
 
-  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 9 },
-  sectionDot: { width: 8, height: 8, borderRadius: 4 },
-  sectionTitle: { fontSize: 13, fontWeight: '800', color: S.ink },
-  countBadge: {
-    minWidth: 20, height: 18, borderRadius: 9, paddingHorizontal: 6,
-    backgroundColor: S.ringStrong, alignItems: 'center', justifyContent: 'center',
-  },
-  countBadgeText: { fontSize: 10, fontWeight: '800', color: '#7c5cff' },
+  sectionHeadRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 11 },
+  sectionPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 5 },
+  sectionDot: { width: 7, height: 7, borderRadius: 4 },
+  sectionTitle: { fontSize: 12, fontWeight: '800' },
+  sectionCount: { fontSize: 11, fontWeight: '900', opacity: 0.9 },
+  sectionLine: { flex: 1, height: 2, borderRadius: 2, backgroundColor: S.line },
 
   week: { gap: 7, paddingBottom: 14, paddingRight: 8 },
   dayChip: {
@@ -350,12 +352,13 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
 
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line, borderLeftWidth: 4,
     padding: 13, marginBottom: 9,
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.07, shadowRadius: 7, elevation: 2,
   },
+  cardLive: { backgroundColor: S.badSoft, borderColor: '#fda4af' },
   tile: {
     width: 42, height: 42, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center',
