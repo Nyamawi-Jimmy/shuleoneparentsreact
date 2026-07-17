@@ -224,7 +224,10 @@ const QuestStageMap: React.FC<{
   const ZIG = [20, 44, 66, 80, 60, 36];
   const SPACING = 118;          // px between stage centres
   const PAD_TOP = 56;
-  const PAD_BOTTOM = 92;        // room for the lowest bubble + its label
+  // Room below the lowest node for its bubble AND its 2-line label. The final
+  // stage is usually the BOSS (a bigger 92px bubble), so this must clear that —
+  // otherwise the last node clips (the bug this fixes).
+  const PAD_BOTTOM = 140;
   const mapHeight = PAD_TOP + PAD_BOTTOM + Math.max(1, n - 1) * SPACING;
   const positions = stages.map((s, i) => {
     // Level 1 (stage 0) sits at the TOP, later stages descend downward.
