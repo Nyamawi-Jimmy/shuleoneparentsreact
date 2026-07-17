@@ -9,6 +9,9 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
       }
     },
     "preview": {
@@ -16,12 +19,16 @@
       "android": {
         "buildType": "apk"
       },
+      "ios": {},
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://lms.shuleone.co.ke"
       }
     },
     "production": {
       "autoIncrement": true,
+      "ios": {
+        "resourceClass": "m-medium"
+      },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://lms.shuleone.co.ke"
       }
