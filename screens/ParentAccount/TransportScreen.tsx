@@ -34,8 +34,6 @@ const customChipSub = (iso: string) => {
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 };
 
-// Transport's accent — the same bus blue used on Today's quick access & cards.
-const BUS_BLUE = '#2563EB';
 
 const SEAT_LABEL: Record<string, string> = {
   PENDING: 'Awaiting pickup', BOARDED: 'On the bus', ARRIVED: 'Arrived at school',
@@ -172,7 +170,7 @@ export const TransportScreen: React.FC = () => {
           ) : (
             <>
               {/* ── Journey hero — bold bus-blue gradient with a live progress timeline ── */}
-              <LinearGradient colors={[BUS_BLUE, '#1E3A8A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+              <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
                 <View style={styles.heroTop}>
                   <View style={styles.busIcon}>
                     <MaterialCommunityIcons name="bus" size={22} color="#FFF" />
@@ -208,7 +206,7 @@ export const TransportScreen: React.FC = () => {
                           <View style={styles.step}>
                             <View style={[styles.stepDot, (done || current) && styles.stepDotOn, current && styles.stepDotCurrent]}>
                               {done
-                                ? <Ionicons name="checkmark" size={12} color={BUS_BLUE} />
+                                ? <Ionicons name="checkmark" size={12} color={colors.primary} />
                                 : current
                                   ? <View style={styles.stepDotInner} />
                                   : null}
@@ -235,9 +233,9 @@ export const TransportScreen: React.FC = () => {
                 {live && (
                   child.trackingUrl ? (
                     <TouchableOpacity style={styles.trackBtn} activeOpacity={0.85} onPress={() => Linking.openURL(child.trackingUrl!)}>
-                      <Ionicons name="navigate" size={16} color={BUS_BLUE} />
+                      <Ionicons name="navigate" size={16} color={colors.primary} />
                       <Text style={styles.trackBtnText}>Open live tracking</Text>
-                      <Feather name="external-link" size={14} color={BUS_BLUE} />
+                      <Feather name="external-link" size={14} color={colors.primary} />
                     </TouchableOpacity>
                   ) : (
                     <Text style={styles.trackNote}>A live tracking link appears here as the bus nears your stop.</Text>
@@ -314,7 +312,7 @@ export const TransportScreen: React.FC = () => {
                   <Text style={styles.optLabel}>Pick a date</Text>
                   {/* Always-visible calendar button — pick ANY future day */}
                   <TouchableOpacity style={styles.pickDateBtn} activeOpacity={0.85} onPress={() => setCalOpen(true)}>
-                    <Ionicons name="calendar-outline" size={14} color={BUS_BLUE} />
+                    <Ionicons name="calendar-outline" size={14} color={colors.primary} />
                     <Text style={styles.pickDateBtnText}>Choose date</Text>
                   </TouchableOpacity>
                 </View>
@@ -325,17 +323,17 @@ export const TransportScreen: React.FC = () => {
                     return (
                       <>
                         {isCustom && (
-                          <View style={[styles.dateChip, { borderColor: BUS_BLUE, backgroundColor: BUS_BLUE + '14' }]}>
-                            <Text style={[styles.dateChipLabel, { color: BUS_BLUE }]}>{customChipLabel(optDate)}</Text>
-                            <Text style={[styles.dateChipSub, { color: BUS_BLUE }]}>{customChipSub(optDate)}</Text>
+                          <View style={[styles.dateChip, { borderColor: colors.primary, backgroundColor: colors.primary + '14' }]}>
+                            <Text style={[styles.dateChipLabel, { color: colors.primary }]}>{customChipLabel(optDate)}</Text>
+                            <Text style={[styles.dateChipSub, { color: colors.primary }]}>{customChipSub(optDate)}</Text>
                           </View>
                         )}
                         {chips.map((d) => {
                           const active = d.iso === optDate;
                           return active ? (
-                            <View key={d.iso} style={[styles.dateChip, { borderColor: BUS_BLUE, backgroundColor: BUS_BLUE + '14' }]}>
-                              <Text style={[styles.dateChipLabel, { color: BUS_BLUE }]}>{d.label}</Text>
-                              <Text style={[styles.dateChipSub, { color: BUS_BLUE }]}>{d.sub}</Text>
+                            <View key={d.iso} style={[styles.dateChip, { borderColor: colors.primary, backgroundColor: colors.primary + '14' }]}>
+                              <Text style={[styles.dateChipLabel, { color: colors.primary }]}>{d.label}</Text>
+                              <Text style={[styles.dateChipSub, { color: colors.primary }]}>{d.sub}</Text>
                             </View>
                           ) : (
                             <TouchableOpacity key={d.iso} style={styles.dateChip} activeOpacity={0.8} onPress={() => setOptDate(d.iso)}>
@@ -392,7 +390,7 @@ export const TransportScreen: React.FC = () => {
         onClose={() => setCalOpen(false)}
         selected={optDate}
         minIso={todayIso()}
-        accent={BUS_BLUE}
+        accent={colors.primary}
         onSelect={(iso) => setOptDate(iso)}
       />
     </View>
@@ -416,7 +414,7 @@ const DetailRow: React.FC<{
 }> = ({ styles, colors, icon, label, value, strong, divider, valueColor }) => (
   <View style={[styles.detailRow, divider && styles.divider]}>
     <View style={styles.detailIcon}>
-      <MaterialCommunityIcons name={icon} size={17} color={BUS_BLUE} />
+      <MaterialCommunityIcons name={icon} size={17} color={colors.primary} />
     </View>
     <Text style={styles.detailLabel}>{label}</Text>
     <Text style={[styles.detailValue, strong && styles.detailValueStrong, valueColor ? { color: valueColor } : null]}
@@ -441,7 +439,7 @@ function makeStyles(c: ColorPalette) {
     // Journey hero — bold bus-blue gradient, white content, live timeline
     hero: {
       borderRadius: 22, padding: 18, marginBottom: 12, overflow: 'hidden',
-      shadowColor: BUS_BLUE, shadowOffset: { width: 0, height: 10 },
+      shadowColor: c.primary, shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.32, shadowRadius: 20, elevation: 8,
     },
     heroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -471,7 +469,7 @@ function makeStyles(c: ColorPalette) {
     },
     stepDotOn: { backgroundColor: '#FFF', borderColor: '#FFF' },
     stepDotCurrent: { backgroundColor: '#FFF', borderColor: '#FFF' },
-    stepDotInner: { width: 9, height: 9, borderRadius: 5, backgroundColor: BUS_BLUE },
+    stepDotInner: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.primary },
     stepLine: { flex: 1, height: 2.5, backgroundColor: 'rgba(255,255,255,0.3)', marginTop: 11, marginHorizontal: -14 },
     stepLineOn: { backgroundColor: '#FFF' },
     stepLabel: { fontSize: 9.5, fontFamily: fonts.semibold, color: 'rgba(255,255,255,0.7)', textAlign: 'center', marginTop: 7, lineHeight: 12 },
@@ -487,7 +485,7 @@ function makeStyles(c: ColorPalette) {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
       backgroundColor: '#FFF', borderRadius: 12, paddingVertical: 13, marginTop: 16,
     },
-    trackBtnText: { fontSize: 13.5, fontFamily: fonts.extrabold, color: BUS_BLUE },
+    trackBtnText: { fontSize: 13.5, fontFamily: fonts.extrabold, color: c.primary },
     trackNote: { fontSize: 11.5, fontFamily: fonts.regular, color: 'rgba(255,255,255,0.85)', marginTop: 14, lineHeight: 16 },
 
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
@@ -499,7 +497,7 @@ function makeStyles(c: ColorPalette) {
     seatDot: { width: 7, height: 7, borderRadius: 4 },
 
     sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginTop: 2 },
-    sectionAccent: { width: 3, height: 15, borderRadius: 2, backgroundColor: BUS_BLUE },
+    sectionAccent: { width: 3, height: 15, borderRadius: 2, backgroundColor: c.primary },
     sectionTitle: { fontSize: 14.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3 },
     card: {
       backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.border,
@@ -510,7 +508,7 @@ function makeStyles(c: ColorPalette) {
 
     detailRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 13 },
     detailIcon: {
-      width: 32, height: 32, borderRadius: 10, backgroundColor: BUS_BLUE + '14',
+      width: 32, height: 32, borderRadius: 10, backgroundColor: c.primary + '14',
       alignItems: 'center', justifyContent: 'center',
     },
     detailLabel: { fontSize: 12.5, fontFamily: fonts.medium, color: c.textSecondary },
@@ -537,10 +535,10 @@ function makeStyles(c: ColorPalette) {
     optLabel: { fontSize: 11.5, fontFamily: fonts.bold, color: c.textSecondary, letterSpacing: 0.3, textTransform: 'uppercase' },
     pickDateBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 5,
-      backgroundColor: BUS_BLUE + '12', borderRadius: 999,
+      backgroundColor: c.primary + '12', borderRadius: 999,
       paddingHorizontal: 12, paddingVertical: 7,
     },
-    pickDateBtnText: { fontSize: 12, fontFamily: fonts.bold, color: BUS_BLUE },
+    pickDateBtnText: { fontSize: 12, fontFamily: fonts.bold, color: c.primary },
     dateStrip: { gap: 8, paddingBottom: 2 },
     dateChip: { alignItems: 'center', borderWidth: 1, borderColor: c.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8, minWidth: 58 },
     dateChipLabel: { fontSize: 12, fontFamily: fonts.bold, color: c.text },
