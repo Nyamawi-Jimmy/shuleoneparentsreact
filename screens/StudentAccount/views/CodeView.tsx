@@ -220,65 +220,75 @@ export const CodeView: React.FC = () => {
                 <Text style={styles.emptyText}>Check back soon!</Text>
               </View>
             ) : (
-              <View style={[styles.lessonCard, { borderRadius: tokens.radius }]}>
-                {rows.map((r, i) => {
-                  const state = r.quizPassed || r.status === 'COMPLETED' ? 'done'
-                    : r.available ? 'cur' : 'lock';
-                  return (
-                    <TouchableOpacity
-                      key={r.lessonId}
-                      activeOpacity={0.75}
-                      onPress={() => open(r)}
-                      disabled={opening}
-                      style={[styles.lessonRow, i > 0 && styles.lessonRowLine]}
-                    >
-                      {state === 'done' ? (
-                        <LinearGradient colors={[SHARED.green1, '#0fae78']} style={styles.numBubble}>
-                          <Text style={styles.numBubbleText}>✓</Text>
-                        </LinearGradient>
-                      ) : state === 'cur' ? (
-                        <LinearGradient colors={[SHARED.orange1, SHARED.pink1]} style={styles.numBubble}>
-                          <Text style={styles.numBubbleText}>{r.lessonNumber}</Text>
-                        </LinearGradient>
-                      ) : (
-                        <View style={[styles.numBubble, { backgroundColor: '#d9d4ee' }]}>
-                          <Text style={[styles.numBubbleText, { color: C.faint }]}>🔒</Text>
-                        </View>
-                      )}
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={[styles.lessonTitle, state === 'lock' && { color: C.faint }]} numberOfLines={1}>
-                          {r.title ?? `Lesson ${r.lessonNumber}`}
-                        </Text>
-                        <Text style={styles.lessonSub} numberOfLines={1}>
-                          {state === 'done' ? 'completed ✨' : state === 'cur' ? 'tap to open' : 'locked'}
-                          {r.teacherOpen && state !== 'done' ? ' · 📣 open in class' : ''}
-                        </Text>
-                      </View>
-                      {r.hasQuiz && r.lastQuizPercent != null && (
-                        <View style={[styles.quizChip, { backgroundColor: r.quizPassed ? C.okSoft : C.warnSoft }]}>
-                          <Text style={[styles.quizChipText, { color: r.quizPassed ? C.okInk : C.warnInk }]}>
-                            {r.lastQuizPercent}%
-                          </Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-
-                {/* Boss / champion node */}
-                <TouchableOpacity activeOpacity={0.8} onPress={openBoss}
-                  style={[styles.lessonRow, styles.lessonRowLine]}>
-                  <LinearGradient colors={['#f4a716', '#ff9d2e']} style={[styles.numBubble, { width: 42, height: 42, borderRadius: 21 }]}>
-                    <Text style={{ fontSize: 19 }}>🏆</Text>
-                  </LinearGradient>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.lessonTitle}>Coding Champion</Text>
-                    <Text style={styles.lessonSub}>
-                      {done >= rows.length && rows.length > 0 ? 'You made it! 🎉' : 'Clear every stage to claim it'}
-                    </Text>
+              <>
+                {/* Progress header — how far along the path */}
+                <View style={[styles.pathHeader, { borderRadius: tokens.radius }]}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.pathHeaderKick}>YOUR CODING PATH</Text>
+                    <Text style={styles.pathHeaderTitle}>{done} of {rows.length} lessons done</Text>
+                    <View style={styles.pathHeaderTrack}>
+                      <LinearGradient colors={[SHARED.green1, '#0fae78']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.pathHeaderFill, { width: `${pct}%` }]} />
+                    </View>
                   </View>
-                </TouchableOpacity>
-              </View>
+                  <View style={styles.pathHeaderPct}><Text style={styles.pathHeaderPctText}>{pct}%</Text></View>
+                </View>
+
+                {/* Learning path — status bubbles linked by a connecting rail */}
+                <View style={[styles.lessonCard, { borderRadius: tokens.radius }]}>
+                  {rows.map((r, i) => {
+                    const isDone = r.quizPassed || r.status === 'COMPLETED';
+                    const state = isDone ? 'done' : r.available ? 'cur' : 'lock';
+                    const prevDone = i > 0 && (rows[i - 1].quizPassed || rows[i - 1].status === 'COMPLETED');
+                    return (
+                      <TouchableOpacity key={r.lessonId} activeOpacity={0.8} onPress={() => open(r)} disabled={opening} style={styles.pathRow}>
+                        <View style={styles.rail}>
+                          <View style={[styles.connSeg, { backgroundColor: i === 0 ? 'transparent' : (prevDone ? SHARED.green1 : S.line) }]} />
+                          {state === 'done' ? (
+                            <LinearGradient colors={[SHARED.green1, '#0fae78']} style={styles.numBubble}><Text style={styles.numBubbleText}>✓</Text></LinearGradient>
+                          ) : state === 'cur' ? (
+                            <LinearGradient colors={[SHARED.orange1, SHARED.pink1]} style={styles.numBubble}><Text style={styles.numBubbleText}>{r.lessonNumber}</Text></LinearGradient>
+                          ) : (
+                            <View style={[styles.numBubble, { backgroundColor: '#d9d4ee' }]}><Text style={[styles.numBubbleText, { color: C.faint }]}>🔒</Text></View>
+                          )}
+                          <View style={[styles.connSeg, { backgroundColor: isDone ? SHARED.green1 : S.line }]} />
+                        </View>
+                        <View style={styles.pathBody}>
+                          <Text style={styles.lessonKick}>LESSON {r.lessonNumber}{r.teacherOpen && state !== 'done' ? '  ·  📣 IN CLASS' : ''}</Text>
+                          <Text style={[styles.lessonTitle, state === 'lock' && { color: C.faint }]} numberOfLines={2}>{r.title ?? `Lesson ${r.lessonNumber}`}</Text>
+                          <View style={styles.lessonMetaRow}>
+                            <View style={[styles.stateChip, { backgroundColor: state === 'done' ? C.okSoft : state === 'cur' ? '#FFF1E6' : S.soft }]}>
+                              <Text style={[styles.stateChipText, { color: state === 'done' ? C.okInk : state === 'cur' ? SHARED.orange1 : C.faint }]}>
+                                {state === 'done' ? 'Completed' : state === 'cur' ? 'Start now' : 'Locked'}
+                              </Text>
+                            </View>
+                            {r.hasQuiz && r.lastQuizPercent != null && (
+                              <View style={[styles.quizChip, { backgroundColor: r.quizPassed ? C.okSoft : C.warnSoft }]}>
+                                <Text style={[styles.quizChipText, { color: r.quizPassed ? C.okInk : C.warnInk }]}>Quiz {r.lastQuizPercent}%</Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                        {state !== 'lock' && <Text style={styles.chev}>›</Text>}
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                  {/* Boss / champion — the terminal node of the path */}
+                  <TouchableOpacity activeOpacity={0.8} onPress={openBoss} style={styles.pathRow}>
+                    <View style={styles.rail}>
+                      <View style={[styles.connSeg, { backgroundColor: done >= rows.length && rows.length > 0 ? SHARED.green1 : S.line }]} />
+                      <LinearGradient colors={['#f4a716', '#ff9d2e']} style={[styles.numBubble, { width: 42, height: 42, borderRadius: 21 }]}><Text style={{ fontSize: 19 }}>🏆</Text></LinearGradient>
+                      <View style={[styles.connSeg, { backgroundColor: 'transparent' }]} />
+                    </View>
+                    <View style={styles.pathBody}>
+                      <Text style={styles.lessonKick}>FINALE</Text>
+                      <Text style={styles.lessonTitle}>Coding Champion</Text>
+                      <Text style={styles.lessonSub}>{done >= rows.length && rows.length > 0 ? 'You made it! 🎉' : 'Clear every stage to claim it'}</Text>
+                    </View>
+                    <Text style={styles.chev}>›</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
             )}
             {opening && (
               <View style={styles.openingRow}>
@@ -515,10 +525,33 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   numBubbleText: { color: '#fff', fontWeight: '800', fontSize: 15 },
-  lessonTitle: { fontSize: 13.5, fontWeight: '800', color: S.ink },
+  lessonTitle: { fontSize: 13.5, fontWeight: '800', color: S.ink, lineHeight: 17 },
   lessonSub: { fontSize: 11, color: S.inkSoft, fontWeight: '600', marginTop: 2 },
   quizChip: { borderRadius: 99, paddingHorizontal: 9, paddingVertical: 4 },
-  quizChipText: { fontSize: 11.5, fontWeight: '800' },
+  quizChipText: { fontSize: 11, fontWeight: '800' },
+
+  // Progress header + learning-path timeline
+  pathHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line, padding: 14, marginBottom: 12,
+    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
+  },
+  pathHeaderKick: { fontSize: 9.5, fontWeight: '800', color: S.inkSoft, letterSpacing: 0.7 },
+  pathHeaderTitle: { fontSize: 14, fontWeight: '800', color: S.ink, marginTop: 3, marginBottom: 9 },
+  pathHeaderTrack: { height: 9, borderRadius: 99, backgroundColor: S.line, overflow: 'hidden' },
+  pathHeaderFill: { height: '100%', borderRadius: 99 },
+  pathHeaderPct: { width: 50, height: 50, borderRadius: 25, backgroundColor: C.okSoft, alignItems: 'center', justifyContent: 'center' },
+  pathHeaderPctText: { fontSize: 14, fontWeight: '900', color: C.okInk },
+
+  pathRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
+  rail: { width: 40, alignItems: 'center' },
+  connSeg: { width: 3, flex: 1, minHeight: 8, borderRadius: 3 },
+  pathBody: { flex: 1, minWidth: 0, justifyContent: 'center', paddingVertical: 12 },
+  lessonKick: { fontSize: 9, fontWeight: '800', color: S.inkSoft, letterSpacing: 0.6, marginBottom: 3 },
+  lessonMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, flexWrap: 'wrap' },
+  stateChip: { borderRadius: 99, paddingHorizontal: 9, paddingVertical: 3 },
+  stateChipText: { fontSize: 10, fontWeight: '800' },
+  chev: { fontSize: 24, fontWeight: '800', color: C.faint, alignSelf: 'center', paddingLeft: 2 },
   openingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center', marginTop: 12 },
   openingText: { fontSize: 12, color: S.inkSoft, fontWeight: '700' },
 
