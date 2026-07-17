@@ -280,14 +280,10 @@ const QuestMapView: React.FC<{
   onBack: () => void;
   onStageTap: (s: Stage) => void;
 }> = ({ questDetail, tier, tokens, loadingDetail, onBack, onStageTap }) => {
-  const mapScheme = useSchemeTick(); // dark map surface + fresh proxy styles
-  const stages = questDetail.stages;
-  const stagePositions = stages.map((s, i) => ({
-    x: s.mapX ?? DEFAULT_POSITIONS[i % DEFAULT_POSITIONS.length].x,
-    y: s.mapY ?? DEFAULT_POSITIONS[i % DEFAULT_POSITIONS.length].y,
-  }));
-  const pathD = buildPath(stagePositions);
-  const accent = questDetail.quest.accentColor || tokens.accent1;
+  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
+  const q = questDetail.quest;
+  const stages = [...questDetail.stages].sort((a, b) => a.position - b.position);
+  const accent = q.accentColor || tokens.accent1;
 
   return (
     <View style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
@@ -305,84 +301,83 @@ const QuestMapView: React.FC<{
 
         {/* Quest meta card */}
         <View style={[styles.metaCard, { borderRadius: tokens.radius, borderColor: accent + '30' }]}>
-          <Text style={[styles.metaSubject, { color: accent }]}>{questDetail.quest.subject}</Text>
-          <Text style={styles.metaTitle}>{questDetail.quest.title}</Text>
-          <Text style={styles.metaDesc} numberOfLines={2}>{questDetail.quest.description}</Text>
+          <Text style={[styles.metaSubject, { color: accent }]}>{q.subject}</Text>
+          <Text style={styles.metaTitle}>{q.title}</Text>
+          <Text style={styles.metaDesc} numberOfLines={2}>{q.description}</Text>
           <View style={styles.xpRow}>
             <View style={styles.xpBar}>
               <LinearGradient
                 colors={[accent, accent + 'AA']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[
-                  styles.xpFill,
-                  { width: `${(questDetail.quest.earnedXp / Math.max(questDetail.quest.totalXp, 1)) * 100}%` },
-                ]}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={[styles.xpFill, { width: `${(q.earnedXp / Math.max(q.totalXp, 1)) * 100}%` }]}
               />
             </View>
-            <Text style={styles.xpText}>
-              {questDetail.quest.earnedXp} / {questDetail.quest.totalXp} XP
-            </Text>
+            <Text style={styles.xpText}>{q.earnedXp} / {q.totalXp} XP</Text>
           </View>
+          <Text style={styles.metaStages}>{q.completedStages}/{q.totalStages} stages complete</Text>
         </View>
 
-        {/* Legend — the map key sits ABOVE the map */}
-        <View style={styles.legend}>
-          <LegendItem colors={['#15c98c', '#0fae78']} label={pickByTier(tier, { base: 'Completed', sprout: 'Done' })} />
-          <LegendItem colors={['#ff9d2e', '#ff5e9c']} label={pickByTier(tier, { base: 'Available', sprout: 'Play now' })} />
-          <LegendItem solid="#9b93c4" label="Locked" />
-          <LegendItem colors={['#f4a716', '#ff9d2e']} label={pickByTier(tier, { base: 'Boss', sprout: 'Big challenge' })} />
+        {/* Path — every stage as a compact, scrollable row */}
+        <View style={styles.secH}>
+          <Text style={styles.secHTitle}>
+            {pickByTier(tier, { base: '🧭 Your path', sprout: '🧭 Your path!', scholar: 'Your path', campus: 'Module stages' })}
+          </Text>
+          <View style={styles.secHLine} />
         </View>
 
-        {/* Map */}
-        <LinearGradient
-          colors={mapScheme === 'dark' ? ['#182a26', '#182238'] : ['#eafef3', '#e7f7ff']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={[styles.mapWrap, { borderRadius: tokens.radius }]}
-        >
-          <View style={styles.map}>
-            <Svg
-              width="100%" height="100%"
-              viewBox="0 0 100 100" preserveAspectRatio="none"
-              style={StyleSheet.absoluteFill}
-            >
-              <Path d={pathD} fill="none" stroke="#ffffff" strokeWidth={4} strokeLinecap="round" />
-              <Path d={pathD} fill="none" stroke="#c9b8ff" strokeWidth={1.6} strokeLinecap="round" strokeDasharray="0.1 3" />
-            </Svg>
-
-            {stages.map((stage, i) => {
-              const pos = stagePositions[i];
-              return (
-                <View
-                  key={stage.id}
-                  style={[styles.node, { left: `${pos.x}%`, top: `${pos.y}%` }]}
-                >
-                  <NodeBubble stage={stage} onPress={() => onStageTap(stage)} />
-                  <View style={[styles.lbl, stage.status === 'AVAILABLE' && styles.lblCur]}>
-                    <Text
-                      style={[styles.lblText, stage.status === 'AVAILABLE' && styles.lblTextCur]}
-                      numberOfLines={2}
-                    >
-                      {stage.title}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-
+        <View style={{ position: 'relative' }}>
           {loadingDetail && (
-            <View style={styles.overlayLoading}>
-              <ActivityIndicator size="large" color="#fff" />
-            </View>
+            <View style={styles.inlineLoading}><ActivityIndicator color={accent} /></View>
           )}
-        </LinearGradient>
+          {stages.map((stage, i) => (
+            <StageRow
+              key={stage.id}
+              stage={stage}
+              accent={accent}
+              isLast={i === stages.length - 1}
+              onPress={() => onStageTap(stage)}
+            />
+          ))}
+        </View>
 
         <View style={{ height: 90 }} />
       </ScrollView>
       <AgeSwitcher />
     </View>
+  );
+};
+
+// One stage as a compact row: a status node on a connecting rail + an info card.
+const StageRow: React.FC<{ stage: Stage; accent: string; isLast: boolean; onPress: () => void }> = ({ stage, accent, isLast, onPress }) => {
+  const isBoss = String(stage.type).toUpperCase().includes('BOSS');
+  const locked = stage.status === 'LOCKED';
+  const done = stage.status === 'COMPLETED';
+  const action = locked ? 'Locked' : done ? 'Replay' : stage.status === 'IN_PROGRESS' ? 'Continue' : 'Play';
+
+  return (
+    <TouchableOpacity activeOpacity={0.85} onPress={onPress} disabled={locked} style={styles.stageRow}>
+      <View style={styles.rail}>
+        <NodeBubble stage={stage} size={isBoss ? 60 : 52} />
+        {!isLast && <View style={[styles.railLine, { backgroundColor: done ? '#15c98c' : C.line }]} />}
+      </View>
+      <View style={[styles.stageCard, locked && { opacity: 0.65 }]}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.stageNum, { color: accent }]}>STAGE {stage.position}{isBoss ? ' · BOSS' : ''}</Text>
+          <Text style={styles.stageTitle} numberOfLines={2}>{stage.title}</Text>
+          <View style={styles.stageMetaRow}>
+            <View style={styles.stageChip}>
+              <Ionicons name="flash" size={11} color="#f4a716" />
+              <Text style={styles.stageChipText}>{stage.xpReward} XP</Text>
+            </View>
+            {done && stage.stars > 0 && <Text style={styles.stageStars}>{'★'.repeat(Math.min(3, stage.stars))}</Text>}
+          </View>
+        </View>
+        <View style={[styles.stageAction, { backgroundColor: locked ? C.soft : accent + '18' }]}>
+          <Text style={[styles.stageActionText, { color: locked ? C.inkSoft : accent }]}>{action}</Text>
+          {!locked && <Ionicons name="chevron-forward" size={13} color={accent} />}
+        </View>
+      </View>
+    </TouchableOpacity>
   );
 };
 
@@ -404,7 +399,7 @@ function buildPath(points: { x: number; y: number }[]): string {
   return d;
 }
 
-const NodeBubble: React.FC<{ stage: Stage; onPress: () => void }> = ({ stage, onPress }) => {
+const NodeBubble: React.FC<{ stage: Stage; size?: number }> = ({ stage, size = 56 }) => {
   const isBoss = String(stage.type).toUpperCase().includes('BOSS');
   const status = stage.status;
 
@@ -421,15 +416,19 @@ const NodeBubble: React.FC<{ stage: Stage; onPress: () => void }> = ({ stage, on
     : '▶';
 
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress}>
-      <LinearGradient
-        colors={colors}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={[styles.bub, isBoss && styles.bubBoss]}
-      >
-        <Text style={[styles.bubText, isBoss && styles.bubTextBoss]}>{bub}</Text>
-      </LinearGradient>
-    </TouchableOpacity>
+    <LinearGradient
+      colors={colors}
+      start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+      style={{
+        width: size, height: size, borderRadius: size / 2,
+        alignItems: 'center', justifyContent: 'center',
+        borderWidth: size >= 64 ? 5 : 4, borderColor: '#fff',
+        shadowColor: '#5038A0', shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.18, shadowRadius: 8, elevation: 5,
+      }}
+    >
+      <Text style={{ fontSize: Math.round(size * 0.42), color: '#fff' }}>{bub}</Text>
+    </LinearGradient>
   );
 };
 
@@ -543,6 +542,34 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   metaSubject: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.6 },
   metaTitle: { fontSize: 17, fontWeight: '800', color: S.ink, marginTop: 2 },
   metaDesc: { fontSize: 12, color: S.inkSoft, fontWeight: '500', marginTop: 4, lineHeight: 16 },
+  metaStages: { fontSize: 11, fontWeight: '700', color: S.inkSoft, marginTop: 8 },
+
+  // Compact vertical path (replaces the winding map)
+  inlineLoading: { paddingVertical: 24, alignItems: 'center' },
+  stageRow: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
+  rail: { alignItems: 'center', width: 60 },
+  railLine: { width: 3, flex: 1, borderRadius: 3, marginVertical: 4, minHeight: 18 },
+  stageCard: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: S.card, borderRadius: 16, borderWidth: 1, borderColor: S.line,
+    padding: 12, marginBottom: 12,
+    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
+  },
+  stageNum: { fontSize: 9.5, fontWeight: '800', letterSpacing: 0.6 },
+  stageTitle: { fontSize: 14, fontWeight: '800', color: S.ink, marginTop: 2, lineHeight: 18 },
+  stageMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 7 },
+  stageChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: S.soft, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 99,
+  },
+  stageChipText: { fontSize: 10.5, fontWeight: '800', color: '#f4a716' },
+  stageStars: { fontSize: 12, color: '#f4a716' },
+  stageAction: {
+    flexDirection: 'row', alignItems: 'center', gap: 2,
+    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7,
+  },
+  stageActionText: { fontSize: 12, fontWeight: '800' },
   xpRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10 },
   xpBar: { flex: 1, height: 9, borderRadius: 99, backgroundColor: S.line, overflow: 'hidden' },
   xpFill: { height: '100%', borderRadius: 99 },

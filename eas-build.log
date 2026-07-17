@@ -1,0 +1,48 @@
+Resolved "preview" environment for the build. Learn more: https://docs.expo.dev/eas/environment-variables/#setting-the-environment-for-your-builds
+No environment variables with visibility "Plain text" and "Sensitive" found for the "preview" environment on EAS.
+Environment variables loaded from the "preview" build profile "env" configuration: EXPO_PUBLIC_API_BASE_URL.
+
+
+
+✔ Using remote Android credentials (Expo server)
+✔ Using Keystore from configuration: Build Credentials _t417IWUi9 (default)
+
+Compressing project files and uploading to EAS Build. Learn more: https://expo.fyi/eas-build-archive
+- Compressing project files
+- Uploading to EAS Build (0 / 2.1 MB)
+✔ Uploaded to EAS 3s
+- Computing project fingerprint
+⌛️ Computing the project fingerprint is taking longer than expected...
+⏩ To skip this step, set the environment variable: EAS_SKIP_AUTO_FINGERPRINT=1
+✔ Computed project fingerprint
+
+See logs: https://expo.dev/accounts/nyamawi/projects/shuleoneparents/builds/a3d9e166-ef6e-44f0-b421-d1f5d51168f4
+
+Waiting for build to complete. You can press Ctrl+C to exit.
+- Waiting for build to complete.
+✔ Build finished
+
+  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+  █ ▄▄▄▄▄ █▄▀ ▀ █▄██▀ ▄▄▄▀ █▄▀█ █ ▄▄▄▄▄ █
+  █ █   █ █   █▀ █ ▄▀▀█▀█▀   ▄ ▀█ █   █ █
+  █ █▄▄▄█ █▄█▀ ▄██▄▄█▄  █ █ ▄ ▄▄█ █▄▄▄█ █
+  █▄▄▄▄▄▄▄█▄█ █ █ █ ▀ █ █▄█ █▄█▄█▄▄▄▄▄▄▄█
+  █  ▄▄██▄█▄█ ▄▀█▀▄▄▄  ▀ █ ██ █ ▄█▀▄  ▀▄█
+  █ █▀█▀ ▄▄ █▀▄▀▀ █▀▄ █▀██▄ ▀▄█▄ ▀ ▄█  ▀█
+  █▄▀▄▄▀▀▄▀▀▀▄██ ▀ ▄   ▀█ █ ▄▄▀▀  ▀   █ █
+  █▄ ▀▄▀█▄▄ █▀▀█▄ █ ██ ▄ ▄████▀█▀█▀  █▄▀█
+  █ ▄▀█▀▀▄▄ ▀  ▀ █▀██▀█▀▄ ▀▀▄█▀██▀▀█▀▄ ▀█
+  ██▄▄▀▄▄▄██▄▄▀▄█ ▄▀ ███▄ ▀▀▄▄▄▄▄▀▀ ▀▄ ▄█
+  █ ▄▀▀█ ▄▀▄▄█  █▀██▄█ ▀▄█▀▄▀▄▄▀ █▀▄██ ██
+  █▄▄▀▀▄▄▄  █▀ ▀▀ ███▄▀ ▄ ▄█ ▄▀█▀█▄▄ ▀███
+  █▄█▀▄ █▄▄▀ ███▄  ▄▄▄ ██ ▄ ▄ ▀▀  ▀ █ ▄ █
+  █▀▄ ▀█ ▄▄█▀ █ █▄▀▀█▄▄▄▀█▀ ▄ █▀▄▄ ██▄▄▀█
+  ██████▄▄▄▀█  ▄   ▀█▄▄ ▄▄   █▄ ▄▄▄ ▄ ▄ █
+  █ ▄▄▄▄▄ ██▀▀▀██▄▄ ▀▀█▄█▀█▀▄██ █▄█  █  █
+  █ █   █ █▀█▀▀ █▄█ ▄   ▄▄ ▀█ █   ▄ █▀▄██
+  █ █▄▄▄█ █ █ ▄ ▀█▀██▄█▄▄▄ ▄▀█▀█▀▄  ▄ ███
+  █▄▄▄▄▄▄▄█▄█▄██▄█▄▄▄▄███▄██▄▄███▄▄▄▄▄▄▄█
+
+
+🤖 Open this link on your Android devices (or scan the QR code) to install the app:
+https://expo.dev/accounts/nyamawi/projects/shuleoneparents/builds/a3d9e166-ef6e-44f0-b421-d1f5d51168f4
