@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as SplashScreen from 'expo-splash-screen';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
   Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, Inter_800ExtraBold,
@@ -43,19 +44,23 @@ export default function RootLayout() {
   if (!fontsLoaded) return null;
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <LanguageProvider>
-        <AuthProvider>
-          <ParentProfileProvider>
-            <SelectedChildProvider>
-              <ThemedAppShell />
-            </SelectedChildProvider>
-          </ParentProfileProvider>
-        </AuthProvider>
-        </LanguageProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    // SafeAreaProvider must wrap everything so useSafeAreaInsets() works app-wide
+    // (tab bars pad above Android's on-screen nav keys / the iOS home indicator).
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <LanguageProvider>
+          <AuthProvider>
+            <ParentProfileProvider>
+              <SelectedChildProvider>
+                <ThemedAppShell />
+              </SelectedChildProvider>
+            </ParentProfileProvider>
+          </AuthProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }
 

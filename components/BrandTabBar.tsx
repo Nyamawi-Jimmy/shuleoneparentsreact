@@ -3,7 +3,8 @@
 // a small indicator bar and the brand tint; everything else stays neutral.
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { fonts } from '../constants/theme';
@@ -33,6 +34,9 @@ interface TabBarProps {
 
 export const BrandTabBar: React.FC<TabBarProps> = ({ state, descriptors, navigation }) => {
   const { colors } = useTheme();
+  // Lift the bar above the device's bottom system UI — Android's on-screen nav
+  // keys or the iOS home indicator — so the tabs are never covered by them.
+  const insets = useSafeAreaInsets();
   // Unread chat count → a notification badge on the Messages tab.
   const { contacts } = useChatContacts();
   const unread = contacts.reduce((s, c) => s + (c.unreadCount ?? 0), 0);
@@ -42,6 +46,7 @@ export const BrandTabBar: React.FC<TabBarProps> = ({ state, descriptors, navigat
       backgroundColor: colors.card,
       borderTopColor: colors.border,
       shadowOpacity: colors.scheme === 'dark' ? 0.4 : 0.07,
+      paddingBottom: insets.bottom + 8,
     }]}>
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
@@ -92,7 +97,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'stretch',
     borderTopWidth: 1,
-    paddingBottom: Platform.OS === 'ios' ? 22 : 8,
+    // paddingBottom is applied inline from safe-area insets (see component).
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowRadius: 8,

@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TierProvider } from '../../screens/StudentAccount/TierContext';
 import { LessonProgressProvider } from '../../screens/StudentAccount/LessonProgressContext';
 import { useStudentBadges } from '../../hooks/useStudentBadges';
@@ -12,10 +12,12 @@ export default function StudentTabsLayout() {
   const { due, live } = useStudentBadges();
   const { scheme } = useTheme();
   const dark = scheme === 'dark';
+  // Grow the tab bar by the device's bottom system-UI inset (Android nav keys /
+  // iOS home indicator) so the tabs never sit underneath them.
+  const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaProvider>
-      <TierProvider>
+    <TierProvider>
         <LessonProgressProvider>
           <Tabs
             // Keep inactive tabs LIVE (not frozen) so a theme flip re-renders
@@ -28,9 +30,9 @@ export default function StudentTabsLayout() {
               tabBarActiveTintColor: dark ? '#a78bfa' : '#7c5cff',
               tabBarInactiveTintColor: dark ? '#7d76a8' : '#9b94c4',
               tabBarStyle: {
-                height: 64,
+                height: 64 + insets.bottom,
                 paddingTop: 6,
-                paddingBottom: 8,
+                paddingBottom: 8 + insets.bottom,
                 borderTopWidth: 1,
                 borderTopColor: dark ? '#2c2750' : '#f5f3fa',
                 backgroundColor: dark ? '#1b1735' : '#fff',
@@ -98,6 +100,5 @@ export default function StudentTabsLayout() {
           </Tabs>
         </LessonProgressProvider>
       </TierProvider>
-    </SafeAreaProvider>
   );
 }

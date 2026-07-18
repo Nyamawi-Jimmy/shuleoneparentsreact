@@ -38,12 +38,13 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 // =================================================================
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [mode, setModeState] = useState<ThemeMode>('system');
+  // Default to LIGHT (not the device setting); a stored user choice wins on hydration.
+  const [mode, setModeState] = useState<ThemeMode>('light');
   const [systemScheme, setSystemScheme] = useState<'light' | 'dark'>(
     (Appearance.getColorScheme() ?? 'light') as 'light' | 'dark',
   );
   // Mirror of `mode` readable inside event callbacks without stale closures.
-  const modeRef = useRef<ThemeMode>('system');
+  const modeRef = useRef<ThemeMode>('light');
 
   const applyMode = useCallback((next: ThemeMode) => {
     modeRef.current = next;

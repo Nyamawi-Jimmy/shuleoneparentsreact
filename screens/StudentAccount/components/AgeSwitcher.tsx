@@ -8,6 +8,7 @@ import {
   Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTier, Tier, TIER_META } from '../TierContext';
 import { useTokens } from '../tokens';
 import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, useSchemeTick } from '../studentTheme';
@@ -22,12 +23,14 @@ export const AgeSwitcher: React.FC = () => {
   const { tier, setTier } = useTier();
   const tokens = useTokens(tier);
   useSchemeTick(); // re-render on scheme flips (styles are scheme proxies)
+  // Sit above the tab bar AND the device's bottom system UI (Android nav keys).
+  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
 
   return (
     <>
       <TouchableOpacity
-        style={styles.fab}
+        style={[styles.fab, { bottom: 84 + insets.bottom }]}
         activeOpacity={0.85}
         onPress={() => setOpen(true)}
       >

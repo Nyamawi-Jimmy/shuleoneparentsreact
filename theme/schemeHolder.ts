@@ -18,7 +18,9 @@ interface SchemeStore {
 
 const g = globalThis as { __shuleoneSchemeStore?: SchemeStore };
 const store: SchemeStore = g.__shuleoneSchemeStore ?? (g.__shuleoneSchemeStore = {
-  current: (Appearance.getColorScheme() ?? 'light') as Scheme,
+  // Default LIGHT regardless of the device theme — the app only goes dark when
+  // the user picks it in Settings (ThemeProvider syncs the stored choice).
+  current: 'light' as Scheme,
   listeners: new Set(),
 });
 
