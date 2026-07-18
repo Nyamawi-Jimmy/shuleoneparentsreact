@@ -10,10 +10,11 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../theme/ThemeContext';
@@ -44,6 +45,9 @@ export function childAgeTierOf(child?: Child | null): AgeTier {
 export const KidLearnScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  // Pad by the real status-bar height instead of a hardcoded guess, so the
+  // clock/battery/notification icons are never sat on by the top bar.
+  const insets = useSafeAreaInsets();
   const { questId } = useLocalSearchParams<{ questId?: string }>();
   const { selectedChild: child } = useSelectedChild();
   const { accessToken } = useAuth();
@@ -123,7 +127,7 @@ export const KidLearnScreen: React.FC = () => {
   return (
     <View style={styles.root}>
       {/* Professional kid-learn app bar */}
-      <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.topBar}>
+      <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.topBar, { paddingTop: insets.top + 14 }]}>
         <View style={styles.kidBadge}><Text style={{ fontSize: 16 }}>🎓</Text></View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.topTitle} numberOfLines={1}>{childName} is learning</Text>
@@ -214,27 +218,26 @@ const QuestStageMap: React.FC<{
   onBack: () => void; onStageTap: (s: Stage) => void;
 }> = ({ detail, styles, colors, onBack, onStageTap }) => {
   const dark = colors.scheme === 'dark';
-  const stages = detail.stages;
+  const stages = [...detail.stages].sort((a, b) => a.position - b.position);
   const accent = detail.quest.accentColor || colors.primary;
-  const n = stages.length;
-  // Lay every stage out with a FIXED vertical gap, bottom → top, in a zig-zag.
-  // Deriving the map height from the count (not from authored % coords) means
-  // all stages always get their own slot — none overlap or run off the map,
-  // however many there are.
-  const ZIG = [20, 44, 66, 80, 60, 36];
-  const SPACING = 118;          // px between stage centres
-  const PAD_TOP = 56;
-  // Room below the lowest node for its bubble AND its 2-line label. The final
-  // stage is usually the BOSS (a bigger 92px bubble), so this must clear that —
-  // otherwise the last node clips (the bug this fixes).
-  const PAD_BOTTOM = 140;
-  const mapHeight = PAD_TOP + PAD_BOTTOM + Math.max(1, n - 1) * SPACING;
-  const positions = stages.map((s, i) => {
-    // Level 1 (stage 0) sits at the TOP, later stages descend downward.
-    const yPx = PAD_TOP + i * SPACING;
-    return { x: ZIG[i % ZIG.length], y: (yPx / mapHeight) * 100 };
-  });
+
+  // Winding path positions — identical to the student QuestMapView so both
+  // sides render the same tree. The canvas GROWS with the stage count, and each
+  // node's y is normalised into a safe band [TOP..BOT]% so the extreme nodes
+  // (and their labels below the bubble) always have margin and never clip.
+  const hasCoords = stages.length > 0 && stages.every((s) => s.mapX != null && s.mapY != null);
+  const cols = [20, 44, 68, 80, 56, 32];
+  // Raw y: backend coords when present, else a serpentine climbing bottom→top.
+  const rawY = stages.map((s, i) => hasCoords ? (s.mapY as number) : 92 - (i / Math.max(1, stages.length - 1)) * 84);
+  const minY = Math.min(...rawY), maxY = Math.max(...rawY);
+  const spanY = Math.max(1, maxY - minY);
+  const TOP = 8, BOT = 86; // leaves room at the top and (for labels) the bottom
+  const positions = stages.map((s, i) => ({
+    x: hasCoords ? (s.mapX as number) : cols[i % cols.length],
+    y: stages.length <= 1 ? 50 : TOP + ((rawY[i] - minY) / spanY) * (BOT - TOP),
+  }));
   const pathD = buildPath(positions);
+  const mapHeight = Math.max(640, stages.length * 98);
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.scroll, { paddingBottom: 60 }]} showsVerticalScrollIndicator={false}>
@@ -334,7 +337,8 @@ function makeStyles(c: ColorPalette) {
 
     topBar: {
       flexDirection: 'row', alignItems: 'center', gap: 11,
-      paddingHorizontal: 14, paddingTop: Platform.OS === 'ios' ? 56 : 38, paddingBottom: 14,
+      // paddingTop comes from the safe-area inset inline (see component).
+      paddingHorizontal: 14, paddingBottom: 14,
       shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 6,
     },
     kidBadge: {

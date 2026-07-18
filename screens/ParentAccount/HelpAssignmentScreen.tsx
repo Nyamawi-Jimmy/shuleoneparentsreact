@@ -5,9 +5,10 @@
 // the child's account — no kid-learn header needed. Reuses the TaskPlayer with
 // those parent fetchers injected. Its own professional design.
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../theme/ThemeContext';
 import { fonts } from '../../constants/theme';
@@ -21,6 +22,9 @@ import {
 export const HelpAssignmentScreen: React.FC = () => {
   const { colors } = useTheme();
   const { accessToken } = useAuth();
+  // Pad by the real status-bar height instead of a hardcoded guess, so the
+  // clock/battery/notification icons are never sat on by the header row.
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ examId?: string; studentId?: string; childName?: string }>();
   const examId = params.examId ? Number(params.examId) : null;
   const studentId = params.studentId ? Number(params.studentId) : null;
@@ -31,7 +35,7 @@ export const HelpAssignmentScreen: React.FC = () => {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Parent-assist header — its own professional design */}
-      <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bar}>
+      <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.bar, { paddingTop: insets.top + 14 }]}>
         <View style={styles.badge}><Text style={{ fontSize: 18 }}>🤝</Text></View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.title} numberOfLines={1}>Help {childName} do this</Text>
@@ -62,7 +66,8 @@ export const HelpAssignmentScreen: React.FC = () => {
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row', alignItems: 'center', gap: 11,
-    paddingHorizontal: 14, paddingTop: Platform.OS === 'ios' ? 54 : 38, paddingBottom: 13,
+    // paddingTop comes from the safe-area inset inline (see component).
+    paddingHorizontal: 14, paddingBottom: 13,
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 10, elevation: 6,
   },
   badge: {

@@ -8,7 +8,9 @@
 //              never covers the title or subtitle.
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '../theme/ThemeContext';
@@ -28,13 +30,19 @@ interface Props {
 
 export const GradientAppBar: React.FC<Props> = ({ title, subtitle, showBack = false, large = false, overlap = false, right }) => {
   const { colors } = useTheme();
+  // Pad by the real status-bar height instead of a hardcoded guess, so the
+  // clock/battery/notification icons are never sat on by the title row.
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={[
       styles.bar,
-      { backgroundColor: colors.primary },
+      { backgroundColor: colors.primary, paddingTop: insets.top + 12 },
       overlap && styles.barOverlap,
     ]}>
+      {/* The bar is always a deep brand colour, in light AND dark mode, so the
+          status-bar icons must be light here regardless of the app scheme. */}
+      <StatusBar style="light" />
       <View style={styles.row}>
         {showBack && (
           <TouchableOpacity style={styles.backBtn} activeOpacity={0.7} hitSlop={10} onPress={() => router.back()}>
@@ -53,7 +61,7 @@ export const GradientAppBar: React.FC<Props> = ({ title, subtitle, showBack = fa
 
 const styles = StyleSheet.create({
   bar: {
-    paddingTop: Platform.OS === 'ios' ? 54 : 40,
+    // paddingTop comes from the safe-area inset inline (see component).
     paddingBottom: 14,
     paddingHorizontal: 16,
     borderBottomLeftRadius: 20,

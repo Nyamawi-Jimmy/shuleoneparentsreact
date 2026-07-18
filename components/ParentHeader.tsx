@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useParentProfile } from '../context/ParentProfileContext';
@@ -39,6 +40,9 @@ export const ParentHeader: React.FC<Props> = ({
   const { colors } = useTheme();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const { parent } = useParentProfile();
+  // Pad by the real status-bar height instead of a hardcoded guess, so the
+  // clock/battery/notification icons are never sat on by the header row.
+  const insets = useSafeAreaInsets();
 
   const displayName = greetingName ?? parent?.firstName ?? 'there';
   const handleRightPress = onRightPress ?? (() => router.push('/notifications' as any));
@@ -58,7 +62,7 @@ export const ParentHeader: React.FC<Props> = ({
   // ── Title mode (sub-pages) ──────────────────────────────────────
   if (title || showBack) {
     return (
-      <View style={styles.wrap}>
+      <View style={[styles.wrap, { paddingTop: insets.top + 16 }]}>
         {showBack ? (
           <TouchableOpacity onPress={() => router.back()} hitSlop={8} style={styles.iconBtn} activeOpacity={0.7}>
             <Ionicons name="chevron-back" size={22} color={colors.text} />
@@ -74,7 +78,7 @@ export const ParentHeader: React.FC<Props> = ({
 
   // ── Greeting mode (Today) ───────────────────────────────────────
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { paddingTop: insets.top + 16 }]}>
       <View style={styles.avatar}>
         <Text style={styles.avatarText}>{initials(parent?.name || displayName)}</Text>
       </View>
@@ -94,7 +98,7 @@ function makeStyles(c: ColorPalette) {
       alignItems: 'center',
       gap: 12,
       paddingHorizontal: 16,
-      paddingTop: Platform.OS === 'ios' ? 58 : 40,
+      // paddingTop comes from the safe-area inset inline (see component).
       paddingBottom: 12,
       backgroundColor: c.background,
     },

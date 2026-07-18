@@ -6,6 +6,7 @@ import {
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { useChatConversation } from '../../hooks/useChatConversation';
@@ -15,6 +16,9 @@ import { ChatMessage, ChatRole } from '../../api/chat.types';
 export const ConversationScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  // Pad by the real status-bar height instead of a hardcoded guess, so the
+  // clock/battery/notification icons are never sat on by the header row.
+  const insets = useSafeAreaInsets();
 
   const params = useLocalSearchParams<{ contactId?: string; name?: string; avatar?: string; role?: string }>();
   const contactId = params.contactId ? Number(params.contactId) : null;
@@ -74,7 +78,7 @@ export const ConversationScreen: React.FC = () => {
       <LinearGradient
         colors={['#FB7185', '#E11D48']}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={styles.header}
+        style={[styles.header, { paddingTop: insets.top + 12 }]}
       >
         <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
           <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
@@ -239,7 +243,7 @@ function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.backgroundAlt },
     header: {
-      paddingTop: Platform.OS === 'ios' ? 50 : 36,
+      // paddingTop comes from the safe-area inset inline (see component).
       paddingBottom: 14, paddingHorizontal: 16,
       flexDirection: 'row', alignItems: 'center', gap: 12,
     },

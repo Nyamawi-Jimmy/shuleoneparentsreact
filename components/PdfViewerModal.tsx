@@ -6,6 +6,7 @@ import {
   Modal, View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
 import { fonts } from '../constants/theme';
@@ -70,6 +71,9 @@ const HOST_HTML = `<!doctype html><html><head>
 export const PdfViewerModal: React.FC<Props> = ({ visible, onClose, title, url, accessToken, fileName }) => {
   const { colors } = useTheme();
   const webRef = useRef<WebView>(null);
+  // Pad by the real status-bar height instead of a hardcoded guess, so the
+  // clock/battery/notification icons are never sat on by the header row.
+  const insets = useSafeAreaInsets();
   const [b64, setB64] = useState<string | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [saving, setSaving] = useState(false);
@@ -112,7 +116,7 @@ export const PdfViewerModal: React.FC<Props> = ({ visible, onClose, title, url, 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen">
       <View style={styles.root}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
           <TouchableOpacity hitSlop={8} onPress={onClose} style={styles.hBtn}>
             <Ionicons name="close" size={22} color={colors.text} />
           </TouchableOpacity>
@@ -162,7 +166,8 @@ function makeStyles(c: any) {
     root: { flex: 1, backgroundColor: c.background },
     header: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
-      paddingHorizontal: 14, paddingTop: 52, paddingBottom: 12,
+      // paddingTop comes from the safe-area inset inline (see component).
+      paddingHorizontal: 14, paddingBottom: 12,
       backgroundColor: c.card, borderBottomWidth: 1, borderBottomColor: c.border,
     },
     hBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },

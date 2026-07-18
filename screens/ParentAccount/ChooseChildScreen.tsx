@@ -5,8 +5,9 @@
 import React, { useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  ActivityIndicator, Platform, StatusBar,
+  ActivityIndicator, StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSelectedChild } from '../../context/SelectedChildContext';
@@ -18,6 +19,10 @@ import { fonts } from '../../constants/theme';
 export const ChooseChildScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  // Pad by the real status-bar height instead of a hardcoded guess, so the
+  // clock/battery/notification icons are never sat on by the header.
+  const insets = useSafeAreaInsets();
 
   const { children, selectChild, loading } = useSelectedChild();
   const { signOut } = useAuth();
@@ -45,7 +50,7 @@ export const ChooseChildScreen: React.FC = () => {
       <StatusBar barStyle="light-content" />
 
       {/* Flat brand header — same language as the app bars */}
-      <View style={[styles.header, { backgroundColor: colors.primary }]}>
+      <View style={[styles.header, { backgroundColor: colors.primary, paddingTop: insets.top + 24 }]}>
         <Text style={styles.headerTitle}>Who are we checking on?</Text>
         <Text style={styles.headerSubtitle}>Pick a child — you can switch any time from Today.</Text>
       </View>
@@ -125,7 +130,7 @@ function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.background },
     header: {
-      paddingTop: Platform.OS === 'ios' ? 64 : 48,
+      // paddingTop comes from the safe-area inset inline (see component).
       paddingBottom: 40, paddingHorizontal: 20,
       borderBottomLeftRadius: 20, borderBottomRightRadius: 20,
     },

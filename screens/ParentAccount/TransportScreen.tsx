@@ -106,6 +106,9 @@ export const TransportScreen: React.FC = () => {
   // Recent trips can run to dozens of rows. Show a short window by default so
   // the history never buries the rest of the page; expand on demand.
   const [allTrips, setAllTrips] = useState(false);
+  // The flag form is tall (date strip + note + upcoming list). Keep it collapsed
+  // so it stays near the top without pushing the trip history off-screen.
+  const [flagOpen, setFlagOpen] = useState(false);
 
   useFocusEffect(useCallback(() => {
     const sid = child?.studentId ?? null;
@@ -277,10 +280,27 @@ export const TransportScreen: React.FC = () => {
                   valueColor={child.seatStatus ? seatHex : undefined} strong={!!child.seatStatus} />
               </View>
 
-              {/* Not using transport — the ACTION sits above the history so it
-                  stays reachable no matter how many trips have been recorded. */}
+              {/* Not using transport. The ACTION sits above the history so it
+                  stays reachable however many trips exist — but it collapses to
+                  a single row so it can't bury the trips underneath it either. */}
               <SectionHead styles={styles} title="Not using the bus?" />
               <View style={styles.card2}>
+                <TouchableOpacity activeOpacity={0.75} onPress={() => setFlagOpen((v) => !v)} style={styles.optHead}>
+                  <View style={[styles.optHeadIcon, { backgroundColor: colors.primary + '14' }]}>
+                    <MaterialCommunityIcons name="calendar-remove" size={17} color={colors.primary} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.optHeadTitle}>Flag a date</Text>
+                    <Text style={styles.optHeadSub} numberOfLines={1}>
+                      {upcoming.length > 0
+                        ? `${upcoming.length} upcoming day${upcoming.length > 1 ? 's' : ''} flagged`
+                        : 'Tell the driver not to wait at your stop'}
+                    </Text>
+                  </View>
+                  <Ionicons name={flagOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textTertiary} />
+                </TouchableOpacity>
+
+                {flagOpen && (<>
                 <Text style={styles.optIntro}>Travelling separately on a given day? Flag it — the driver’s list updates and the bus won’t wait at your stop.</Text>
                 {child.optedOutToday && (
                   <View style={styles.optBanner}>
@@ -358,6 +378,7 @@ export const TransportScreen: React.FC = () => {
                     ))}
                   </View>
                 )}
+                </>)}
               </View>
 
               {/* Recent trips — timeline. Collapsed to the latest few; the full
@@ -540,13 +561,17 @@ function makeStyles(c: ColorPalette) {
     tripRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12 },
     moreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingTop: 12, marginTop: 2 },
     moreBtnText: { fontSize: 13, fontFamily: fonts.bold },
+    optHead: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+    optHeadIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    optHeadTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text },
+    optHeadSub: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 1 },
     tripIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     tripDate: { fontSize: 13.5, fontFamily: fonts.semibold, color: c.text },
     tripMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
     miniChip: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
     miniChipText: { fontSize: 10.5, fontFamily: fonts.bold },
 
-    optIntro: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 18 },
+    optIntro: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, lineHeight: 18, marginTop: 14 },
     optBanner: { flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: c.warning + '1A', borderRadius: 10, padding: 10, marginTop: 12 },
     optBannerText: { fontSize: 12, fontFamily: fonts.semibold, color: c.warning, flex: 1 },
     optLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, marginBottom: 10 },

@@ -8,8 +8,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
-  Image, Platform, useWindowDimensions,
+  Image, useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
@@ -104,6 +105,9 @@ export const HomeScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { width: screenW } = useWindowDimensions();
+  // Pad by the real status-bar height instead of a hardcoded guess, so the
+  // clock/battery/notification icons are never sat on by the header.
+  const insets = useSafeAreaInsets();
   // Attention carousel: cards ~78% wide so the next one peeks, inviting a swipe.
   const attnCardW = Math.round(Math.min(300, screenW - 64));
 
@@ -161,7 +165,7 @@ export const HomeScreen: React.FC = () => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor="#FFF" progressViewOffset={70} />}
       >
         {/* ── Integrated header: greeting, bell, child switcher ─────────── */}
-        <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
+        <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.header, { paddingTop: insets.top + 20 }]}>
           <View style={styles.headerTop}>
             <TouchableOpacity style={styles.avatarWrap} activeOpacity={0.8} onPress={() => router.push('/settings' as any)}>
               {parent?.photoUrl ? (
@@ -537,7 +541,7 @@ function makeStyles(c: ColorPalette) {
 
     // Header
     header: {
-      paddingTop: Platform.OS === 'ios' ? 58 : 44,
+      // paddingTop comes from the safe-area inset inline (see component).
       paddingHorizontal: 16,
       paddingBottom: 42, // room for the quick-access card to overlap
       borderBottomLeftRadius: 28,
