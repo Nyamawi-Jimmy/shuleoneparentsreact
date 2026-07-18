@@ -35,6 +35,9 @@ const customChipSub = (iso: string) => {
 };
 
 
+// How many trips to show before collapsing behind "Show all".
+const TRIP_PREVIEW = 5;
+
 const SEAT_LABEL: Record<string, string> = {
   PENDING: 'Awaiting pickup', BOARDED: 'On the bus', ARRIVED: 'Arrived at school',
   DROPPED: 'Dropped off', ABSENT: 'Marked absent', NOT_USING_TODAY: 'Not using today', LATE: 'Marked late',
@@ -100,6 +103,9 @@ export const TransportScreen: React.FC = () => {
   const [calOpen, setCalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState('');
+  // Recent trips can run to dozens of rows. Show a short window by default so
+  // the history never buries the rest of the page; expand on demand.
+  const [allTrips, setAllTrips] = useState(false);
 
   useFocusEffect(useCallback(() => {
     const sid = child?.studentId ?? null;
@@ -271,34 +277,8 @@ export const TransportScreen: React.FC = () => {
                   valueColor={child.seatStatus ? seatHex : undefined} strong={!!child.seatStatus} />
               </View>
 
-              {/* Recent trips — timeline */}
-              {trips.length > 0 && (
-                <>
-                  <SectionHead styles={styles} title="Recent trips" />
-                  <View style={styles.card}>
-                    {trips.map((r, i) => {
-                      const times = [r.boardedAt && `Boarded ${hhmm(r.boardedAt)}`, r.arrivedAt && `arrived ${hhmm(r.arrivedAt)}`, r.droppedAt && `dropped ${hhmm(r.droppedAt)}`].filter(Boolean).join(' · ');
-                      const morning = dirLabel(r.direction) === 'Morning';
-                      return (
-                        <View key={i} style={[styles.tripRow, i > 0 && styles.divider]}>
-                          <View style={[styles.tripIcon, { backgroundColor: morning ? colors.warningSoft : colors.infoSoft }]}>
-                            <Ionicons name={morning ? 'sunny-outline' : 'moon-outline'} size={15} color={morning ? colors.warning : colors.info} />
-                          </View>
-                          <View style={{ flex: 1, minWidth: 0 }}>
-                            <Text style={styles.tripDate}>{String(r.tripDate).slice(0, 10)} · {dirLabel(r.direction)}</Text>
-                            <Text style={styles.tripMeta} numberOfLines={1}>{[r.plateNo, times].filter(Boolean).join(' · ') || '—'}</Text>
-                          </View>
-                          <View style={[styles.miniChip, { backgroundColor: seatColor(r.seatStatus, colors) + '1A' }]}>
-                            <Text style={[styles.miniChipText, { color: seatColor(r.seatStatus, colors) }]}>{SEAT_LABEL[String(r.seatStatus)] || r.seatStatus || '—'}</Text>
-                          </View>
-                        </View>
-                      );
-                    })}
-                  </View>
-                </>
-              )}
-
-              {/* Not using transport */}
+              {/* Not using transport — the ACTION sits above the history so it
+                  stays reachable no matter how many trips have been recorded. */}
               <SectionHead styles={styles} title="Not using the bus?" />
               <View style={styles.card2}>
                 <Text style={styles.optIntro}>Travelling separately on a given day? Flag it — the driver’s list updates and the bus won’t wait at your stop.</Text>
@@ -379,6 +359,42 @@ export const TransportScreen: React.FC = () => {
                   </View>
                 )}
               </View>
+
+              {/* Recent trips — timeline. Collapsed to the latest few; the full
+                  log is one tap away rather than an endless scroll. */}
+              {trips.length > 0 && (
+                <>
+                  <SectionHead styles={styles} title="Recent trips" />
+                  <View style={styles.card}>
+                    {(allTrips ? trips : trips.slice(0, TRIP_PREVIEW)).map((r, i) => {
+                      const times = [r.boardedAt && `Boarded ${hhmm(r.boardedAt)}`, r.arrivedAt && `arrived ${hhmm(r.arrivedAt)}`, r.droppedAt && `dropped ${hhmm(r.droppedAt)}`].filter(Boolean).join(' · ');
+                      const morning = dirLabel(r.direction) === 'Morning';
+                      return (
+                        <View key={i} style={[styles.tripRow, i > 0 && styles.divider]}>
+                          <View style={[styles.tripIcon, { backgroundColor: morning ? colors.warningSoft : colors.infoSoft }]}>
+                            <Ionicons name={morning ? 'sunny-outline' : 'moon-outline'} size={15} color={morning ? colors.warning : colors.info} />
+                          </View>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={styles.tripDate}>{String(r.tripDate).slice(0, 10)} · {dirLabel(r.direction)}</Text>
+                            <Text style={styles.tripMeta} numberOfLines={1}>{[r.plateNo, times].filter(Boolean).join(' · ') || '—'}</Text>
+                          </View>
+                          <View style={[styles.miniChip, { backgroundColor: seatColor(r.seatStatus, colors) + '1A' }]}>
+                            <Text style={[styles.miniChipText, { color: seatColor(r.seatStatus, colors) }]}>{SEAT_LABEL[String(r.seatStatus)] || r.seatStatus || '—'}</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                    {trips.length > TRIP_PREVIEW && (
+                      <TouchableOpacity activeOpacity={0.8} onPress={() => setAllTrips((v) => !v)} style={[styles.moreBtn, styles.divider]}>
+                        <Text style={[styles.moreBtnText, { color: colors.primary }]}>
+                          {allTrips ? 'Show less' : `Show all ${trips.length} trips`}
+                        </Text>
+                        <Ionicons name={allTrips ? 'chevron-up' : 'chevron-down'} size={15} color={colors.primary} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </>
+              )}
             </>
           )}
           <View style={{ height: 32 }} />
@@ -522,6 +538,8 @@ function makeStyles(c: ColorPalette) {
     },
     divider: { borderTopWidth: 1, borderTopColor: c.border },
     tripRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12 },
+    moreBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingTop: 12, marginTop: 2 },
+    moreBtnText: { fontSize: 13, fontFamily: fonts.bold },
     tripIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     tripDate: { fontSize: 13.5, fontFamily: fonts.semibold, color: c.text },
     tripMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
