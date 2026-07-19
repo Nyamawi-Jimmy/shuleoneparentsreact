@@ -164,6 +164,10 @@ const TabSlot: React.FC<{
         <Animated.Text
           numberOfLines={1}
           allowFontScaling={false}
+          // Long labels ("Communication") shrink to fit their slot instead of
+          // truncating to "Communicati…"; short ones are unaffected.
+          adjustsFontSizeToFit
+          minimumFontScale={0.82}
           style={[styles.label, { color: tint }, active ? styles.labelActive : styles.labelIdle]}
         >
           {label}

@@ -301,26 +301,53 @@ export const FinanceScreen: React.FC = () => {
                 term's statement, so the ledger below follows the selection. */}
             {terms.length > 1 && (
               <View style={styles.termWrap}>
-                <Text style={styles.termLabel}>TERM</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.termStrip}>
-                  {terms.map((t, i) => {
-                    const on = selTerm?.year === t.year && selTerm?.term === t.term;
-                    return (
-                      <TouchableOpacity
-                        key={`${t.year}-${t.term}-${i}`}
-                        activeOpacity={0.8}
-                        onPress={() => pickTerm(t)}
-                        style={[styles.termChip, on && { backgroundColor: colors.primary, borderColor: colors.primary }]}
-                      >
-                        <Text style={[styles.termChipText, on && { color: '#FFF' }]} numberOfLines={1}>
-                          {t.label || `Term ${t.term ?? '—'}`}
-                        </Text>
-                        <Text style={[styles.termChipSub, on && { color: 'rgba(255,255,255,0.85)' }]}>
-                          {t.current ? 'Current' : t.year ?? ''}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+                <View style={styles.termHead}>
+                  <Text style={styles.termLabel}>STATEMENT PERIOD</Text>
+                  {pastMode && (
+                    <TouchableOpacity
+                      hitSlop={8}
+                      onPress={() => {
+                        const cur = terms.find((t) => t.current);
+                        if (cur) pickTerm(cur);
+                      }}
+                    >
+                      <Text style={[styles.termReset, { color: colors.primary }]}>Back to current</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Inset segmented track: the selected term lifts out of the
+                    groove on a raised card, the rest stay flush. Reads as a
+                    control rather than a row of loose buttons. */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.termTrack}>
+                    {terms.map((t, i) => {
+                      const on = selTerm?.year === t.year && selTerm?.term === t.term;
+                      return (
+                        <TouchableOpacity
+                          key={`${t.year}-${t.term}-${i}`}
+                          activeOpacity={0.75}
+                          onPress={() => pickTerm(t)}
+                          style={[styles.termSeg, on && styles.termSegOn]}
+                        >
+                          <View style={styles.termSegRow}>
+                            {t.current && (
+                              <View style={[styles.termDot, { backgroundColor: on ? colors.primary : colors.success }]} />
+                            )}
+                            <Text
+                              style={[styles.termSegText, on && { color: colors.primary }]}
+                              numberOfLines={1}
+                            >
+                              {t.label || `Term ${t.term ?? '—'}`}
+                            </Text>
+                          </View>
+                          {!!t.year && (
+                            <Text style={[styles.termSegYear, on && { color: colors.primary }]}>{t.year}</Text>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 </ScrollView>
               </View>
             )}
@@ -601,19 +628,35 @@ function makeStyles(c: ColorPalette) {
     metaSmall: { fontSize: 12, fontFamily: fonts.medium, color: c.textTertiary },
 
     dlRow: { flexDirection: 'row', gap: 10, marginBottom: 22 },
-    termWrap: { marginBottom: 16 },
+    termWrap: { marginBottom: 18 },
+    termHead: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      marginBottom: 9,
+    },
     termLabel: {
-      fontSize: 10, fontFamily: fonts.extrabold, color: c.textTertiary,
-      letterSpacing: 0.7, marginBottom: 8,
+      fontSize: 10, fontFamily: fonts.extrabold, color: c.textTertiary, letterSpacing: 0.8,
     },
-    termStrip: { gap: 8, paddingRight: 4 },
-    termChip: {
-      minWidth: 92, paddingHorizontal: 13, paddingVertical: 9,
-      borderRadius: 12, borderWidth: 1, borderColor: c.border,
+    termReset: { fontSize: 11.5, fontFamily: fonts.bold },
+    // The groove the segments sit in.
+    termTrack: {
+      flexDirection: 'row', gap: 4,
+      backgroundColor: c.backgroundAlt,
+      borderRadius: 14, padding: 4,
+    },
+    termSeg: {
+      minWidth: 86, paddingHorizontal: 13, paddingVertical: 8,
+      borderRadius: 10, alignItems: 'center',
+    },
+    // Selected segment lifts out of the groove on a raised card.
+    termSegOn: {
       backgroundColor: c.card,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.12, shadowRadius: 3, elevation: 2,
     },
-    termChipText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.text },
-    termChipSub: { fontSize: 10.5, fontFamily: fonts.medium, color: c.textTertiary, marginTop: 1 },
+    termSegRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    termDot: { width: 5, height: 5, borderRadius: 2.5 },
+    termSegText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.textSecondary },
+    termSegYear: { fontSize: 10.5, fontFamily: fonts.medium, color: c.textTertiary, marginTop: 1 },
     dlTile: {
       flex: 1, backgroundColor: c.card, borderRadius: 18,
       borderWidth: 1, borderColor: c.border, padding: 14,
