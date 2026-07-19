@@ -39,7 +39,8 @@ const NAV: NavItem[] = [
     // Voyager+ fold Games into Learn; the play tiers keep Quests separate.
     name: 'quest', tiers: ALL, tint: '#15C98C',
     icon: (a) => (a ? 'map' : 'map-outline'),
-    labels: { base: 'Learn', sprout: 'Quests', explorer: 'Quests', voyager: 'Learn', scholar: 'Learning', campus: 'Coding' },
+    // "Quests" only up to G3 (sprout); everyone from G4 up says "Learn".
+    labels: { base: 'Learn', sprout: 'Quests', voyager: 'Learn', scholar: 'Learning', campus: 'Coding' },
   },
   {
     // Standalone Games only for the play tiers.

@@ -68,23 +68,45 @@ function subjectAccent(a: StudentAssignment): string {
   let h = 0; for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
   return SUBJ_ACCENTS[h % SUBJ_ACCENTS.length];
 }
+type StatusKey = 'active' | 'upcoming' | 'done' | 'missed';
+const STATUS_TABS: { key: StatusKey | 'all'; label: string; tone: string }[] = [
+  { key: 'all', label: 'All', tone: '#7c5cff' },
+  { key: 'active', label: 'Active', tone: '#ef4444' },
+  { key: 'upcoming', label: 'Upcoming', tone: '#3aa0ff' },
+  { key: 'done', label: 'Done', tone: '#15c98c' },
+  { key: 'missed', label: 'Missed', tone: '#9b94c4' },
+];
+
 const shortDate = (iso?: string | null) => {
   if (!iso) return '';
   const d = new Date(iso); return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 };
 // Human due countdown; `urgent` drives the red tint.
 function dueInfo(a: StudentAssignment, isDone: boolean): { text: string; urgent: boolean } {
-  if (a.status === 'MISSED') return { text: 'Missed', urgent: false };
-  if (isDone) return { text: a.submittedAt ? `Submitted ${shortDate(a.submittedAt)}` : 'Submitted', urgent: false };
-  if (a.status === 'OVERDUE') return { text: 'Overdue', urgent: true };
+  // The date is ALWAYS shown when we have one. A bare "Missed" or "Overdue"
+  // tells a student nothing about which deadline they slipped on.
+  const on = shortDate(a.dueAt);
+  if (a.status === 'MISSED') {
+    return { text: on ? `Missed · was due ${on}` : 'Missed · no due date', urgent: false };
+  }
+  if (isDone) {
+    return {
+      text: a.submittedAt ? `Submitted ${shortDate(a.submittedAt)}` : 'Submitted',
+      urgent: false,
+    };
+  }
+  if (a.status === 'OVERDUE') {
+    return { text: on ? `Overdue · was due ${on}` : 'Overdue', urgent: true };
+  }
   const t = a.dueAt ? new Date(a.dueAt).getTime() : NaN;
   if (isNaN(t)) return { text: 'No due date', urgent: false };
   const days = Math.ceil((t - Date.now()) / 86400000);
-  if (days < 0) return { text: 'Overdue', urgent: true };
-  if (days === 0) return { text: 'Due today', urgent: true };
-  if (days === 1) return { text: 'Due tomorrow', urgent: true };
-  if (days <= 6) return { text: `Due in ${days} days`, urgent: false };
-  return { text: `Due ${shortDate(a.dueAt)}`, urgent: false };
+  if (days < 0) return { text: `Overdue · was due ${on}`, urgent: true };
+  if (days === 0) return { text: `Due today · ${on}`, urgent: true };
+  if (days === 1) return { text: `Due tomorrow · ${on}`, urgent: true };
+  // Keep the countdown, but name the day so it can be diarised.
+  if (days <= 6) return { text: `Due in ${days} days · ${on}`, urgent: false };
+  return { text: `Due ${on}`, urgent: false };
 }
 
 export const AssignmentsView: React.FC = () => {
@@ -96,6 +118,7 @@ export const AssignmentsView: React.FC = () => {
   const [items, setItems] = useState<StudentAssignment[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [cat, setCat] = useState('all');
+  const [status, setStatus] = useState<StatusKey | 'all'>('all');
   const [openId, setOpenId] = useState<number | null>(null);
   // "Now" is captured at fetch time so due-window bucketing stays pure in render.
   const [nowMs, setNowMs] = useState<number | null>(null);
@@ -163,7 +186,28 @@ export const AssignmentsView: React.FC = () => {
   const present = [...new Set(list.map(categoryKey))];
   const cats = ORDER.filter((c) => present.includes(c)).concat(present.filter((c) => !ORDER.includes(c)));
   const showChips = cats.length > 1;
-  const visible = cat === 'all' ? list : list.filter((a) => categoryKey(a) === cat);
+  const byCat = cat === 'all' ? list : list.filter((a) => categoryKey(a) === cat);
+
+  // Status filter — deliberately NON-overlapping, so the counts add up to All:
+  //   Active   = still to do and already due (or undated) — work for right now
+  //   Upcoming = still to do, due after today
+  //   Done     = submitted or graded
+  //   Missed   = the window closed
+  const dueMs = (a: StudentAssignment) => (a.dueAt ? new Date(a.dueAt).getTime() : NaN);
+  const todayEnd = (() => {
+    const d = new Date(nowMs ?? Date.now());
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59).getTime();
+  })();
+  const statusOf = (a: StudentAssignment): StatusKey => {
+    if (a.status === 'MISSED') return 'missed';
+    if (a.status === 'SUBMITTED' || a.status === 'GRADED') return 'done';
+    const t = dueMs(a);
+    if (a.status === 'OVERDUE' || isNaN(t) || t <= todayEnd) return 'active';
+    return 'upcoming';
+  };
+  const counts: Record<StatusKey, number> = { active: 0, upcoming: 0, done: 0, missed: 0 };
+  byCat.forEach((a) => { counts[statusOf(a)] += 1; });
+  const visible = status === 'all' ? byCat : byCat.filter((a) => statusOf(a) === status);
 
   // Due-window grouping: "what's due TODAY" is the question a student asks.
   const base = nowMs ?? 0;
@@ -240,6 +284,28 @@ export const AssignmentsView: React.FC = () => {
           </View>
         ) : (
           <>
+            {/* Status filter — the primary cut. Counts are non-overlapping, so
+                Active + Upcoming + Done + Missed always equals All. */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusRow}>
+              {STATUS_TABS.map((t) => {
+                const on = status === t.key;
+                const n = t.key === 'all' ? byCat.length : counts[t.key as StatusKey];
+                return (
+                  <TouchableOpacity
+                    key={t.key}
+                    activeOpacity={0.8}
+                    onPress={() => setStatus(t.key)}
+                    style={[styles.statusTab, on && { backgroundColor: t.tone, borderColor: t.tone }]}
+                  >
+                    <Text style={[styles.statusTabText, on && { color: '#fff' }]}>{t.label}</Text>
+                    <View style={[styles.statusCount, on && { backgroundColor: 'rgba(255,255,255,0.26)' }]}>
+                      <Text style={[styles.statusCountText, on && { color: '#fff' }]}>{n}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
             {showChips && (
               <View style={styles.chipRow}>
                 {['all', ...cats].map((c) => {
@@ -376,6 +442,18 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: S.line },
   subline: { fontSize: 12, color: S.inkSoft, fontWeight: '700', marginBottom: 14 },
 
+  statusRow: { flexDirection: 'row', gap: 8, paddingRight: 4, marginBottom: 12 },
+  statusTab: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
+    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
+  },
+  statusTabText: { fontSize: 12.5, fontWeight: '800', color: S.inkSoft },
+  statusCount: {
+    minWidth: 20, paddingHorizontal: 5, paddingVertical: 1,
+    borderRadius: 7, backgroundColor: S.soft, alignItems: 'center',
+  },
+  statusCountText: { fontSize: 11, fontWeight: '800', color: S.inkSoft },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   chip: {
     backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
