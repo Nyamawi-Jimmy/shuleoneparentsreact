@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, Modal, Pressable, ScrollView, Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
@@ -61,7 +61,12 @@ export const ChildSwitcherModal: React.FC<ChildSwitcherModalProps> = ({ visible,
                   style={[styles.row, active && { borderColor: colors.primary, backgroundColor: colors.primarySofter }]}
                 >
                   <View style={[styles.avatar, { backgroundColor: soft }]}>
-                    <Text style={[styles.avatarText, { color: accent }]}>{initials(child.fullName || (child as any).name)}</Text>
+                    {/* Real photo when the child has one; initials are the fallback. */}
+                    {child.photoUrl ? (
+                      <Image source={{ uri: child.photoUrl }} style={styles.avatarImg} />
+                    ) : (
+                      <Text style={[styles.avatarText, { color: accent }]}>{initials(child.fullName || (child as any).name)}</Text>
+                    )}
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.name, isInactive && { color: colors.textTertiary }]} numberOfLines={1}>
@@ -117,7 +122,12 @@ function makeStyles(c: ColorPalette) {
       backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
       padding: 13,
     },
-    avatar: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
+    avatar: {
+      width: 46, height: 46, borderRadius: 23,
+      alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden', // clip the photo to the circle
+    },
+    avatarImg: { width: '100%', height: '100%' },
     avatarText: { fontSize: 15, fontFamily: fonts.extrabold },
     name: { fontSize: 15, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
     meta: { fontSize: 12, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 2 },

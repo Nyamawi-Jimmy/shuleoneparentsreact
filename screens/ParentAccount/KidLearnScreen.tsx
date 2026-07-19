@@ -231,13 +231,21 @@ const QuestStageMap: React.FC<{
   const rawY = stages.map((s, i) => hasCoords ? (s.mapY as number) : 92 - (i / Math.max(1, stages.length - 1)) * 84);
   const minY = Math.min(...rawY), maxY = Math.max(...rawY);
   const spanY = Math.max(1, maxY - minY);
-  const TOP = 8, BOT = 86; // leaves room at the top and (for labels) the bottom
+  // BOT is where the LAST node's CENTRE sits. Below it must fit the bubble's
+  // lower half (46px for a 92px boss) plus a two-line label — at 86% of a
+  // 640px canvas that was ~90px, i.e. exactly flush with the edge.
+  const TOP = 8, BOT = 80;
+  // Nodes are 120px wide and CENTRED on x, so an authored mapX near 0 or 100
+  // pushes the bubble and its label past the map's edge (which clips them).
+  // Keep every node inside a safe horizontal band.
+  const L = 22, R = 78;
+  const clampX = (v: number) => Math.max(L, Math.min(R, v));
   const positions = stages.map((s, i) => ({
-    x: hasCoords ? (s.mapX as number) : cols[i % cols.length],
+    x: clampX(hasCoords ? (s.mapX as number) : cols[i % cols.length]),
     y: stages.length <= 1 ? 50 : TOP + ((rawY[i] - minY) / spanY) * (BOT - TOP),
   }));
   const pathD = buildPath(positions);
-  const mapHeight = Math.max(640, stages.length * 98);
+  const mapHeight = Math.max(720, stages.length * 98);
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.scroll, { paddingBottom: 60 }]} showsVerticalScrollIndicator={false}>
@@ -386,11 +394,16 @@ function makeStyles(c: ColorPalette) {
     },
     legendText: { fontFamily: fonts.semibold, color: c.textSecondary, fontSize: 13.5 },
     mapWrap: {
-      padding: 8, borderRadius: 22, overflow: 'hidden', marginBottom: 14,
+      // Wider side padding than the vertical: the map's own content is the
+      // widest thing on the page, so it needs breathing room at the edges.
+      // Extra bottom padding so the last node's label never touches the edge.
+      paddingTop: 8, paddingBottom: 22, paddingHorizontal: 14,
+      borderRadius: 22, overflow: 'hidden', marginBottom: 14,
       shadowColor: '#5038A0', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 4,
     },
     map: { position: 'relative', width: '100%', height: 720 },
-    node: { position: 'absolute', width: 150, alignItems: 'center', transform: [{ translateX: -75 }, { translateY: -37 }] },
+    // 120 (not 150) so a node near the band edge still sits fully inside.
+    node: { position: 'absolute', width: 120, alignItems: 'center', transform: [{ translateX: -60 }, { translateY: -37 }] },
     bub: {
       width: 74, height: 74, borderRadius: 37, alignItems: 'center', justifyContent: 'center',
       borderWidth: 5, borderColor: '#fff',

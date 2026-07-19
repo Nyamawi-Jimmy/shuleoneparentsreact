@@ -11,7 +11,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { LearningHeader } from '../components/LearningHeader';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { mockLibrary, filterByTier, LibraryResource } from '../learningData';
 
 type Filter = 'all' | 'book' | 'notes' | 'audio' | 'pdf' | 'worksheet';
@@ -139,7 +138,6 @@ export const LibraryView: React.FC = () => {
 
         <View style={{ height: 120 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

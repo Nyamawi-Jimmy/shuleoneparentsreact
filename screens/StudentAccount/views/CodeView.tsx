@@ -5,7 +5,7 @@
 // Code / Challenge / Marks + team bar), the boss/champion node, coding exams,
 // and the gamified progress profile.
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert,
@@ -16,7 +16,6 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTier } from '../TierContext';
 import { useTokens, SHARED } from '../tokens';
 import { TopBar } from '../components/TopBar';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { useAuth } from '../../../context/AuthContext';
 import {
   getCodingProgress, getCodingLesson, CodingProgressRow, CodingLessonDetail,
@@ -26,11 +25,15 @@ import { StudentProfile } from '../../../api/student.types';
 import { CodingLessonScreen } from './CodingLessonScreen';
 import { CodingExamsSection } from './CodingExamsSection';
 
+// Web parity (lms-react CodingView): Portfolio is hidden for the play tiers —
+// a six-year-old has no portfolio to curate — so they get four destinations
+// and everyone older gets five.
 const SECTIONS = [
   { key: 'lessons', icon: '🗺️', label: 'Lessons' },
   { key: 'playground', icon: '🎮', label: 'Playground' },
   { key: 'exams', icon: '🏅', label: 'Exams' },
   { key: 'progress', icon: '🏆', label: 'Progress' },
+  { key: 'portfolio', icon: '🎒', label: 'Portfolio' },
 ] as const;
 type SectionKey = typeof SECTIONS[number]['key'];
 
@@ -51,11 +54,22 @@ const PG_KINDS = [
 ];
 
 export const CodeView: React.FC = () => {
-  const { tier } = useTier();
+  const { tier, layout } = useTier();
   const tokens = useTokens(tier);
   useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const { accessToken } = useAuth();
-  const playful = tier === 'sprout' || tier === 'explorer';
+  // Gamification tapers with the learner's level — the web's gamificationMode:
+  //   play  (sprout PP–G3 + explorer G4–G6): full treatment — mascot, coins, path.
+  //   teen  (voyager JSS 7–9): calmer — no mascot/coins, plain copy, path kept.
+  //   sober (scholar SSS 10–12 + campus): neutral, inline stats, LIST not path.
+  const mode: 'play' | 'teen' | 'sober' =
+    layout === 'play' ? 'play' : layout === 'teen' ? 'teen' : 'sober';
+  const playful = mode === 'play';
+  const young = playful;
+  const sections = useMemo(
+    () => SECTIONS.filter((s) => s.key !== 'portfolio' || !young),
+    [young],
+  );
 
   const [section, setSection] = useState<SectionKey>('lessons');
   const [progress, setProgress] = useState<CodingProgressRow[] | null>(null);
@@ -160,23 +174,33 @@ export const CodeView: React.FC = () => {
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.brandTitle}>ShuleOne Coding</Text>
             <Text style={styles.brandSub} numberOfLines={1}>
-              {playful ? `Hi ${firstName}! Ready for today’s adventure? 🌟` : `Welcome back, ${firstName}.`}
+              {mode === 'play' ? `Hi ${firstName}! Ready for today’s adventure? 🌟`
+                : mode === 'teen' ? `Welcome back, ${firstName}.`
+                : `${firstName} · ${done}/${rows.length} lessons · ${pct}% complete`}
             </Text>
           </View>
-          <View style={styles.coins}>
-            <Text style={styles.coin}>⭐ {done}</Text>
-            <Text style={styles.coin}>🏅 {pct}%</Text>
-            {playful && <Text style={styles.coin}>💎 {done * 10}</Text>}
-          </View>
+          {/* Sober tiers carry their stats inline in the subtitle instead of
+              wearing coin pills. */}
+          {mode !== 'sober' && (
+            <View style={styles.coins}>
+              <Text style={styles.coin}>⭐ {done}</Text>
+              <Text style={styles.coin}>🏅 {pct}%</Text>
+              {playful && <Text style={styles.coin}>💎 {done * 10}</Text>}
+            </View>
+          )}
         </View>
 
         {/* Section pills */}
         <View style={styles.sectionTabs}>
-          {SECTIONS.map((s) => (
+          {sections.map((s) => (
             <TouchableOpacity
               key={s.key}
               activeOpacity={0.8}
-              onPress={() => setSection(s.key)}
+              // Portfolio is a full screen of its own (own header + scroll), so
+              // it opens rather than swapping the body in place.
+              onPress={() => (s.key === 'portfolio'
+                ? router.push('/student/portfolio' as any)
+                : setSection(s.key))}
               style={[styles.sectionTab, section === s.key && { backgroundColor: tokens.accent1, borderColor: tokens.accent1 }]}
             >
               <Text style={styles.sectionTabIcon}>{s.icon}</Text>
@@ -196,19 +220,27 @@ export const CodeView: React.FC = () => {
           <>
             {today && (
               <TouchableOpacity activeOpacity={0.9} onPress={() => open(today)}>
+                {/* Sober tiers get a plain card; the play/teen tiers keep the
+                    warm gradient and the exclamation. */}
                 <LinearGradient
-                  colors={[SHARED.orange1, SHARED.pink1]}
+                  colors={mode === 'sober'
+                    ? [tokens.accent1, tokens.accent2]
+                    : [SHARED.orange1, SHARED.pink1]}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
                   style={[styles.todayBanner, { borderRadius: tokens.radius }]}
                 >
-                  <Text style={{ fontSize: 26 }}>🔔</Text>
+                  {mode !== 'sober' && <Text style={{ fontSize: 26 }}>🔔</Text>}
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.todayKick}>📣 TODAY’S LESSON — JOIN IN!</Text>
+                    <Text style={styles.todayKick}>
+                      {mode === 'play' ? '📣 TODAY’S LESSON — JOIN IN!'
+                        : mode === 'teen' ? 'TODAY’S LESSON'
+                        : 'CURRENT LESSON'}
+                    </Text>
                     <Text style={styles.todayTitle} numberOfLines={1}>
                       Lesson {today.lessonNumber}: {today.title}
                     </Text>
                   </View>
-                  <Text style={styles.todayGo}>Jump in ›</Text>
+                  <Text style={styles.todayGo}>{mode === 'sober' ? 'Open ›' : 'Jump in ›'}</Text>
                 </LinearGradient>
               </TouchableOpacity>
             )}
@@ -241,19 +273,38 @@ export const CodeView: React.FC = () => {
                     const prevDone = i > 0 && (rows[i - 1].quizPassed || rows[i - 1].status === 'COMPLETED');
                     return (
                       <TouchableOpacity key={r.lessonId} activeOpacity={0.8} onPress={() => open(r)} disabled={opening} style={styles.pathRow}>
-                        <View style={styles.rail}>
-                          <View style={[styles.connSeg, { backgroundColor: i === 0 ? 'transparent' : (prevDone ? SHARED.green1 : C.line) }]} />
-                          {state === 'done' ? (
-                            <LinearGradient colors={[SHARED.green1, '#0fae78']} style={styles.numBubble}><Text style={styles.numBubbleText}>✓</Text></LinearGradient>
-                          ) : state === 'cur' ? (
-                            <LinearGradient colors={[SHARED.orange1, SHARED.pink1]} style={styles.numBubble}><Text style={styles.numBubbleText}>{r.lessonNumber}</Text></LinearGradient>
-                          ) : (
-                            <View style={[styles.numBubble, { backgroundColor: '#d9d4ee' }]}><Text style={[styles.numBubbleText, { color: C.faint }]}>🔒</Text></View>
-                          )}
-                          <View style={[styles.connSeg, { backgroundColor: isDone ? SHARED.green1 : C.line }]} />
-                        </View>
+                        {mode === 'sober' ? (
+                          // Senior/campus: a numbered list, no connecting rail —
+                          // the journey metaphor is for younger learners.
+                          <View style={[styles.listNum, {
+                            backgroundColor: state === 'done' ? C.okSoft : state === 'cur' ? C.ring : C.soft,
+                          }]}>
+                            <Text style={[styles.listNumText, {
+                              color: state === 'done' ? C.okInk : state === 'cur' ? tokens.accent1 : C.faint,
+                            }]}>
+                              {state === 'lock' ? '–' : r.lessonNumber}
+                            </Text>
+                          </View>
+                        ) : (
+                          <View style={styles.rail}>
+                            <View style={[styles.connSeg, { backgroundColor: i === 0 ? 'transparent' : (prevDone ? SHARED.green1 : C.line) }]} />
+                            {state === 'done' ? (
+                              <LinearGradient colors={[SHARED.green1, '#0fae78']} style={styles.numBubble}><Text style={styles.numBubbleText}>✓</Text></LinearGradient>
+                            ) : state === 'cur' ? (
+                              <LinearGradient colors={[SHARED.orange1, SHARED.pink1]} style={styles.numBubble}><Text style={styles.numBubbleText}>{r.lessonNumber}</Text></LinearGradient>
+                            ) : (
+                              <View style={[styles.numBubble, { backgroundColor: '#d9d4ee' }]}><Text style={[styles.numBubbleText, { color: C.faint }]}>🔒</Text></View>
+                            )}
+                            <View style={[styles.connSeg, { backgroundColor: isDone ? SHARED.green1 : C.line }]} />
+                          </View>
+                        )}
                         <View style={styles.pathBody}>
-                          <Text style={styles.lessonKick}>LESSON {r.lessonNumber}{r.teacherOpen && state !== 'done' ? '  ·  📣 IN CLASS' : ''}</Text>
+                          <Text style={styles.lessonKick}>
+                            LESSON {r.lessonNumber}
+                            {r.teacherOpen && state !== 'done'
+                              ? (mode === 'sober' ? '  ·  IN CLASS' : '  ·  📣 IN CLASS')
+                              : ''}
+                          </Text>
                           <Text style={[styles.lessonTitle, state === 'lock' && { color: C.faint }]} numberOfLines={2}>{r.title ?? `Lesson ${r.lessonNumber}`}</Text>
                           <View style={styles.lessonMetaRow}>
                             <View style={[styles.stateChip, { backgroundColor: state === 'done' ? C.okSoft : state === 'cur' ? '#FFF1E6' : C.soft }]}>
@@ -273,7 +324,10 @@ export const CodeView: React.FC = () => {
                     );
                   })}
 
-                  {/* Boss / champion — the terminal node of the path */}
+                  {/* Boss / champion — the terminal node of the path. A trophy
+                      stage is play/teen candy; senior and campus learners get a
+                      plain list that simply ends. */}
+                  {mode !== 'sober' && (
                   <TouchableOpacity activeOpacity={0.8} onPress={openBoss} style={styles.pathRow}>
                     <View style={styles.rail}>
                       <View style={[styles.connSeg, { backgroundColor: done >= rows.length && rows.length > 0 ? SHARED.green1 : C.line }]} />
@@ -287,6 +341,7 @@ export const CodeView: React.FC = () => {
                     </View>
                     <Text style={styles.chev}>›</Text>
                   </TouchableOpacity>
+                  )}
                 </View>
               </>
             )}
@@ -316,7 +371,6 @@ export const CodeView: React.FC = () => {
 
         <View style={{ height: 110 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };
@@ -545,6 +599,12 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
 
   pathRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
   rail: { width: 40, alignItems: 'center' },
+  // Sober list marker — replaces the rail + bubble for senior/campus.
+  listNum: {
+    width: 32, height: 32, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center', marginRight: 8,
+  },
+  listNumText: { fontSize: 13.5, fontWeight: '800' },
   connSeg: { width: 3, flex: 1, minHeight: 8, borderRadius: 3 },
   pathBody: { flex: 1, minWidth: 0, justifyContent: 'center', paddingVertical: 12 },
   lessonKick: { fontSize: 9, fontWeight: '800', color: S.inkSoft, letterSpacing: 0.6, marginBottom: 3 },

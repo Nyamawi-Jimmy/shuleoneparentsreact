@@ -14,7 +14,7 @@ export default function TabLayout() {
       <Tabs.Screen name="learning" options={{ title: t('nav.learning') }} />
       <Tabs.Screen name="finance" options={{ title: t('nav.fees') }} />
       <Tabs.Screen name="academics" options={{ title: t('nav.academics') }} />
-      <Tabs.Screen name="communication" options={{ title: t('nav.messages') }} />
+      <Tabs.Screen name="communication" options={{ title: t('nav.communication') }} />
     </Tabs>
   );
 }

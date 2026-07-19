@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GradientAppBar } from '../../components/GradientAppBar';
 import { useAuth } from '../../context/AuthContext';
 import { useParentProfile } from '../../context/ParentProfileContext';
@@ -445,11 +446,13 @@ const FormSheet: React.FC<{
 }> = ({ visible, title, onClose, onSubmit, submitting, submitLabel, submitDisabled, message, children }) => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  // The sheet's submit button is its lowest element — pad above the nav keys.
+  const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <TouchableOpacity style={styles.sheetBackdrop} activeOpacity={1} onPress={onClose} />
-        <View style={styles.sheetBody}>
+        <View style={[styles.sheetBody, { paddingBottom: insets.bottom + 18 }]}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHeadRow}>
             <Text style={styles.sheetHeadTitle}>{title}</Text>

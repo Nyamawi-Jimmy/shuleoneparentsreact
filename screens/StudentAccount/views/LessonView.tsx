@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTier } from '../TierContext';
 import { useTokens, SHARED } from '../tokens';
 import { Mascot } from '../components/Mascot';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 
 /**
  * Lesson view - the content totally differs per tier:
@@ -42,7 +41,6 @@ export const LessonView: React.FC = () => {
 
         <View style={{ height: 120 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

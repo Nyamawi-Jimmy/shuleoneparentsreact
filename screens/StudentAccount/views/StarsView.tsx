@@ -7,7 +7,6 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { useLeague } from '../../../hooks/useLeague';
 import { LeagueEntry } from '../../../api/gamification.types';
 
@@ -120,7 +119,6 @@ export const StarsView: React.FC = () => {
 
         <View style={{ height: 120 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

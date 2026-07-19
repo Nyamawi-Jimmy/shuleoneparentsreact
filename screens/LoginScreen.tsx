@@ -80,8 +80,17 @@ export const LoginScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      {/* Android needs an explicit behavior — with `undefined` the view does
+          nothing, so the keyboard covered the password field (the lower of the
+          two) and it looked like the field had disappeared. 'height' is what
+          ConversationScreen already uses successfully. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
           {/* Brand mark — the only saturated element on the page */}
           <View style={styles.brand}>
             <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.logoSquircle}>

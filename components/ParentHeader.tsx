@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useParentProfile } from '../context/ParentProfileContext';
+import { AccountMenu } from './AccountMenu';
 import { useTheme } from '../theme/ThemeContext';
 import { ColorPalette } from '../theme/palettes';
 import { fonts } from '../constants/theme';
@@ -40,6 +41,7 @@ export const ParentHeader: React.FC<Props> = ({
   const { colors } = useTheme();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const { parent } = useParentProfile();
+  const [menuOpen, setMenuOpen] = React.useState(false);
   // Pad by the real status-bar height instead of a hardcoded guess, so the
   // clock/battery/notification icons are never sat on by the header row.
   const insets = useSafeAreaInsets();
@@ -79,9 +81,16 @@ export const ParentHeader: React.FC<Props> = ({
   // ── Greeting mode (Today) ───────────────────────────────────────
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 16 }]}>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initials(parent?.name || displayName)}</Text>
-      </View>
+      {/* Avatar opens the account menu — sign-out from any sub-page. */}
+      <TouchableOpacity activeOpacity={0.8} onPress={() => setMenuOpen(true)} style={styles.avatar}>
+        {/* Real photo when the parent has one; initials are the fallback. */}
+        {parent?.photoUrl ? (
+          <Image source={{ uri: parent.photoUrl }} style={styles.avatarImg} />
+        ) : (
+          <Text style={styles.avatarText}>{initials(parent?.name || displayName)}</Text>
+        )}
+      </TouchableOpacity>
+      <AccountMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
       <View style={styles.greetingCol}>
         <Text style={styles.greetingLabel}>{getGreeting()}</Text>
         <Text style={styles.greetingName} numberOfLines={1}>{displayName}</Text>
@@ -106,7 +115,9 @@ function makeStyles(c: ColorPalette) {
       width: 42, height: 42, borderRadius: 21,
       backgroundColor: c.primarySoft,
       alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden', // clip the photo to the circle
     },
+    avatarImg: { width: '100%', height: '100%' },
     avatarText: { color: c.primary, fontFamily: fonts.extrabold, fontSize: 15 },
     greetingCol: { flex: 1 },
     greetingLabel: { color: c.textSecondary, fontFamily: fonts.medium, fontSize: 12.5, letterSpacing: 0.1 },

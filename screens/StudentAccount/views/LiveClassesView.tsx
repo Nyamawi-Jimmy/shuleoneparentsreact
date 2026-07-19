@@ -8,7 +8,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { LearningHeader } from '../components/LearningHeader';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { useStudentLiveClasses } from '../../../hooks/useStudentLiveClasses';
 import { StudentLiveClass } from '../../../api/student.types';
 
@@ -108,7 +107,6 @@ export const LiveClassesView: React.FC = () => {
         )}
         <View style={{ height: 120 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

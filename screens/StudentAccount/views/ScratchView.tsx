@@ -6,7 +6,6 @@ import { router } from 'expo-router';
 import { useTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { LearningHeader } from '../components/LearningHeader';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { mockScratchLessons, mockScratchTemplates } from '../codeLabData';
 
 export const ScratchView: React.FC = () => {
@@ -96,7 +95,6 @@ export const ScratchView: React.FC = () => {
 
         <View style={{ height: 120 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

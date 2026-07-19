@@ -15,7 +15,6 @@ import { useFocusEffect } from 'expo-router';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { TopBar } from '../components/TopBar';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { useAuth } from '../../../context/AuthContext';
 import {
   getStudentCalendar, getStudentLiveClasses, joinStudentLiveClass,
@@ -238,7 +237,6 @@ export const EventsView: React.FC = () => {
 
         <View style={{ height: 110 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

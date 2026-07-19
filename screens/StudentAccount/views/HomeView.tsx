@@ -3,7 +3,6 @@ import { View, StyleSheet, SafeAreaView } from 'react-native';
 import { useTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { TopBar } from '../components/TopBar';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { PlayHome } from '../home/PlayHome';
 import { TeenHome } from '../home/TeenHome';
 import { SeniorHome } from '../home/SeniorHome';
@@ -20,7 +19,6 @@ export const HomeView: React.FC = () => {
       {layout === 'teen' && <TeenHome />}
       {layout === 'senior' && <SeniorHome />}
       {layout === 'campus' && <CampusHome />}
-      <AgeSwitcher />
     </SafeAreaView>
   );
 };

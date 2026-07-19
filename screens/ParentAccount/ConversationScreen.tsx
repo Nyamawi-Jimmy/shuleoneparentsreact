@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, Image,
-  TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Keyboard,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { useChatConversation } from '../../hooks/useChatConversation';
@@ -19,6 +21,21 @@ export const ConversationScreen: React.FC = () => {
   // Pad by the real status-bar height instead of a hardcoded guess, so the
   // clock/battery/notification icons are never sat on by the header row.
   const insets = useSafeAreaInsets();
+  // The composer must clear Android's nav keys when the keyboard is DOWN, but
+  // not when it's up — the keyboard covers that strip, and padding for it then
+  // would float the input on a dead gap.
+  const [kbUp, setKbUp] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKbUp(true),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKbUp(false),
+    );
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   const params = useLocalSearchParams<{ contactId?: string; name?: string; avatar?: string; role?: string }>();
   const contactId = params.contactId ? Number(params.contactId) : null;
@@ -56,19 +73,62 @@ export const ConversationScreen: React.FC = () => {
     finally { setSending(false); }
   };
 
-  const handleAttach = async () => {
+  const pickDocument = async () => {
     try {
-      let DocumentPicker: any;
-      try { DocumentPicker = require('expo-document-picker'); }
-      catch { Alert.alert('Install document picker', 'Run: npx expo install expo-document-picker'); return; }
-      const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true, type: ['image/*', 'application/pdf'] });
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        type: ['image/*', 'application/pdf'],
+      });
       if (result.canceled) return;
       const file = result.assets?.[0];
       if (!file) return;
       setSending(true);
-      await sendAttachment({ uri: file.uri, name: file.name, type: file.mimeType ?? 'application/octet-stream' });
+      await sendAttachment({
+        uri: file.uri,
+        name: file.name,
+        type: file.mimeType ?? 'application/octet-stream',
+      });
     } catch (e: any) { Alert.alert('Upload failed', e?.message ?? 'Try again.'); }
     finally { setSending(false); }
+  };
+
+  const pickPhoto = async (fromCamera: boolean) => {
+    try {
+      const perm = fromCamera
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          fromCamera ? 'Camera permission needed' : 'Photos permission needed',
+          'Allow access in Settings to send pictures.',
+        );
+        return;
+      }
+      const result = fromCamera
+        ? await ImagePicker.launchCameraAsync({ quality: 0.7 })
+        : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] });
+      if (result.canceled) return;
+      const img = result.assets?.[0];
+      if (!img) return;
+      setSending(true);
+      await sendAttachment({
+        uri: img.uri,
+        name: img.fileName ?? `photo-${Date.now()}.jpg`,
+        type: img.mimeType ?? 'image/jpeg',
+      });
+    } catch (e: any) { Alert.alert('Upload failed', e?.message ?? 'Try again.'); }
+    finally { setSending(false); }
+  };
+
+  // Paperclip → choose a source. A single picker meant a parent photographing
+  // homework had to save it to files first.
+  const handleAttach = () => {
+    Alert.alert('Send an attachment', 'What would you like to send?', [
+      { text: 'Take a photo', onPress: () => pickPhoto(true) },
+      { text: 'Choose a photo', onPress: () => pickPhoto(false) },
+      { text: 'Choose a file', onPress: pickDocument },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   const initials = contactName.split(/\s+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('');
@@ -143,7 +203,7 @@ export const ConversationScreen: React.FC = () => {
           />
         )}
 
-        <View style={styles.composer}>
+        <View style={[styles.composer, { paddingBottom: (kbUp ? 0 : insets.bottom) + 10 }]}>
           <TouchableOpacity activeOpacity={0.7} onPress={handleAttach} style={styles.attachBtn}>
             <Feather name="paperclip" size={18} color={colors.textSecondary} />
           </TouchableOpacity>

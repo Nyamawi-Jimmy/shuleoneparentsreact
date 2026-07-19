@@ -20,11 +20,12 @@ import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { fonts } from '../../constants/theme';
 import { ChildSwitcherModal } from '../../components/ChildSwitcherModal';
+import { AccountMenu } from '../../components/AccountMenu';
 import { useSelectedChild } from '../../context/SelectedChildContext';
 import { useParentProfile } from '../../context/ParentProfileContext';
 import { useParentHome } from '../../hooks/useParentHome';
 import { useChildFees } from '../../hooks/useChildFees';
-import { useChildAttendance } from '../../hooks/useAcademics';
+import { useChildAcademics } from '../../hooks/useAcademics';
 import { useChildUpcoming } from '../../hooks/useChildUpcoming';
 import { moneyToNumber } from '../../api/fees.types';
 import { ParentHomeAction, ParentHomeSignal } from '../../api/home';
@@ -91,12 +92,15 @@ function greetingKey(): string {
 // Quick access — everything that isn't a bottom tab, one tap away (More is gone).
 interface QuickItem { key: string; route: string; icon: React.ReactNode; tint: string }
 const quickItems = (c: ColorPalette): QuickItem[] => [
+  // Learning first — it's the reason most parents open the app.
+  { key: 'nav.aiLearning', route: '/learning',                  tint: '#7C3AED', icon: <Ionicons name="sparkles-outline" size={21} color="#7C3AED" /> },
   { key: 'nav.coding',     route: '/coding',                    tint: '#059669', icon: <MaterialCommunityIcons name="code-tags" size={21} color="#059669" /> },
-  { key: 'nav.bus',        route: '/transport',                 tint: '#2563EB', icon: <MaterialCommunityIcons name="bus-school" size={21} color="#2563EB" /> },
-  { key: 'nav.attendance', route: '/academics?tab=attendance',  tint: '#0891B2', icon: <Ionicons name="checkmark-done-outline" size={21} color="#0891B2" /> },
   { key: 'nav.diary',      route: '/diary',                     tint: '#DB2777', icon: <Ionicons name="book-outline" size={21} color="#DB2777" /> },
-  { key: 'nav.live',       route: '/live-classes',              tint: '#E11D48', icon: <Ionicons name="videocam-outline" size={21} color="#E11D48" /> },
-  { key: 'nav.calendar',   route: '/calendar',                  tint: '#7C3AED', icon: <Ionicons name="calendar-outline" size={21} color="#7C3AED" /> },
+  // One tile: the Calendar screen already merges school events AND live classes
+  // (with an all/school/live filter and a join button), so a separate Live tile
+  // was a second door into the same room.
+  { key: 'nav.eventsLive', route: '/calendar',                  tint: '#0891B2', icon: <Ionicons name="calendar-outline" size={21} color="#0891B2" /> },
+  { key: 'nav.bus',        route: '/transport',                 tint: '#2563EB', icon: <MaterialCommunityIcons name="bus-school" size={21} color="#2563EB" /> },
   { key: 'nav.documents',  route: '/documents',                 tint: '#D97706', icon: <Ionicons name="folder-open-outline" size={21} color="#D97706" /> },
   { key: 'nav.settings',   route: '/settings',                  tint: '#64748B', icon: <Ionicons name="settings-outline" size={21} color="#64748B" /> },
 ];
@@ -115,10 +119,13 @@ export const HomeScreen: React.FC = () => {
   const { t } = useLanguage();
   const { selectedChild: child, children } = useSelectedChild();
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  // Header avatar opens the account menu — sign-out used to mean Settings then
+  // a scroll to the very bottom.
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const { data: home, loading: homeLoading, refreshing, error: homeError, refresh } = useParentHome();
   const { summary: feesSummary } = useChildFees();
-  const { summary: attendanceSummary } = useChildAttendance();
+  const { exams: academicExams } = useChildAcademics();
   const { items: upcoming } = useChildUpcoming();
 
   const parentName = parent?.firstName || 'there';
@@ -130,17 +137,45 @@ export const HomeScreen: React.FC = () => {
 
   // At a glance — real where available, honest neutral otherwise.
   const feesBalance = feesSummary ? moneyToNumber(feesSummary.balance) : null;
-  const feesValue = feesBalance == null ? '—' : feesBalance > 0 ? formatKsh(feesBalance) : 'Up to date';
-  const feesTone = feesBalance != null && feesBalance > 0 ? colors.danger : colors.success;
-  const feesFoot = feesBalance == null ? 'Tap to view' : feesBalance > 0 ? 'Balance due · tap to pay' : 'All settled this term';
-
-  const attDays = attendanceSummary?.days ?? [];
-  const attLatest = attDays.length
-    ? [...attDays].sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]
+  // Billed = brought forward + this term's billing, the same total the Fees
+  // screen's donut is measured against.
+  const feesBilled = feesSummary
+    ? moneyToNumber(feesSummary.broughtForward) + moneyToNumber(feesSummary.termBilling)
     : null;
-  const attRate = attendanceSummary?.attendanceRate;
-  const attValue = attRate != null ? `${Math.round(attRate)}%` : attLatest?.status ? String(attLatest.status) : '—';
-  const attFoot = attRate != null ? 'Attendance this term' : attLatest?.status ? 'Latest recorded day' : 'No records yet';
+  const feesPaid = feesSummary ? moneyToNumber(feesSummary.paid) : null;
+  const feesCleared = feesBalance != null && feesBalance <= 0;
+  // Cleared accounts showed a bare "Up to date", which told a parent nothing.
+  // Show what was actually paid, against what was billed.
+  const feesValue = feesBalance == null
+    ? '—'
+    : feesCleared
+      ? formatKsh(feesPaid ?? 0)
+      : formatKsh(feesBalance);
+  // Cleared reads as a paid/billed fraction — "63,000 / 63,000" — so the two
+  // numbers matching IS the proof it's settled. A lone figure looked like a
+  // balance still owing.
+  // Currency appears once, on the paid figure — repeating "KSh" in the
+  // denominator only made the line long enough to truncate.
+  const feesSuffix = feesCleared && feesBilled != null
+    ? ` / ${formatKsh(feesBilled).replace(/^KSh\s*/i, '')}`
+    : undefined;
+  const feesTone = feesBalance != null && feesBalance > 0 ? colors.danger : colors.success;
+  const feesFoot = feesBalance == null
+    ? 'Tap to view'
+    : feesCleared
+      ? 'Fully paid this term'
+      : 'Balance due · tap to pay';
+
+  // Latest exam = highest examId, the same ordering AcademicsScreen uses, so
+  // the card and the screen never disagree about which exam is "latest".
+  const latestExam = useMemo(() => {
+    const list = [...(academicExams ?? [])].sort(
+      (a, b) => (Number(b.examId) || 0) - (Number(a.examId) || 0),
+    );
+    return list[0] ?? null;
+  }, [academicExams]);
+  const academicsValue = latestExam?.mean ?? latestExam?.grade ?? '—';
+  const academicsFoot = latestExam?.examName || (latestExam ? 'Latest exam' : 'No results yet');
 
   // Match the web's greeting subtitle ("Here's how <child> is doing today.")
   // instead of the backend's action-count status line.
@@ -167,7 +202,7 @@ export const HomeScreen: React.FC = () => {
         {/* ── Integrated header: greeting, bell, child switcher ─────────── */}
         <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.header, { paddingTop: insets.top + 20 }]}>
           <View style={styles.headerTop}>
-            <TouchableOpacity style={styles.avatarWrap} activeOpacity={0.8} onPress={() => router.push('/settings' as any)}>
+            <TouchableOpacity style={styles.avatarWrap} activeOpacity={0.8} onPress={() => setMenuOpen(true)}>
               {parent?.photoUrl ? (
                 <Image source={{ uri: parent.photoUrl }} style={styles.avatarImg} />
               ) : (
@@ -192,7 +227,12 @@ export const HomeScreen: React.FC = () => {
               onPress={hasMultiple ? () => setSwitcherOpen(true) : () => router.push('/settings' as any)}
             >
               <View style={styles.childAvatar}>
-                <Text style={styles.childAvatarText}>{initials(child.fullName || (child as any).name)}</Text>
+                {/* Real photo when the child has one; initials are the fallback. */}
+                {child.photoUrl ? (
+                  <Image source={{ uri: child.photoUrl }} style={styles.childAvatarImg} />
+                ) : (
+                  <Text style={styles.childAvatarText}>{initials(child.fullName || (child as any).name)}</Text>
+                )}
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.childName} numberOfLines={1}>{child.fullName || (child as any).name}</Text>
@@ -221,17 +261,17 @@ export const HomeScreen: React.FC = () => {
               icon={<MaterialCommunityIcons name="wallet-outline" size={17} color="#FFF" />}
               chip={feesBalance == null ? null : feesBalance > 0
                 ? { text: 'Due', tint: colors.danger }
-                : { text: 'Cleared', tint: colors.success }}
-              value={feesValue} valueColor={feesTone} foot={feesFoot}
+                : { text: '✓ Cleared', tint: colors.success }}
+              value={feesValue} valueColor={feesTone} valueSuffix={feesSuffix} foot={feesFoot}
               onPress={() => router.push('/finance' as any)}
             />
             <StatCard
-              styles={styles} colors={colors} label={t('home.attendance')}
+              styles={styles} colors={colors} label={t('home.academics')}
               gradient={['#6366F1', '#4F46E5']}
-              icon={<Ionicons name="checkmark-done-outline" size={17} color="#FFF" />}
-              ring={attRate != null ? Math.max(0, Math.min(100, attRate)) : null}
-              value={attValue} foot={attFoot}
-              onPress={() => router.push('/academics?tab=attendance' as any)}
+              icon={<Ionicons name="school-outline" size={17} color="#FFF" />}
+              chip={latestExam?.grade ? { text: latestExam.grade, tint: '#4F46E5' } : null}
+              value={academicsValue} foot={academicsFoot}
+              onPress={() => router.push('/academics' as any)}
             />
             <StatCard
               styles={styles} colors={colors} label={t('home.bus')}
@@ -350,22 +390,9 @@ export const HomeScreen: React.FC = () => {
             </>
           )}
 
-          {/* Recent activity */}
-          {signals.length > 0 && (
-            <>
-              <SectionHeader styles={styles} colors={colors} title="Recent activity" />
-              <View style={styles.card}>
-                {signals.slice(0, 8).map((s, i) => (
-                  <TouchableOpacity key={s.id || i} style={[styles.signalRow, i > 0 && styles.divider]} activeOpacity={0.7}
-                    onPress={() => router.push(toMobileRoute(s.deepLink) as any)}>
-                    <Text style={styles.signalTime}>{timeLabel(s.occurredAt)}</Text>
-                    <View style={[styles.signalDot, { backgroundColor: s.isNew ? colors.primary : colors.border }]} />
-                    <Text style={styles.signalTitle} numberOfLines={2}>{s.title}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          )}
+          {/* "Recent activity" removed — it repeated what Upcoming events and
+              the Updates card already say. `signals` is still read for the
+              Updates unread count and the empty-state test below. */}
 
           {/* Empty / error */}
           {!homeLoading && actions.length === 0 && signals.length === 0 && upcoming.length === 0 && (
@@ -383,6 +410,7 @@ export const HomeScreen: React.FC = () => {
       </ScrollView>
 
       <ChildSwitcherModal visible={switcherOpen} onClose={() => setSwitcherOpen(false)} />
+      <AccountMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
     </View>
   );
 };
@@ -475,10 +503,12 @@ const Ring: React.FC<{ pct: number; color: string; track: string; size?: number;
 const StatCard: React.FC<{
   styles: any; colors: ColorPalette; label: string; gradient: [string, string]; icon: React.ReactNode;
   value: string; valueColor?: string; foot: string;
+  /** Muted trailing part, e.g. the "/ 63,000" of a paid-in-full figure. */
+  valueSuffix?: string;
   chip?: { text: string; tint: string; dot?: boolean } | null;
   ring?: number | null;
   onPress: () => void;
-}> = ({ styles, colors, label, gradient, icon, value, valueColor, foot, chip, ring, onPress }) => (
+}> = ({ styles, colors, label, gradient, icon, value, valueColor, valueSuffix, foot, chip, ring, onPress }) => (
   <TouchableOpacity style={styles.statCard} activeOpacity={0.75} onPress={onPress}>
     <View style={styles.statHead}>
       <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statIcon}>
@@ -495,7 +525,17 @@ const StatCard: React.FC<{
       ) : null}
     </View>
     <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
-    <Text style={[styles.statValue, valueColor ? { color: valueColor } : null]} numberOfLines={1}>{value}</Text>
+    {/* Shrink to fit rather than ellipsize — a truncated money figure is
+        worse than a slightly smaller one. */}
+    <Text
+      style={[styles.statValue, valueColor ? { color: valueColor } : null]}
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      minimumFontScale={0.65}
+    >
+      {value}
+      {!!valueSuffix && <Text style={styles.statValueSuffix}>{valueSuffix}</Text>}
+    </Text>
     <Text style={styles.statFoot} numberOfLines={1}>{foot}</Text>
   </TouchableOpacity>
 );
@@ -579,7 +619,9 @@ function makeStyles(c: ColorPalette) {
       width: 42, height: 42, borderRadius: 21,
       backgroundColor: 'rgba(255,255,255,0.22)',
       alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden', // clip the photo to the circle
     },
+    childAvatarImg: { width: '100%', height: '100%' },
     childAvatarText: { color: '#FFF', fontSize: 14, fontFamily: fonts.extrabold },
     childName: { color: '#FFF', fontSize: 14.5, fontFamily: fonts.bold, letterSpacing: -0.2 },
     childMeta: { color: 'rgba(255,255,255,0.8)', fontSize: 11.5, fontFamily: fonts.regular, marginTop: 2 },
@@ -644,6 +686,8 @@ function makeStyles(c: ColorPalette) {
       textTransform: 'uppercase', letterSpacing: 0.7,
     },
     statValue: { fontSize: 18, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.4, marginTop: 3 },
+    // Trailing "/ total" — same weight family, quieter, so the paid figure leads.
+    statValueSuffix: { fontSize: 13, fontFamily: fonts.bold, color: c.textTertiary, letterSpacing: -0.2 },
     statFoot: { fontSize: 11, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 5 },
 
     card: {

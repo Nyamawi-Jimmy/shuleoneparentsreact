@@ -324,18 +324,20 @@ export const LearningScreen: React.FC = () => {
                       key={s.subject} style={styles.subjectCard} activeOpacity={questCount > 0 ? 0.7 : 1}
                       onPress={questCount > 0 ? () => setOpenSubject(s.subject) : undefined}
                     >
-                      <View style={styles.subjectCardHead}>
+                      {/* Icon and chevron take their own row so the subject
+                          name gets the card's FULL width. Squeezed between
+                          them it had ~85px — about seven characters — so
+                          anything past "Maths" was an ellipsis. */}
+                      <View style={styles.subjTopRow}>
                         <View style={[styles.subjectIcon, { backgroundColor: accent + '1F' }]}>
                           <MaterialCommunityIcons name={subjectIconName(s.subject)} size={18} color={accent} />
                         </View>
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={styles.subjectName} numberOfLines={1}>{s.subject}</Text>
-                          {s.latest
-                            ? <Text style={styles.subjectLatest} numberOfLines={1}>Latest: {s.latest}</Text>
-                            : s.completed > 0 ? <Text style={styles.subjectLatest} numberOfLines={1}>{s.completed} {s.completed === 1 ? 'lesson' : 'lessons'} completed</Text> : null}
-                        </View>
                         {questCount > 0 && <Feather name="chevron-right" size={16} color={colors.textTertiary} />}
                       </View>
+                      <Text style={styles.subjectNameWide} numberOfLines={2}>{s.subject}</Text>
+                      {s.latest
+                        ? <Text style={styles.subjectLatest} numberOfLines={1}>Latest: {s.latest}</Text>
+                        : s.completed > 0 ? <Text style={styles.subjectLatest} numberOfLines={1}>{s.completed} {s.completed === 1 ? 'lesson' : 'lessons'} completed</Text> : null}
                       <View style={styles.subjectPctRow}>
                         <Text style={styles.subjectPctText}>{s.pct}% {s.metric === 'complete' ? 'complete' : 'avg score'}</Text>
                         {questCount > 0 && (
@@ -839,6 +841,16 @@ function makeStyles(c: ColorPalette) {
     subjectCardHead: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 10 },
     subjectIcon: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
     subjectName: { fontSize: 14.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    subjTopRow: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      marginBottom: 9,
+    },
+    // Full-width name, up to two lines. minHeight reserves the second line so
+    // the progress bars still line up across a row of mixed-length names.
+    subjectNameWide: {
+      fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2,
+      lineHeight: 18, minHeight: 36,
+    },
     subjectLatest: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
     subjectPctRow: { marginBottom: 6 },
     subjectPctText: { fontSize: 11.5, fontFamily: fonts.medium, color: c.textSecondary },

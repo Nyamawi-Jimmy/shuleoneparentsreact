@@ -12,7 +12,6 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { TopBar } from '../components/TopBar';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { useAuth } from '../../../context/AuthContext';
 import { tierToAgeTier } from '../../../config/tier';
 import { listQuests, getQuest, getQuestCatalog } from '../../../api/quests';
@@ -242,7 +241,6 @@ export const QuestView: React.FC = () => {
 
         <View style={{ height: 100 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };
@@ -413,13 +411,19 @@ const QuestMapView: React.FC<{
   const rawY = stages.map((s, i) => hasCoords ? (s.mapY as number) : 92 - (i / Math.max(1, stages.length - 1)) * 84);
   const minY = Math.min(...rawY), maxY = Math.max(...rawY);
   const spanY = Math.max(1, maxY - minY);
-  const TOP = 8, BOT = 86; // leaves room at the top and (for labels) the bottom
+  // BOT is where the LAST node's CENTRE sits. Below it must fit the bubble's
+  // lower half (46px for a 92px boss) plus a two-line label — at 86% of a
+  // 640px canvas that was ~90px, i.e. exactly flush with the edge.
+  const TOP = 8, BOT = 80;
+  // Nodes are centred on x, so an authored mapX near 0 or 100 pushes the bubble
+  // and its label past the map edge (which clips them). Keep them in a band.
+  const clampX = (v: number) => Math.max(20, Math.min(80, v));
   const positions = stages.map((s, i) => ({
-    x: hasCoords ? (s.mapX as number) : cols[i % cols.length],
+    x: clampX(hasCoords ? (s.mapX as number) : cols[i % cols.length]),
     y: stages.length <= 1 ? 50 : TOP + ((rawY[i] - minY) / spanY) * (BOT - TOP),
   }));
   const pathD = buildPath(positions);
-  const mapHeight = Math.max(640, stages.length * 98);
+  const mapHeight = Math.max(720, stages.length * 98);
 
   return (
     <View style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
@@ -504,7 +508,6 @@ const QuestMapView: React.FC<{
 
         <View style={{ height: 90 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };
@@ -729,7 +732,8 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
 
   // Map
   mapWrap: {
-    padding: 8,
+    // Extra bottom padding so the last node's label never touches the edge.
+    paddingTop: 8, paddingHorizontal: 8, paddingBottom: 22,
     overflow: 'hidden',
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 6 },

@@ -5,7 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { LearningHeader } from '../components/LearningHeader';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { mockPythonLessons, mockPythonStarter } from '../codeLabData';
 
 export const PythonView: React.FC = () => {
@@ -112,7 +111,6 @@ export const PythonView: React.FC = () => {
 
         <View style={{ height: 120 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 
 interface Props {
   title: string;
@@ -23,7 +24,7 @@ interface Props {
 /** Compact header used on all pushed learning screens. */
 export const LearningHeader: React.FC<Props> = ({ title, subtitle, onBack, right }) => {
   const insets = useSafeAreaInsets();
-  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
+  const scheme = useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const topPad =
     insets.top > 0
       ? insets.top
@@ -33,6 +34,8 @@ export const LearningHeader: React.FC<Props> = ({ title, subtitle, onBack, right
 
   return (
     <View style={[styles.wrap, { paddingTop: topPad + 10 }]}>
+      {/* Dark status-bar icons on this light surface — see TopBar. */}
+      <ExpoStatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <TouchableOpacity
         onPress={onBack ?? (() => router.back())}
         style={styles.backBtn}

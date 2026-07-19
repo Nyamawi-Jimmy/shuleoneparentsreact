@@ -11,7 +11,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { LearningHeader } from '../components/LearningHeader';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { mockVideos, filterByTier } from '../learningData';
 
 export const VideosView: React.FC = () => {
@@ -80,7 +79,6 @@ export const VideosView: React.FC = () => {
 
         <View style={{ height: 120 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

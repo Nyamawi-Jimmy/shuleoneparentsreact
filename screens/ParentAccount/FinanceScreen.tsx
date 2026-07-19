@@ -1,14 +1,14 @@
 // Fees — mobile-first redesign (deliberately different from the web page's
 // tabbed layout): one scrolling story in the brand theme —
 //   1. Balance hero riding over the app bar: paid-% donut, outstanding
-//      balance, Billed / Paid / B-Forward strip and the M-Pesa pay button.
-//   2. Statements — term and whole-history downloads as two separate tiles,
-//      each with its own progress state (they download independently).
+//      balance, B-Forward / Billed / Paid strip and the M-Pesa pay button.
+//   2. Statements — a term switcher, then term and whole-history downloads as
+//      two separate tiles, each with its own progress state.
 //   3. Ledger — the fee statement entries, first few visible, "Show all"
 //      expands the rest. Credits pull green pills, charges neutral.
 //   4. Payments — M-Pesa receipts made from this app + how-to-pay card.
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator,
 } from 'react-native';
@@ -22,10 +22,11 @@ import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { useChildFees } from '../../hooks/useChildFees';
 import {
-  moneyToNumber, FeePayment, PaymentOptions, isPaymentSuccess, isPaymentFailed,
+  moneyToNumber, FeePayment, FeeTerm, FeeStatement, PaymentOptions, isPaymentSuccess, isPaymentFailed,
 } from '../../api/fees.types';
 import {
   buildStatementPdfUrl, buildReceiptPdfUrl, getChildFeePayments, getPaymentOptions,
+  getChildFeeTerms, getChildFeeStatement,
 } from '../../api/fees';
 import { useSelectedChild } from '../../context/SelectedChildContext';
 import { useParentProfile } from '../../context/ParentProfileContext';
@@ -95,7 +96,48 @@ export const FinanceScreen: React.FC = () => {
         ? `Live balance · ${summary.admNo}${summary.studentName ? ` · ${summary.studentName}` : ''}`
         : 'Fee balance from the school';
 
-  const lines = statement?.lines ?? [];
+  // ── Term switcher (web parity) ──────────────────────────────────────────
+  // The terms the child has fee activity in. Picking the CURRENT term uses the
+  // live summary/statement already in context; picking a past one fetches that
+  // term's statement directly, so the ledger below re-renders for it.
+  const [terms, setTerms] = useState<FeeTerm[]>([]);
+  const [selTerm, setSelTerm] = useState<FeeTerm | null>(null);
+  const [termStmt, setTermStmt] = useState<FeeStatement | null>(null);
+  const [termLoading, setTermLoading] = useState(false);
+
+  useEffect(() => {
+    if (!accessToken || studentId == null) return;
+    let off = false;
+    setTerms([]); setSelTerm(null); setTermStmt(null);
+    getChildFeeTerms(accessToken, studentId)
+      .then((list) => {
+        if (off) return;
+        const arr = Array.isArray(list) ? list : [];
+        setTerms(arr);
+        setSelTerm(arr.find((t) => t.current) ?? arr[0] ?? null);
+      })
+      .catch(() => { if (!off) setTerms([]); });
+    return () => { off = true; };
+  }, [accessToken, studentId]);
+
+  const pickTerm = (t: FeeTerm) => {
+    setSelTerm(t);
+    if (t.current) { setTermStmt(null); return; } // current term = live data
+    if (!accessToken || studentId == null) return;
+    setTermLoading(true);
+    getChildFeeStatement(accessToken, studentId, {
+      year: t.year ?? undefined,
+      term: t.term ?? undefined,
+    })
+      .then((s) => setTermStmt(s ?? null))
+      .catch(() => setTermStmt(null))
+      .finally(() => setTermLoading(false));
+  };
+
+  // Past term selected → show that statement; otherwise the live one.
+  const pastMode = !!(selTerm && !selTerm.current);
+  const shownStatement = pastMode ? termStmt : statement;
+  const lines = shownStatement?.lines ?? [];
   const visibleLines = allLines ? lines : lines.slice(0, LEDGER_PREVIEW);
 
   // Recent receipts = the school's own ledger credits (money in) that carry a
@@ -110,10 +152,18 @@ export const FinanceScreen: React.FC = () => {
   const downloadStatement = async (kind: 'term' | 'all') => {
     if (!studentId || !accessToken || downloading === kind) return;
     setDownloading(kind);
+    // A past term must be named explicitly, or the server hands back the
+    // current term's PDF while the screen shows the one you picked.
+    const period = kind === 'term' && pastMode && selTerm
+      ? { year: selTerm.year, term: selTerm.term }
+      : undefined;
+    const suffix = kind === 'all'
+      ? '-all'
+      : pastMode && selTerm ? `-${selTerm.year ?? ''}-t${selTerm.term ?? ''}` : '-term';
     await saveAuthFileToDevice(
       accessToken,
-      buildStatementPdfUrl(studentId, kind === 'all' ? 'FULL' : 'TERM'),
-      { fileName: `fees-statement-${slug}${kind === 'all' ? '-all' : '-term'}.pdf` },
+      buildStatementPdfUrl(studentId, kind === 'all' ? 'FULL' : 'TERM', period),
+      { fileName: `fees-statement-${slug}${suffix}.pdf` },
     ).catch(() => {});
     setDownloading(null);
   };
@@ -168,12 +218,14 @@ export const FinanceScreen: React.FC = () => {
                 <Donut pct={pctPaid} color={colors.primary} track={colors.backgroundAlt} textColor={colors.text} />
               </View>
 
+              {/* Ledger order: what was carried in, what it came to, what's
+                  been paid — so the three read as one running story. */}
               <View style={styles.strip}>
+                <Mini styles={styles} label="B/Forward" value={ksh(broughtForward)} />
+                <View style={styles.stripDivider} />
                 <Mini styles={styles} label="Billed" value={ksh(billed)} />
                 <View style={styles.stripDivider} />
                 <Mini styles={styles} label="Paid" value={ksh(paid)} valueColor={colors.success} />
-                <View style={styles.stripDivider} />
-                <Mini styles={styles} label="B/Forward" value={ksh(broughtForward)} />
               </View>
 
               {balance > 0 && mpesaEnabled && (
@@ -244,11 +296,74 @@ export const FinanceScreen: React.FC = () => {
             {/* ── STATEMENT — downloads + full ledger ───────────────────── */}
             {section === 'statement' && (
             <>
+            {/* Term switcher (web parity) — the terms this child has activity
+                in. The current term reads live data; a past one loads that
+                term's statement, so the ledger below follows the selection. */}
+            {terms.length > 1 && (
+              <View style={styles.termWrap}>
+                <View style={styles.termHead}>
+                  <Text style={styles.termLabel}>STATEMENT PERIOD</Text>
+                  {pastMode && (
+                    <TouchableOpacity
+                      hitSlop={8}
+                      onPress={() => {
+                        const cur = terms.find((t) => t.current);
+                        if (cur) pickTerm(cur);
+                      }}
+                    >
+                      <Text style={[styles.termReset, { color: colors.primary }]}>Back to current</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Inset segmented track: the selected term lifts out of the
+                    groove on a raised card, the rest stay flush. Reads as a
+                    control rather than a row of loose buttons. */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.termTrack}>
+                    {terms.map((t, i) => {
+                      const on = selTerm?.year === t.year && selTerm?.term === t.term;
+                      return (
+                        <TouchableOpacity
+                          key={`${t.year}-${t.term}-${i}`}
+                          activeOpacity={0.75}
+                          onPress={() => pickTerm(t)}
+                          style={[styles.termSeg, on && styles.termSegOn]}
+                        >
+                          <View style={styles.termSegRow}>
+                            {t.current && (
+                              <View style={[styles.termDot, { backgroundColor: on ? colors.primary : colors.success }]} />
+                            )}
+                            <Text
+                              style={[styles.termSegText, on && { color: colors.primary }]}
+                              numberOfLines={1}
+                            >
+                              {t.label || `Term ${t.term ?? '—'}`}
+                            </Text>
+                          </View>
+                          {!!t.year && (
+                            <Text style={[styles.termSegYear, on && { color: colors.primary }]}>{t.year}</Text>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+
             <View style={styles.dlRow}>
               <DownloadTile
                 styles={styles} colors={colors}
-                icon="document-text-outline" title="This term"
-                desc={statement?.term != null ? `Term ${statement.term}${statement.year ? ` · ${statement.year}` : ''}` : 'Current term'}
+                icon="document-text-outline"
+                title={pastMode ? 'Selected term' : 'This term'}
+                desc={
+                  selTerm
+                    ? `${selTerm.label || `Term ${selTerm.term ?? '—'}`}${selTerm.year ? ` · ${selTerm.year}` : ''}`
+                    : shownStatement?.term != null
+                      ? `Term ${shownStatement.term}${shownStatement.year ? ` · ${shownStatement.year}` : ''}`
+                      : 'Current term'
+                }
                 busy={downloading === 'term'}
                 onPress={() => downloadStatement('term')}
               />
@@ -263,7 +378,9 @@ export const FinanceScreen: React.FC = () => {
 
             <View style={styles.sectionRow}>
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Statement entries</Text>
-              <Text style={styles.metaSmall}>{lines.length} {lines.length === 1 ? 'entry' : 'entries'}</Text>
+              {termLoading
+                ? <ActivityIndicator size="small" color={colors.primary} />
+                : <Text style={styles.metaSmall}>{lines.length} {lines.length === 1 ? 'entry' : 'entries'}</Text>}
             </View>
             {lines.length > 0 ? (
               <View style={styles.card}>
@@ -511,6 +628,35 @@ function makeStyles(c: ColorPalette) {
     metaSmall: { fontSize: 12, fontFamily: fonts.medium, color: c.textTertiary },
 
     dlRow: { flexDirection: 'row', gap: 10, marginBottom: 22 },
+    termWrap: { marginBottom: 18 },
+    termHead: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      marginBottom: 9,
+    },
+    termLabel: {
+      fontSize: 10, fontFamily: fonts.extrabold, color: c.textTertiary, letterSpacing: 0.8,
+    },
+    termReset: { fontSize: 11.5, fontFamily: fonts.bold },
+    // The groove the segments sit in.
+    termTrack: {
+      flexDirection: 'row', gap: 4,
+      backgroundColor: c.backgroundAlt,
+      borderRadius: 14, padding: 4,
+    },
+    termSeg: {
+      minWidth: 86, paddingHorizontal: 13, paddingVertical: 8,
+      borderRadius: 10, alignItems: 'center',
+    },
+    // Selected segment lifts out of the groove on a raised card.
+    termSegOn: {
+      backgroundColor: c.card,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.12, shadowRadius: 3, elevation: 2,
+    },
+    termSegRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    termDot: { width: 5, height: 5, borderRadius: 2.5 },
+    termSegText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.textSecondary },
+    termSegYear: { fontSize: 10.5, fontFamily: fonts.medium, color: c.textTertiary, marginTop: 1 },
     dlTile: {
       flex: 1, backgroundColor: c.card, borderRadius: 18,
       borderWidth: 1, borderColor: c.border, padding: 14,

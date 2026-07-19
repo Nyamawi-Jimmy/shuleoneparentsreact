@@ -20,7 +20,9 @@
  */
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
-  'https://a3e7-102-205-238-249.ngrok-free.app';
+  // Last-resort default: the live portal, so a build with no env var still
+  // reaches production rather than a long-dead ngrok tunnel.
+  'https://portal.shuleone.co.ke';
 
 export class ApiError extends Error {
   status: number;

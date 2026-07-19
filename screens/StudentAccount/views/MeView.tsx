@@ -15,7 +15,6 @@ import { router } from 'expo-router';
 import { useTier, pickByTier, Tier, TIER_LAYOUT } from '../TierContext';
 import { useTokens, SHARED, SHADOWS } from '../tokens';
 import { TopBar } from '../components/TopBar';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { Mascot } from '../components/Mascot';
 import { useStudentMe } from '../../../hooks/useStudentMe';
 import { masteryPct } from '../../../api/learner-me';
@@ -100,10 +99,11 @@ export const MeView: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
+      {/* No onAvatarPress override: this screen IS /me, so navigating there was
+          a no-op. Let the avatar open the account menu instead. */}
       <TopBar
         streak={streak}
         stars={totalXp}
-        onAvatarPress={() => router.push('/(student-tabs)/me' as any)}
         onBellPress={() => router.push('/student/notifications' as any)}
       />
 
@@ -150,7 +150,8 @@ export const MeView: React.FC = () => {
               </View>
             </View>
             <Text style={styles.greetSub}>
-              {[classChip, tierName(tier)].filter(Boolean).join(' · ')}
+              {/* Class only — the age tier is internal and never named. */}
+              {classChip}
               {due.length > 0
                 ? ` — ${due.length} to do${due[0]?.title ? `, next: ${due[0].title}` : ''}`
                 : ` — ${v.tagline}`}
@@ -336,14 +337,9 @@ export const MeView: React.FC = () => {
         <View style={{ height: 90 }} />
       </ScrollView>
 
-      <AgeSwitcher />
     </SafeAreaView>
   );
 };
-
-function tierName(t: Tier): string {
-  return t.charAt(0).toUpperCase() + t.slice(1);
-}
 
 function fmtDue(iso: string): string {
   const d = new Date(iso);
