@@ -149,7 +149,8 @@ export const MeView: React.FC = () => {
               </View>
             </View>
             <Text style={styles.greetSub}>
-              {[classChip, tierName(tier)].filter(Boolean).join(' · ')}
+              {/* Class only — the age tier is internal and never named. */}
+              {classChip}
               {due.length > 0
                 ? ` — ${due.length} to do${due[0]?.title ? `, next: ${due[0].title}` : ''}`
                 : ` — ${v.tagline}`}
@@ -338,10 +339,6 @@ export const MeView: React.FC = () => {
     </SafeAreaView>
   );
 };
-
-function tierName(t: Tier): string {
-  return t.charAt(0).toUpperCase() + t.slice(1);
-}
 
 function fmtDue(iso: string): string {
   const d = new Date(iso);
