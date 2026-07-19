@@ -12,9 +12,9 @@ import { fonts } from '../../constants/theme';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 
-const PHONE = '+254700123456';
-const PHONE_DISPLAY = '0700 123 456';
-const WHATSAPP = 'https://wa.me/254700123456';
+const PHONE = '+254718845069';
+const PHONE_DISPLAY = '0718 845 069';
+const WHATSAPP = 'https://wa.me/254718845069';
 const EMAIL = 'support@shuleone.com';
 
 const FAQS: { q: string; a: string }[] = [

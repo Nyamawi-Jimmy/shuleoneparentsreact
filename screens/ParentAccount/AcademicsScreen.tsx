@@ -13,6 +13,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
   RefreshControl, Dimensions, Modal, Pressable,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -265,12 +266,15 @@ const AnalyticsModal: React.FC<{
   visible: boolean; onClose: () => void; styles: any; colors: ColorPalette;
   exam: ExamResult; delta: number | null; downloading: boolean; onPrint: () => void;
 }> = ({ visible, onClose, styles, colors, exam, delta, downloading, onPrint }) => {
+  // The sheet used a fixed paddingBottom: 30, so on phones with on-screen nav
+  // keys (~48dp inset) its last element — the Print button — sat behind them.
+  const insets = useSafeAreaInsets();
   const subjects = (exam.subjects ?? []) as SubjectScore[];
   const up = delta != null && delta >= 0;
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+        <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 18 }]} onPress={() => {}}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHead}>
             <View style={{ flex: 1 }}>
@@ -298,20 +302,54 @@ const AnalyticsModal: React.FC<{
             </View>
           </View>
 
-          <Text style={styles.breakdownTitle}>Subject breakdown</Text>
+          <View style={styles.breakdownHead}>
+            <Text style={[styles.breakdownTitle, { marginBottom: 0 }]}>Subject breakdown</Text>
+            {/* Legend only when there IS a class average to compare against. */}
+            {subjects.some((s) => num(s.average) != null) && (
+              <View style={styles.cmpLegendRow}>
+                <View style={[styles.cmpLegendDot, { backgroundColor: colors.primary }]} />
+                <Text style={styles.cmpLegendText}>Child</Text>
+                <View style={[styles.cmpLegendDot, { backgroundColor: colors.textTertiary, marginLeft: 10 }]} />
+                <Text style={styles.cmpLegendText}>Class</Text>
+              </View>
+            )}
+          </View>
           <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 4 }} showsVerticalScrollIndicator>
             {subjects.length > 0 ? subjects.map((s, i) => {
               const hex = gradeHex(s.grade, colors);
               const d = num(s.scoreDiff);
+              const mine = num(s.score);
+              const avg = num(s.average);   // class average for this subject
+              const bar = (v: number) => `${Math.max(0, Math.min(100, v))}%`;
               return (
-                <View key={i} style={[styles.subjRow, i > 0 && styles.divider]}>
-                  <View style={[styles.subjDot, { backgroundColor: hex }]} />
-                  <Text style={styles.subjName} numberOfLines={1}>{s.subject || '—'}</Text>
-                  <Text style={styles.subjScore}>{s.score ?? '—'}</Text>
-                  {s.grade ? <View style={[styles.subjGrade, { backgroundColor: hex + '1A' }]}><Text style={[styles.subjGradeText, { color: hex }]}>{s.grade}</Text></View> : <View style={{ width: 30, marginLeft: 8 }} />}
-                  {d != null && d !== 0
-                    ? <Text style={[styles.subjDelta, { color: d > 0 ? colors.success : colors.danger }]}>{d > 0 ? '↑' : '↓'}{Math.abs(d)}</Text>
-                    : <Text style={styles.subjDeltaNone}>·</Text>}
+                <View key={i} style={[styles.subjBlock, i > 0 && styles.divider]}>
+                  <View style={styles.subjRow}>
+                    <View style={[styles.subjDot, { backgroundColor: hex }]} />
+                    <Text style={styles.subjName} numberOfLines={1}>{s.subject || '—'}</Text>
+                    <Text style={styles.subjScore}>{s.score ?? '—'}</Text>
+                    {s.grade ? <View style={[styles.subjGrade, { backgroundColor: hex + '1A' }]}><Text style={[styles.subjGradeText, { color: hex }]}>{s.grade}</Text></View> : <View style={{ width: 30, marginLeft: 8 }} />}
+                    {d != null && d !== 0
+                      ? <Text style={[styles.subjDelta, { color: d > 0 ? colors.success : colors.danger }]}>{d > 0 ? '↑' : '↓'}{Math.abs(d)}</Text>
+                      : <Text style={styles.subjDeltaNone}>·</Text>}
+                  </View>
+
+                  {/* Child vs class: two bars on a shared 0–100 scale, so the
+                      gap between them IS the story — no numbers to compare. */}
+                  {mine != null && avg != null && (
+                    <View style={styles.cmpWrap}>
+                      <View style={styles.cmpTrack}>
+                        <View style={[styles.cmpFill, { width: bar(mine), backgroundColor: colors.primary }]} />
+                      </View>
+                      <View style={styles.cmpTrack}>
+                        <View style={[styles.cmpFill, { width: bar(avg), backgroundColor: colors.textTertiary }]} />
+                      </View>
+                      <Text style={styles.cmpNote}>
+                        {mine >= avg
+                          ? `${(mine - avg).toFixed(1).replace(/\.0$/, '')} above class average (${avg})`
+                          : `${(avg - mine).toFixed(1).replace(/\.0$/, '')} below class average (${avg})`}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               );
             }) : <Text style={styles.chartNote}>No subject breakdown recorded for this exam.</Text>}
@@ -680,7 +718,17 @@ function makeStyles(c: ColorPalette) {
     tileSub: { fontSize: 9.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
 
     breakdownTitle: { fontSize: 13.5, fontFamily: fonts.bold, color: c.text, marginBottom: 6 },
-    subjRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 11 },
+    subjBlock: { paddingVertical: 11 },
+    subjRow: { flexDirection: 'row', alignItems: 'center' },
+    breakdownHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+    cmpLegendRow: { flexDirection: 'row', alignItems: 'center' },
+    cmpLegendDot: { width: 7, height: 7, borderRadius: 3.5, marginRight: 4 },
+    cmpLegendText: { fontSize: 10.5, fontFamily: fonts.semibold, color: c.textTertiary },
+    // Child vs class bars — same 0-100 scale so the lengths are comparable.
+    cmpWrap: { marginTop: 8, marginLeft: 16, gap: 3 },
+    cmpTrack: { height: 5, borderRadius: 3, backgroundColor: c.backgroundAlt, overflow: 'hidden' },
+    cmpFill: { height: '100%', borderRadius: 3 },
+    cmpNote: { fontSize: 10.5, fontFamily: fonts.medium, color: c.textTertiary, marginTop: 3 },
     subjDot: { width: 8, height: 8, borderRadius: 4, marginRight: 10 },
     subjName: { flex: 1, fontSize: 13.5, fontFamily: fonts.semibold, color: c.text, marginRight: 8 },
     subjScore: { width: 40, textAlign: 'right', fontSize: 13.5, fontFamily: fonts.bold, color: c.text },
