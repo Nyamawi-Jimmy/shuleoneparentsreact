@@ -95,9 +95,10 @@ const quickItems = (c: ColorPalette): QuickItem[] => [
   { key: 'nav.aiLearning', route: '/learning',                  tint: '#7C3AED', icon: <Ionicons name="sparkles-outline" size={21} color="#7C3AED" /> },
   { key: 'nav.coding',     route: '/coding',                    tint: '#059669', icon: <MaterialCommunityIcons name="code-tags" size={21} color="#059669" /> },
   { key: 'nav.diary',      route: '/diary',                     tint: '#DB2777', icon: <Ionicons name="book-outline" size={21} color="#DB2777" /> },
-  // "Events" replaces "Calendar" — same screen, the name parents actually use.
-  { key: 'nav.events',     route: '/calendar',                  tint: '#0891B2', icon: <Ionicons name="calendar-outline" size={21} color="#0891B2" /> },
-  { key: 'nav.live',       route: '/live-classes',              tint: '#E11D48', icon: <Ionicons name="videocam-outline" size={21} color="#E11D48" /> },
+  // One tile: the Calendar screen already merges school events AND live classes
+  // (with an all/school/live filter and a join button), so a separate Live tile
+  // was a second door into the same room.
+  { key: 'nav.eventsLive', route: '/calendar',                  tint: '#0891B2', icon: <Ionicons name="calendar-outline" size={21} color="#0891B2" /> },
   { key: 'nav.bus',        route: '/transport',                 tint: '#2563EB', icon: <MaterialCommunityIcons name="bus-school" size={21} color="#2563EB" /> },
   { key: 'nav.documents',  route: '/documents',                 tint: '#D97706', icon: <Ionicons name="folder-open-outline" size={21} color="#D97706" /> },
   { key: 'nav.settings',   route: '/settings',                  tint: '#64748B', icon: <Ionicons name="settings-outline" size={21} color="#64748B" /> },
