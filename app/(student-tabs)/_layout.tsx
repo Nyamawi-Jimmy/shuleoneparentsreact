@@ -2,23 +2,33 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TierProvider } from '../../screens/StudentAccount/TierContext';
+import { TierProvider, useTier } from '../../screens/StudentAccount/TierContext';
+import { useTokens } from '../../screens/StudentAccount/tokens';
 import { LessonProgressProvider } from '../../screens/StudentAccount/LessonProgressContext';
 import { useStudentBadges } from '../../hooks/useStudentBadges';
-import { useTheme } from '../../theme/ThemeContext';
 
 export default function StudentTabsLayout() {
+  // The tab bar is tinted with the tier accent, and useTier() only works BELOW
+  // the provider — so the tabs live in their own component inside it.
+  return (
+    <TierProvider>
+      <LessonProgressProvider>
+        <StudentTabs />
+      </LessonProgressProvider>
+    </TierProvider>
+  );
+}
+
+function StudentTabs() {
   // Live badge counts like the web sidebar: due tasks + classes live now.
   const { due, live } = useStudentBadges();
-  const { scheme } = useTheme();
-  const dark = scheme === 'dark';
+  const { tier } = useTier();
+  const tokens = useTokens(tier);
   // Grow the tab bar by the device's bottom system-UI inset (Android nav keys /
   // iOS home indicator) so the tabs never sit underneath them.
   const insets = useSafeAreaInsets();
 
   return (
-    <TierProvider>
-        <LessonProgressProvider>
           <Tabs
             // Keep inactive tabs LIVE (not frozen) so a theme flip re-renders
             // every mounted screen at once — a frozen tab would otherwise show
@@ -27,15 +37,16 @@ export default function StudentTabsLayout() {
             screenOptions={{
               headerShown: false,
               freezeOnBlur: false,
-              tabBarActiveTintColor: dark ? '#a78bfa' : '#7c5cff',
-              tabBarInactiveTintColor: dark ? '#7d76a8' : '#9b94c4',
+              // Coloured bar in the tier's accent — white vs translucent white
+              // for contrast, matching the parent side's rose bar.
+              tabBarActiveTintColor: '#FFFFFF',
+              tabBarInactiveTintColor: 'rgba(255,255,255,0.70)',
               tabBarStyle: {
                 height: 64 + insets.bottom,
                 paddingTop: 6,
                 paddingBottom: 8 + insets.bottom,
-                borderTopWidth: 1,
-                borderTopColor: dark ? '#2c2750' : '#f5f3fa',
-                backgroundColor: dark ? '#1b1735' : '#fff',
+                borderTopWidth: 0,
+                backgroundColor: tokens.accent1,
               },
               tabBarLabelStyle: { fontSize: 10.5, fontWeight: '700' },
               tabBarBadgeStyle: {
@@ -98,7 +109,5 @@ export default function StudentTabsLayout() {
             {/* Avatar/profile — merged into Me (header avatar), not a tab. */}
             <Tabs.Screen name="me" options={{ href: null }} />
           </Tabs>
-        </LessonProgressProvider>
-      </TierProvider>
   );
 }

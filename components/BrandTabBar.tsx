@@ -42,17 +42,22 @@ export const BrandTabBar: React.FC<TabBarProps> = ({ state, descriptors, navigat
   const unread = contacts.reduce((s, c) => s + (c.unreadCount ?? 0), 0);
 
   return (
+    // Brand-coloured bar: the rose primary carries through to the bottom of
+    // every screen, and the inset padding below is the same colour so it reads
+    // as one band behind Android's nav keys.
     <View style={[styles.bar, {
-      backgroundColor: colors.card,
-      borderTopColor: colors.border,
-      shadowOpacity: colors.scheme === 'dark' ? 0.4 : 0.07,
+      backgroundColor: colors.primary,
+      borderTopColor: colors.primaryDeep,
+      shadowOpacity: colors.scheme === 'dark' ? 0.4 : 0.18,
       paddingBottom: insets.bottom + 8,
     }]}>
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const label = String(options.title ?? route.name);
         const active = state.index === index;
-        const color = active ? colors.primary : colors.textTertiary;
+        // On the coloured bar the contrast is white vs translucent white — the
+        // old primary/textTertiary pair would vanish against the rose.
+        const color = active ? '#FFFFFF' : 'rgba(255,255,255,0.72)';
 
         const onPress = () => {
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -69,12 +74,13 @@ export const BrandTabBar: React.FC<TabBarProps> = ({ state, descriptors, navigat
             activeOpacity={0.7}
             style={styles.slot}
           >
-            <View style={[styles.indicator, active && { backgroundColor: colors.primary }]} />
+            <View style={[styles.indicator, active && { backgroundColor: '#FFFFFF' }]} />
             <View>
               {ICONS[route.name]?.(active, color) ?? <Ionicons name="ellipse-outline" size={20} color={color} />}
               {route.name === 'communication' && unread > 0 && (
-                <View style={[styles.badge, { backgroundColor: colors.danger, borderColor: colors.card }]}>
-                  <Text style={styles.badgeText}>{unread > 99 ? '99+' : unread}</Text>
+                // A red badge would disappear into the rose bar — invert it.
+                <View style={[styles.badge, { backgroundColor: '#FFFFFF', borderColor: colors.primary }]}>
+                  <Text style={[styles.badgeText, { color: colors.primary }]}>{unread > 99 ? '99+' : unread}</Text>
                 </View>
               )}
             </View>
