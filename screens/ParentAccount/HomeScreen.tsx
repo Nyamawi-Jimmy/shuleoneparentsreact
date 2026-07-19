@@ -147,11 +147,17 @@ export const HomeScreen: React.FC = () => {
     : feesCleared
       ? formatKsh(feesPaid ?? 0)
       : formatKsh(feesBalance);
+  // Cleared reads as a paid/billed fraction — "63,000 / 63,000" — so the two
+  // numbers matching IS the proof it's settled. A lone figure looked like a
+  // balance still owing.
+  const feesSuffix = feesCleared && feesBilled != null
+    ? ` / ${formatKsh(feesBilled)}`
+    : undefined;
   const feesTone = feesBalance != null && feesBalance > 0 ? colors.danger : colors.success;
   const feesFoot = feesBalance == null
     ? 'Tap to view'
     : feesCleared
-      ? `Paid of ${formatKsh(feesBilled ?? 0)} billed`
+      ? 'Fully paid this term'
       : 'Balance due · tap to pay';
 
   // Latest exam = highest examId, the same ordering AcademicsScreen uses, so
@@ -249,8 +255,8 @@ export const HomeScreen: React.FC = () => {
               icon={<MaterialCommunityIcons name="wallet-outline" size={17} color="#FFF" />}
               chip={feesBalance == null ? null : feesBalance > 0
                 ? { text: 'Due', tint: colors.danger }
-                : { text: 'Cleared', tint: colors.success }}
-              value={feesValue} valueColor={feesTone} foot={feesFoot}
+                : { text: '✓ Cleared', tint: colors.success }}
+              value={feesValue} valueColor={feesTone} valueSuffix={feesSuffix} foot={feesFoot}
               onPress={() => router.push('/finance' as any)}
             />
             <StatCard
@@ -378,22 +384,9 @@ export const HomeScreen: React.FC = () => {
             </>
           )}
 
-          {/* Recent activity */}
-          {signals.length > 0 && (
-            <>
-              <SectionHeader styles={styles} colors={colors} title="Recent activity" />
-              <View style={styles.card}>
-                {signals.slice(0, 8).map((s, i) => (
-                  <TouchableOpacity key={s.id || i} style={[styles.signalRow, i > 0 && styles.divider]} activeOpacity={0.7}
-                    onPress={() => router.push(toMobileRoute(s.deepLink) as any)}>
-                    <Text style={styles.signalTime}>{timeLabel(s.occurredAt)}</Text>
-                    <View style={[styles.signalDot, { backgroundColor: s.isNew ? colors.primary : colors.border }]} />
-                    <Text style={styles.signalTitle} numberOfLines={2}>{s.title}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          )}
+          {/* "Recent activity" removed — it repeated what Upcoming events and
+              the Updates card already say. `signals` is still read for the
+              Updates unread count and the empty-state test below. */}
 
           {/* Empty / error */}
           {!homeLoading && actions.length === 0 && signals.length === 0 && upcoming.length === 0 && (
@@ -503,10 +496,12 @@ const Ring: React.FC<{ pct: number; color: string; track: string; size?: number;
 const StatCard: React.FC<{
   styles: any; colors: ColorPalette; label: string; gradient: [string, string]; icon: React.ReactNode;
   value: string; valueColor?: string; foot: string;
+  /** Muted trailing part, e.g. the "/ 63,000" of a paid-in-full figure. */
+  valueSuffix?: string;
   chip?: { text: string; tint: string; dot?: boolean } | null;
   ring?: number | null;
   onPress: () => void;
-}> = ({ styles, colors, label, gradient, icon, value, valueColor, foot, chip, ring, onPress }) => (
+}> = ({ styles, colors, label, gradient, icon, value, valueColor, valueSuffix, foot, chip, ring, onPress }) => (
   <TouchableOpacity style={styles.statCard} activeOpacity={0.75} onPress={onPress}>
     <View style={styles.statHead}>
       <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statIcon}>
@@ -523,7 +518,10 @@ const StatCard: React.FC<{
       ) : null}
     </View>
     <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
-    <Text style={[styles.statValue, valueColor ? { color: valueColor } : null]} numberOfLines={1}>{value}</Text>
+    <Text style={[styles.statValue, valueColor ? { color: valueColor } : null]} numberOfLines={1}>
+      {value}
+      {!!valueSuffix && <Text style={styles.statValueSuffix}>{valueSuffix}</Text>}
+    </Text>
     <Text style={styles.statFoot} numberOfLines={1}>{foot}</Text>
   </TouchableOpacity>
 );
@@ -674,6 +672,8 @@ function makeStyles(c: ColorPalette) {
       textTransform: 'uppercase', letterSpacing: 0.7,
     },
     statValue: { fontSize: 18, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.4, marginTop: 3 },
+    // Trailing "/ total" — same weight family, quieter, so the paid figure leads.
+    statValueSuffix: { fontSize: 13, fontFamily: fonts.bold, color: c.textTertiary, letterSpacing: -0.2 },
     statFoot: { fontSize: 11, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 5 },
 
     card: {

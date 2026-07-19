@@ -41,6 +41,18 @@ const shortDate = (iso?: string | null): string => {
   const d = new Date(iso);
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 };
+// FULL date for assignment deadlines — "Mon, 30 Mar 2026", plus the time when
+// the deadline carries one. A day-and-month stamp alone is ambiguous across terms.
+const fullDate = (iso?: string | null): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const date = d.toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+  });
+  const noon = d.getHours() === 0 && d.getMinutes() === 0;
+  return noon ? date : `${date} · ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+};
 const dueLabel = (iso?: string | null): string => {
   if (!iso) return 'Due';
   const d = new Date(iso); if (isNaN(d.getTime())) return 'Due';
@@ -199,6 +211,13 @@ const subjectIcon = (subject: string | null, c: ColorPalette): { name: any; colo
 };
 const AssignmentsTab: React.FC<{ styles: any; colors: ColorPalette; childName: string; studentId: number | null; assignments: ParentAssignment[] | null; error: boolean }> =
   ({ styles, colors, childName, studentId, assignments, error }) => {
+  // Filter: non-overlapping, so the counts sum to All.
+  const [filter, setFilter] = useState<'all' | 'upcoming' | 'overdue' | 'done'>('all');
+  const groupOf = (a: ParentAssignment): 'upcoming' | 'overdue' | 'done' => {
+    if (a.status === 'GRADED' || a.status === 'SUBMITTED') return 'done';
+    if (a.status === 'OVERDUE') return 'overdue';
+    return 'upcoming';
+  };
   const openAssignment = (a: ParentAssignment) => {
     if (a.id == null || studentId == null) return;
     router.push({ pathname: '/help-assignment', params: { examId: String(a.id), studentId: String(studentId), childName } } as any);
@@ -214,23 +233,61 @@ const AssignmentsTab: React.FC<{ styles: any; colors: ColorPalette; childName: s
       </View>
     );
   }
+  const counts = {
+    upcoming: assignments.filter((a) => groupOf(a) === 'upcoming').length,
+    overdue: assignments.filter((a) => groupOf(a) === 'overdue').length,
+    done: assignments.filter((a) => groupOf(a) === 'done').length,
+  };
+  const shown = filter === 'all' ? assignments : assignments.filter((a) => groupOf(a) === filter);
+  const FILTERS: { key: typeof filter; label: string; n: number; tint: string }[] = [
+    { key: 'all', label: 'All', n: assignments.length, tint: colors.primary },
+    { key: 'upcoming', label: 'Upcoming', n: counts.upcoming, tint: colors.warning },
+    { key: 'overdue', label: 'Overdue', n: counts.overdue, tint: colors.danger },
+    { key: 'done', label: 'Done', n: counts.done, tint: colors.success },
+  ];
+
   return (
     <>
+      {/* Filter — inset segmented track, matching the fee-term switcher. */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <View style={styles.aFilterTrack}>
+          {FILTERS.map((f) => {
+            const on = filter === f.key;
+            return (
+              <TouchableOpacity key={f.key} activeOpacity={0.75} onPress={() => setFilter(f.key)}
+                style={[styles.aFilterSeg, on && styles.aFilterSegOn]}>
+                <View style={[styles.aFilterDot, { backgroundColor: on ? f.tint : colors.border }]} />
+                <Text style={[styles.aFilterText, on && { color: f.tint }]}>{f.label}</Text>
+                <Text style={[styles.aFilterNum, on && { color: f.tint }]}>{f.n}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </ScrollView>
+
+      {shown.length === 0 && (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyText}>Nothing {filter === 'all' ? 'here' : `in ${filter}`} right now.</Text>
+        </View>
+      )}
+
       <View style={styles.aList}>
-        {assignments.map((a, i) => {
+        {shown.map((a, i) => {
           const ic = subjectIcon(a.subject, colors);
           const graded = a.status === 'GRADED';
           const submitted = a.status === 'SUBMITTED';
           const overdue = a.status === 'OVERDUE';
           const color = graded || submitted ? colors.success : overdue ? colors.danger : colors.warning;
           const scoreStr = a.score != null && a.maxScore != null ? `${a.score}/${a.maxScore}` : a.score != null ? String(a.score) : null;
+          // Every state names a DATE. The plain "due" case used to have an
+          // empty detail, so an upcoming assignment showed no deadline at all.
           const meta = graded
             ? { word: 'Graded', detail: scoreStr ? `Scored ${scoreStr}` : 'Marked', icon: 'ribbon' as const }
             : submitted
-              ? { word: 'Submitted', detail: a.submittedAt ? `Handed in ${shortDate(a.submittedAt)}` : 'Handed in', icon: 'checkmark-circle' as const }
+              ? { word: 'Submitted', detail: a.submittedAt ? `Handed in ${fullDate(a.submittedAt)}` : 'Handed in', icon: 'checkmark-circle' as const }
               : overdue
-                ? { word: 'Overdue', detail: a.dueAt ? `Was due ${shortDate(a.dueAt)}` : 'Past due', icon: 'alert-circle' as const }
-                : { word: dueLabel(a.dueAt), detail: '', icon: 'time' as const };
+                ? { word: 'Overdue', detail: a.dueAt ? `Was due ${fullDate(a.dueAt)}` : 'Past due — no date set', icon: 'alert-circle' as const }
+                : { word: dueLabel(a.dueAt), detail: a.dueAt ? `Due ${fullDate(a.dueAt)}` : 'No due date set', icon: 'time' as const };
           const sub = [a.subject, a.teacher].filter(Boolean).join(' · ');
           const done = graded || submitted;
           return (
@@ -256,11 +313,24 @@ const AssignmentsTab: React.FC<{ styles: any; colors: ColorPalette; childName: s
                 )}
               </View>
 
-              {!!meta.detail && (
-                <Text style={styles.aMeta} numberOfLines={1}>
-                  <Ionicons name={meta.icon} size={11} color={colors.textTertiary} />  {meta.detail}
-                </Text>
-              )}
+              {/* Detail band — the deadline in full, with the category and the
+                  handed-in date alongside it where they exist. */}
+              <View style={[styles.aDetail, { backgroundColor: overdue ? colors.dangerSoft : colors.backgroundAlt }]}>
+                <Ionicons name={meta.icon} size={13} color={overdue ? colors.danger : colors.textSecondary} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.aDetailText, overdue && { color: colors.danger }]} numberOfLines={1}>
+                    {meta.detail}
+                  </Text>
+                  {done && !!a.dueAt && (
+                    <Text style={styles.aDetailSub} numberOfLines={1}>Deadline was {fullDate(a.dueAt)}</Text>
+                  )}
+                </View>
+                {!!a.category && (
+                  <View style={styles.aCatPill}>
+                    <Text style={styles.aCatText}>{a.category}</Text>
+                  </View>
+                )}
+              </View>
 
               <View style={[styles.aCta, done ? styles.aCtaGhost : styles.aCtaPrimary]}>
                 <Ionicons name={done ? 'eye-outline' : 'sparkles'} size={15} color={done ? colors.primary : '#FFF'} />
@@ -500,6 +570,32 @@ function makeStyles(c: ColorPalette) {
     aScoreVal: { fontSize: 15, fontFamily: fonts.extrabold, letterSpacing: -0.3 },
     aScoreCap: { fontSize: 8, fontFamily: fonts.bold, letterSpacing: 0.5, textTransform: 'uppercase', opacity: 0.8, marginTop: -1 },
     aMeta: { fontSize: 11.5, fontFamily: fonts.medium, color: c.textTertiary, marginTop: 10, marginLeft: 2 },
+    // Detail band: deadline in full + category
+    aDetail: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      borderRadius: 11, paddingHorizontal: 10, paddingVertical: 9, marginTop: 11,
+    },
+    aDetailText: { fontSize: 11.5, fontFamily: fonts.semibold, color: c.textSecondary },
+    aDetailSub: { fontSize: 10.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 1 },
+    aCatPill: { backgroundColor: c.card, borderRadius: 7, paddingHorizontal: 7, paddingVertical: 3 },
+    aCatText: { fontSize: 9.5, fontFamily: fonts.bold, color: c.textSecondary },
+    // Inset segmented filter
+    aFilterTrack: {
+      flexDirection: 'row', gap: 4,
+      backgroundColor: c.backgroundAlt, borderRadius: 14, padding: 4, marginBottom: 14,
+    },
+    aFilterSeg: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8,
+    },
+    aFilterSegOn: {
+      backgroundColor: c.card,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.10, shadowRadius: 3, elevation: 2,
+    },
+    aFilterDot: { width: 6, height: 6, borderRadius: 3 },
+    aFilterText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.textSecondary },
+    aFilterNum: { fontSize: 11, fontFamily: fonts.bold, color: c.textTertiary },
     aCta: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
       borderRadius: 13, paddingVertical: 11, marginTop: 13,

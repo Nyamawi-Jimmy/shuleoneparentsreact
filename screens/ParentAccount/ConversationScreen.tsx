@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, Image,
-  TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Keyboard,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -19,6 +19,21 @@ export const ConversationScreen: React.FC = () => {
   // Pad by the real status-bar height instead of a hardcoded guess, so the
   // clock/battery/notification icons are never sat on by the header row.
   const insets = useSafeAreaInsets();
+  // The composer must clear Android's nav keys when the keyboard is DOWN, but
+  // not when it's up — the keyboard covers that strip, and padding for it then
+  // would float the input on a dead gap.
+  const [kbUp, setKbUp] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKbUp(true),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKbUp(false),
+    );
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   const params = useLocalSearchParams<{ contactId?: string; name?: string; avatar?: string; role?: string }>();
   const contactId = params.contactId ? Number(params.contactId) : null;
@@ -143,7 +158,7 @@ export const ConversationScreen: React.FC = () => {
           />
         )}
 
-        <View style={styles.composer}>
+        <View style={[styles.composer, { paddingBottom: (kbUp ? 0 : insets.bottom) + 10 }]}>
           <TouchableOpacity activeOpacity={0.7} onPress={handleAttach} style={styles.attachBtn}>
             <Feather name="paperclip" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
