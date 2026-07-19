@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { LearningHeader } from '../components/LearningHeader';
+import { TopBar } from '../components/TopBar';
 import { useAuth } from '../../../context/AuthContext';
 import { useStudentExams } from '../../../hooks/useStudentExams';
 import { buildStudentReportPdfUrl } from '../../../api/student';
@@ -27,7 +28,12 @@ const gradeHex = (grade?: string | null): string => {
 };
 const shortName = (n?: string | null) => (n ? String(n).replace(/EXAM/ig, '').replace(/\s+/g, ' ').trim().split(' ').slice(0, 2).join(' ') : '');
 
-export const TestsView: React.FC = () => {
+/**
+ * `asTab` — rendered as the Exams TAB (voyager+ / in-school), so it wears the
+ * same TopBar as every other tab. Pushed as a deep route (/student/tests) it
+ * keeps LearningHeader, which carries the back button a tab root must not have.
+ */
+export const TestsView: React.FC<{ asTab?: boolean }> = ({ asTab = false }) => {
   const { tier } = useTier();
   const tokens = useTokens(tier);
   const { accessToken } = useAuth();
@@ -53,13 +59,25 @@ export const TestsView: React.FC = () => {
 
   return (
     <View style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
-      <LearningHeader title={title} subtitle={exams.length ? `${exams.length} exam${exams.length === 1 ? '' : 's'} on record` : 'Your exam results'} />
+      {asTab
+        ? <TopBar />
+        : <LearningHeader title={title} subtitle={exams.length ? `${exams.length} exam${exams.length === 1 ? '' : 's'} on record` : 'Your exam results'} />}
 
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={tokens.accent1} />}
       >
+        {/* TopBar carries no title, so as a tab the page names itself here —
+            otherwise the heading LearningHeader provided would be lost. */}
+        {asTab && (
+          <View style={styles.tabHead}>
+            <Text style={styles.tabTitle}>{title}</Text>
+            <Text style={styles.tabSub}>
+              {exams.length ? `${exams.length} exam${exams.length === 1 ? '' : 's'} on record` : 'Your exam results'}
+            </Text>
+          </View>
+        )}
         {loading && exams.length === 0 ? (
           <View style={styles.center}><ActivityIndicator size="large" color={tokens.accent1} /></View>
         ) : error ? (
@@ -149,6 +167,9 @@ export const TestsView: React.FC = () => {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { padding: 16 },
+  tabHead: { marginBottom: 14 },
+  tabTitle: { fontSize: 21, fontWeight: '800', color: '#2c2550', letterSpacing: -0.4 },
+  tabSub: { fontSize: 12.5, fontWeight: '600', color: '#6f679c', marginTop: 3 },
   center: { paddingVertical: 60, alignItems: 'center' },
   empty: { alignItems: 'center', paddingVertical: 44 },
   emptyIcon: { fontSize: 54, marginBottom: 10 },

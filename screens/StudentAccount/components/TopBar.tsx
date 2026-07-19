@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { useTier } from '../TierContext';
@@ -45,7 +46,7 @@ export const TopBar: React.FC<TopBarProps> = ({ streak, stars, onAvatarPress, on
   const { tier } = useTier();
   const tokens = useTokens(tier);
   const insets = useSafeAreaInsets();
-  useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
+  const scheme = useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const { accessToken, signOut } = useAuth();
   const isAdult = tier === 'scholar' || tier === 'campus';
   // Tapping the avatar opens a small account menu. Signing out used to mean
@@ -102,6 +103,12 @@ export const TopBar: React.FC<TopBarProps> = ({ streak, stars, onAvatarPress, on
 
   return (
       <View style={[styles.wrap, { paddingTop: topPad + 10 }]}>
+        {/* The student surface is light (or the dark canvas in dark mode), so
+            the clock, wifi and battery must be dark icons here. Without this
+            the screen inherits whatever was last set — GradientAppBar sets
+            "light" for the parent's rose bar, which is invisible on white. */}
+        <ExpoStatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+
         {/* Brand + account tag */}
         <Text style={styles.brand}>ShuleOne</Text>
         <LinearGradient

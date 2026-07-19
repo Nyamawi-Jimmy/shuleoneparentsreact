@@ -41,6 +41,12 @@ export interface FluidTabBarProps {
   renderIcon: (routeName: string, active: boolean, color: string, size: number) => React.ReactNode;
   /** Optional per-route badge counts. */
   badges?: Record<string, number | undefined>;
+  /**
+   * Route names to render, in order. A CUSTOM tabBar is handed every route in
+   * the navigator — expo-router's `href: null` hides a screen from its own bar
+   * but not from ours — so filtering has to happen here or every route shows up.
+   */
+  include?: string[];
   /** Bar surface + hairline, so each shell keeps its own palette. */
   surface: string;
   border: string;
@@ -51,9 +57,17 @@ const SPRING = { damping: 18, stiffness: 190, mass: 0.55 };
 const FALLBACK_TINT = '#E11D48';
 
 export const FluidTabBar: React.FC<FluidTabBarProps> = ({
-  state, descriptors, navigation, tints, renderIcon, badges, surface, border, dark,
+  state, descriptors, navigation, tints, renderIcon, badges, surface, border, dark, include,
 }) => {
   const insets = useSafeAreaInsets();
+
+  // Keep `include` order when given, so the bar's order is the caller's, not
+  // the navigator's file order.
+  const routes = include
+    ? include
+        .map((name) => state.routes.find((r) => r.name === name))
+        .filter((r): r is (typeof state.routes)[number] => !!r)
+    : state.routes;
 
   return (
     <View
@@ -64,10 +78,11 @@ export const FluidTabBar: React.FC<FluidTabBarProps> = ({
         paddingBottom: insets.bottom + 10,
       }]}
     >
-      {state.routes.map((route, index) => {
+      {routes.map((route) => {
         const { options } = descriptors[route.key];
         const label = String(options.title ?? route.name);
-        const active = state.index === index;
+        // Compare against the navigator's own index, not our filtered one.
+        const active = state.routes[state.index]?.key === route.key;
         const tint = tints[route.name] ?? FALLBACK_TINT;
 
         const onPress = () => {

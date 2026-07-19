@@ -45,6 +45,8 @@ export const BrandTabBar: React.FC<TabBarProps> = ({ state, descriptors, navigat
       descriptors={descriptors}
       navigation={navigation}
       tints={TINTS}
+      // Explicit order — a custom tabBar sees every route the navigator has.
+      include={['index', 'learning', 'finance', 'academics', 'communication']}
       badges={{ communication: unread }}
       surface={colors.card}
       border={colors.border}

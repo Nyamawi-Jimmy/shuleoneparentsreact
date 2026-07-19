@@ -113,6 +113,8 @@ function StudentTabs() {
         <FluidTabBar
           {...props}
           tints={tints}
+          // Only this learner's destinations, in NAV order.
+          include={visible.map((n) => n.name)}
           badges={{ tasks: due, events: live }}
           surface={dark ? '#1b1735' : '#ffffff'}
           border={dark ? '#2c2750' : '#f5f3fa'}
