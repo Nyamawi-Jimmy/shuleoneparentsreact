@@ -16,7 +16,6 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTier } from '../TierContext';
 import { useTokens, SHARED } from '../tokens';
 import { TopBar } from '../components/TopBar';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { useAuth } from '../../../context/AuthContext';
 import {
   getCodingProgress, getCodingLesson, CodingProgressRow, CodingLessonDetail,
@@ -316,7 +315,6 @@ export const CodeView: React.FC = () => {
 
         <View style={{ height: 110 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

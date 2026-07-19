@@ -7,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { LearningHeader } from '../components/LearningHeader';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { useStudentPortfolio } from '../../../hooks/useStudentPortfolio';
 import { PortfolioProject, PortfolioSkill } from '../../../api/student.types';
 
@@ -85,7 +84,6 @@ export const PortfolioView: React.FC = () => {
         )}
         <View style={{ height: 120 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

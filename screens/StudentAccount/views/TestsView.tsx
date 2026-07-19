@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { LearningHeader } from '../components/LearningHeader';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { useAuth } from '../../../context/AuthContext';
 import { useStudentExams } from '../../../hooks/useStudentExams';
 import { buildStudentReportPdfUrl } from '../../../api/student';
@@ -143,7 +142,6 @@ export const TestsView: React.FC = () => {
         )}
         <View style={{ height: 120 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

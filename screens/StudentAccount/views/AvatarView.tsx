@@ -16,7 +16,6 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { TopBar } from '../components/TopBar';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { useAuth } from '../../../context/AuthContext';
 import { getStudentProfile } from '../../../api/student';
 import { getGamificationState } from '../../../api/gamification';
@@ -270,7 +269,6 @@ export const AvatarView: React.FC = () => {
 
         <View style={{ height: 120 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

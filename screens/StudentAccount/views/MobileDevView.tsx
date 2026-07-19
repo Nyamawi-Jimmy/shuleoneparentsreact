@@ -5,7 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { LearningHeader } from '../components/LearningHeader';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { mockMobileDevModules, MobileDevModule } from '../codeLabData';
 
 const TYPE_META: Record<MobileDevModule['type'], { label: string; color: string; bg: string; icon: any }> = {
@@ -85,7 +84,6 @@ export const MobileDevView: React.FC = () => {
 
         <View style={{ height: 120 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

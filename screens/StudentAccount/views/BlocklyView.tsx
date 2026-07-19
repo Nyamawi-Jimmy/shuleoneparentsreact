@@ -5,7 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { LearningHeader } from '../components/LearningHeader';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { mockBlocklyPuzzles, BlocklyPuzzle } from '../codeLabData';
 
 export const BlocklyView: React.FC = () => {
@@ -43,7 +42,6 @@ export const BlocklyView: React.FC = () => {
 
         <View style={{ height: 120 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

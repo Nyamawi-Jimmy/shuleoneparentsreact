@@ -12,7 +12,6 @@ import { router, useFocusEffect } from 'expo-router';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { TopBar } from '../components/TopBar';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { useAuth } from '../../../context/AuthContext';
 import { tierToAgeTier } from '../../../config/tier';
 import { listQuests, getQuest, getQuestCatalog } from '../../../api/quests';
@@ -242,7 +241,6 @@ export const QuestView: React.FC = () => {
 
         <View style={{ height: 100 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };
@@ -504,7 +502,6 @@ const QuestMapView: React.FC<{
 
         <View style={{ height: 90 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

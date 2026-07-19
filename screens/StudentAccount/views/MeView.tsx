@@ -15,7 +15,6 @@ import { router } from 'expo-router';
 import { useTier, pickByTier, Tier, TIER_LAYOUT } from '../TierContext';
 import { useTokens, SHARED, SHADOWS } from '../tokens';
 import { TopBar } from '../components/TopBar';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { Mascot } from '../components/Mascot';
 import { useStudentMe } from '../../../hooks/useStudentMe';
 import { masteryPct } from '../../../api/learner-me';
@@ -336,7 +335,6 @@ export const MeView: React.FC = () => {
         <View style={{ height: 90 }} />
       </ScrollView>
 
-      <AgeSwitcher />
     </SafeAreaView>
   );
 };

@@ -16,7 +16,6 @@ import * as Speech from 'expo-speech';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens, SHARED } from '../tokens';
 import { TopBar } from '../components/TopBar';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { useAuth } from '../../../context/AuthContext';
 import { getGamificationState, getGamesGate, GamesGate } from '../../../api/gamification';
 import {
@@ -174,7 +173,6 @@ export const GamesView: React.FC = () => {
 
         <View style={{ height: 110 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };

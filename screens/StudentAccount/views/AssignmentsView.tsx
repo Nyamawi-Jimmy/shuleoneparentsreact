@@ -14,7 +14,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { TopBar } from '../components/TopBar';
-import { AgeSwitcher } from '../components/AgeSwitcher';
 import { useAuth } from '../../../context/AuthContext';
 import { getStudentAssignments } from '../../../api/student';
 import { StudentAssignment, AssignmentSubmitResult } from '../../../api/student.types';
@@ -277,7 +276,6 @@ export const AssignmentsView: React.FC = () => {
 
         <View style={{ height: 110 }} />
       </ScrollView>
-      <AgeSwitcher />
     </View>
   );
 };
