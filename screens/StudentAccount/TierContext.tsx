@@ -16,16 +16,10 @@ export const TIER_LAYOUT: Record<Tier, HomeLayout> = {
   campus: 'campus',
 };
 
-export const TIER_META: Record<
-  Tier,
-  { label: string; sublabel: string; bandLabel: string }
-> = {
-  sprout: { label: 'Sproutling', sublabel: 'PP1–G3', bandLabel: '🌍 Class PP1 · Sunshine Group' },
-  explorer: { label: 'Explorer', sublabel: 'G4–G6', bandLabel: '🦅 Grade 5 · Eagles' },
-  voyager: { label: 'Voyager', sublabel: 'JSS 7–9', bandLabel: '⚡ Grade 8 · Falcons' },
-  scholar: { label: 'Scholar', sublabel: 'SSS 10–12', bandLabel: '🎓 Grade 11 · STEM Pathway' },
-  campus: { label: 'Campus', sublabel: 'College', bandLabel: '🏛️ Year 2 · BSc Computer Science' },
-};
+// NOTE: there is deliberately no TIER_META label map here. The tier is derived
+// and internal — it re-skins the UI but is never named to the learner. (The old
+// "Sproutling / Explorer / Voyager" labels existed only for the dev-preview
+// AgeSwitcher, which has been removed.)
 
 interface TierContextValue {
   tier: Tier;
