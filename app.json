@@ -28,7 +28,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.shuleone.shuleoneparents",
+      "package": "com.walgotech.shuleoneparents",
       "config": {
         "googleMaps": {
           "apiKey": "${EXPO_PUBLIC_ANDROID_MAPS_API_KEY}"
