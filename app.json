@@ -12,7 +12,9 @@
       "bundleIdentifier": "com.shuleone.shuleoneparents",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["remote-notification"],
+        "UIBackgroundModes": [
+          "remote-notification"
+        ],
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         }
@@ -26,7 +28,13 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.shuleone.shuleoneparents"
+      "package": "com.shuleone.shuleoneparents",
+      "config": {
+        "googleMaps": {
+          "apiKey": "${EXPO_PUBLIC_ANDROID_MAPS_API_KEY}"
+        }
+      },
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",

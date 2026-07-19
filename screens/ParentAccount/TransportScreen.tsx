@@ -14,6 +14,7 @@ import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import { GradientAppBar } from '../../components/GradientAppBar';
+import LiveBusMap from '../../components/LiveBusMap';
 import { fonts } from '../../constants/theme';
 import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
@@ -202,6 +203,14 @@ export const TransportScreen: React.FC = () => {
                     </View>
                   ) : null}
                 </View>
+
+                {/* Live map — mounted only while the bus is actually moving, so it
+                    does not poll or render an empty frame the rest of the day. */}
+                {live && child.studentId != null && accessToken ? (
+                  <View style={styles.liveMap}>
+                    <LiveBusMap studentId={child.studentId} accessToken={accessToken} />
+                  </View>
+                ) : null}
 
                 {/* Journey stepper — today's real progression */}
                 {reached >= 0 ? (
@@ -464,6 +473,7 @@ const DetailRow: React.FC<{
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
+    liveMap: { marginTop: 14, borderRadius: 18, overflow: 'hidden' },
     scroll: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 24 },
     center: { padding: 44, alignItems: 'center' },
 

@@ -1,5 +1,5 @@
 import { apiFetch } from '../config/api';
-import { ChildTransport, OptOut, OptOutRequest, TransportTrip } from './transport.types';
+import { ChildTransport, OptOut, OptOutRequest, TransportLive, TransportTrip } from './transport.types';
 
 /** GET /api/parent/transport/children */
 export function getTransportChildren(accessToken: string) {
@@ -37,5 +37,13 @@ export function deleteOptOut(accessToken: string, studentId: number, optOutId: n
   return apiFetch<OptOut[]>(
     `/api/parent/children/${studentId}/transport/opt-outs/${optOutId}`,
     { method: 'DELETE', accessToken },
+  );
+}
+
+/** GET /api/parent/children/{studentId}/transport/live — live bus position + road route. */
+export function getTransportLive(accessToken: string, studentId: number) {
+  return apiFetch<TransportLive>(
+    `/api/parent/children/${studentId}/transport/live`,
+    { accessToken },
   );
 }
