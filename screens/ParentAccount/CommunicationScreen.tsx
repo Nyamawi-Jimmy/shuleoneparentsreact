@@ -65,6 +65,23 @@ const dueLabel = (iso?: string | null): string => {
   if (diff <= 6) return `Due in ${diff}d`;
   return `Due ${shortDate(iso)}`;
 };
+/**
+ * ONE definition of overdue, used by the card, its colour and the filter.
+ * The backend may still say DUE for work whose date has passed, and dueLabel()
+ * reads the date — so deriving these separately made cards say "Overdue" while
+ * the Overdue filter counted 0.
+ */
+const isOverdue = (a: ParentAssignment): boolean => {
+  if (a.status === 'GRADED' || a.status === 'SUBMITTED') return false;
+  if (a.status === 'OVERDUE') return true;
+  if (!a.dueAt) return false;
+  const d = new Date(a.dueAt);
+  if (isNaN(d.getTime())) return false;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const day = new Date(d); day.setHours(0, 0, 0, 0);
+  return day.getTime() < today.getTime();
+};
+
 const initials = (name?: string | null) =>
   (name ?? '?').split(/\s+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('') || '?';
 
@@ -137,18 +154,27 @@ export const CommunicationScreen: React.FC = () => {
     markAnnouncementRead(accessToken, id).catch(() => {});
   };
 
-  const TABS: { id: Tab; label: string; icon: any; count: number }[] = [
-    { id: 'assignments', label: 'Assignments', icon: 'clipboard-outline', count: dueCount },
-    { id: 'updates', label: 'School updates', icon: 'megaphone-outline', count: newCount },
-    { id: 'chats', label: 'Teacher chats', icon: 'chatbubbles-outline', count: unreadChats },
+  // `count` is HOW MANY there are; `alert` is how many need attention. The tab
+  // shows the total, with a red dot when some of them are unread/overdue —
+  // previously the badge showed only the alert number, so a tab with four
+  // assignments and none overdue looked empty.
+  const TABS: { id: Tab; label: string; icon: any; count: number; alert: number }[] = [
+    { id: 'assignments', label: 'Assignments', icon: 'clipboard-outline', count: assignments?.length ?? 0, alert: dueCount },
+    { id: 'updates', label: 'School updates', icon: 'megaphone-outline', count: annList.length, alert: newCount },
+    { id: 'chats', label: 'Teacher chats', icon: 'chatbubbles-outline', count: contacts.length, alert: unreadChats },
   ];
+  const grandTotal = TABS.reduce((s, t) => s + t.count, 0);
+  const grandAlert = TABS.reduce((s, t) => s + t.alert, 0);
 
   return (
     <View style={styles.root}>
       <GradientAppBar
         large overlap
-        title="Messages"
-        subtitle={`${unreadChats} unread chat${unreadChats !== 1 ? 's' : ''} · ${newCount} school update${newCount !== 1 ? 's' : ''}`}
+        title="Communication"
+        // Total across all three tabs, with what needs attention called out.
+        subtitle={grandTotal === 0
+          ? 'Nothing here yet'
+          : `${grandTotal} item${grandTotal !== 1 ? 's' : ''}${grandAlert > 0 ? ` · ${grandAlert} need${grandAlert !== 1 ? '' : 's'} attention` : ' · all up to date'}`}
         right={
           <TouchableOpacity style={styles.helpBtn} activeOpacity={0.8} onPress={() => router.push('/help' as any)}>
             <Ionicons name="help-buoy-outline" size={16} color="#FFF" />
@@ -172,6 +198,8 @@ export const CommunicationScreen: React.FC = () => {
                     <Text style={[styles.segmentBadgeText, active && { color: colors.primary }]}>
                       {t.count > 99 ? '99+' : t.count}
                     </Text>
+                    {/* Red pip = some of these need attention. */}
+                    {t.alert > 0 && <View style={[styles.segmentAlert, { backgroundColor: colors.danger }]} />}
                   </View>
                 )}
               </TouchableOpacity>
@@ -215,7 +243,7 @@ const AssignmentsTab: React.FC<{ styles: any; colors: ColorPalette; childName: s
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'overdue' | 'done'>('all');
   const groupOf = (a: ParentAssignment): 'upcoming' | 'overdue' | 'done' => {
     if (a.status === 'GRADED' || a.status === 'SUBMITTED') return 'done';
-    if (a.status === 'OVERDUE') return 'overdue';
+    if (isOverdue(a)) return 'overdue';
     return 'upcoming';
   };
   const openAssignment = (a: ParentAssignment) => {
@@ -276,7 +304,7 @@ const AssignmentsTab: React.FC<{ styles: any; colors: ColorPalette; childName: s
           const ic = subjectIcon(a.subject, colors);
           const graded = a.status === 'GRADED';
           const submitted = a.status === 'SUBMITTED';
-          const overdue = a.status === 'OVERDUE';
+          const overdue = isOverdue(a);
           const color = graded || submitted ? colors.success : overdue ? colors.danger : colors.warning;
           const scoreStr = a.score != null && a.maxScore != null ? `${a.score}/${a.maxScore}` : a.score != null ? String(a.score) : null;
           // Every state names a DATE. The plain "due" case used to have an
@@ -523,7 +551,14 @@ function makeStyles(c: ColorPalette) {
     segmentBadge: {
       position: 'absolute', top: 4, right: 6,
       minWidth: 17, height: 17, paddingHorizontal: 4.5, borderRadius: 9,
-      backgroundColor: c.danger, alignItems: 'center', justifyContent: 'center',
+      // Neutral now that it's a TOTAL, not an alert count — the red pip below
+      // is what signals "some of these need you".
+      backgroundColor: c.textTertiary, alignItems: 'center', justifyContent: 'center',
+      borderWidth: 1.5, borderColor: c.card,
+    },
+    segmentAlert: {
+      position: 'absolute', top: -3, right: -3,
+      width: 8, height: 8, borderRadius: 4,
       borderWidth: 1.5, borderColor: c.card,
     },
     segmentBadgeActive: { backgroundColor: '#FFF', borderColor: c.primary },
