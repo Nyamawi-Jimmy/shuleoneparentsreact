@@ -99,10 +99,11 @@ export const MeView: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
+      {/* No onAvatarPress override: this screen IS /me, so navigating there was
+          a no-op. Let the avatar open the account menu instead. */}
       <TopBar
         streak={streak}
         stars={totalXp}
-        onAvatarPress={() => router.push('/(student-tabs)/me' as any)}
         onBellPress={() => router.push('/student/notifications' as any)}
       />
 

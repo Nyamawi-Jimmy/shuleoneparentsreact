@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   Platform,
   StatusBar,
+  Modal,
+  Pressable,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -43,8 +46,31 @@ export const TopBar: React.FC<TopBarProps> = ({ streak, stars, onAvatarPress, on
   const tokens = useTokens(tier);
   const insets = useSafeAreaInsets();
   useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
-  const { accessToken } = useAuth();
+  const { accessToken, signOut } = useAuth();
   const isAdult = tier === 'scholar' || tier === 'campus';
+  // Tapping the avatar opens a small account menu. Signing out used to mean
+  // navigating to the profile tab and scrolling to the bottom; from here it is
+  // two taps on ANY student screen, since this bar is on all of them.
+  const [menuOpen, setMenuOpen] = React.useState(false);
+
+  const confirmSignOut = () => {
+    setMenuOpen(false);
+    Alert.alert(
+      'Sign out?',
+      "You'll need to log in again to come back.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out',
+          style: 'destructive',
+          onPress: async () => {
+            await signOut();
+            router.replace('/login' as any);
+          },
+        },
+      ],
+    );
+  };
 
   const [fetched, setFetched] = React.useState(statsCache);
   React.useEffect(() => {
@@ -63,7 +89,9 @@ export const TopBar: React.FC<TopBarProps> = ({ streak, stars, onAvatarPress, on
   const streakShown = streak ?? fetched?.streak ?? 0;
   const starsShown = stars ?? fetched?.stars ?? 0;
   const goBell = onBellPress ?? (() => router.push('/student/notifications' as any));
-  const goAvatar = onAvatarPress ?? (() => router.push('/(student-tabs)/me' as any));
+  const goProfile = () => router.push('/(student-tabs)/me' as any);
+  // An explicit onAvatarPress from a screen still wins; otherwise open the menu.
+  const goAvatar = onAvatarPress ?? (() => setMenuOpen(true));
 
   const topPad =
       insets.top > 0
@@ -116,6 +144,29 @@ export const TopBar: React.FC<TopBarProps> = ({ streak, stars, onAvatarPress, on
             <Text style={{ fontSize: 20 }}>{mockAvatarEmoji}</Text>
           </LinearGradient>
         </TouchableOpacity>
+
+        {/* Account menu — anchored under the avatar, top-right. */}
+        <Modal transparent visible={menuOpen} animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+          <Pressable style={styles.menuBackdrop} onPress={() => setMenuOpen(false)}>
+            <Pressable style={[styles.menu, { top: topPad + 58 }]}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                activeOpacity={0.7}
+                onPress={() => { setMenuOpen(false); goProfile(); }}
+              >
+                <Text style={styles.menuEmoji}>🙂</Text>
+                <Text style={styles.menuLabel}>My profile</Text>
+              </TouchableOpacity>
+
+              <View style={styles.menuDivider} />
+
+              <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={confirmSignOut}>
+                <Text style={styles.menuEmoji}>🚪</Text>
+                <Text style={[styles.menuLabel, styles.menuLabelDanger]}>Sign out</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </View>
   );
 };
@@ -198,6 +249,27 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     borderWidth: 2,
     borderColor: '#fff',
   },
+
+  // ── Account menu ──────────────────────────────────────────────
+  menuBackdrop: { flex: 1, backgroundColor: 'rgba(44,37,80,0.35)' },
+  menu: {
+    position: 'absolute',
+    right: 12,
+    minWidth: 186,
+    backgroundColor: S.card,
+    borderRadius: 16,
+    paddingVertical: 6,
+    shadowColor: '#5038A0',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  menuEmoji: { fontSize: 15 },
+  menuLabel: { fontSize: 13.5, fontWeight: '700', color: S.ink },
+  menuLabelDanger: { color: '#e11d48' },
+  menuDivider: { height: 1, backgroundColor: S.ring, marginHorizontal: 12 },
 });
 
 // Scheme-proxied sheets: each style key resolves against the ACTIVE scheme
