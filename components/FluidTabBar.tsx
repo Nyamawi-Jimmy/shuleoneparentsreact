@@ -3,10 +3,13 @@
 // label; the others stay as icons in their own hue, dimmed. Nothing greys out,
 // so the row reads as a colourful set at rest and the selection is unmistakable.
 //
+// EVERY tab is labelled — kids shouldn't have to decode an icon alone — so the
+// pill stacks icon over label and the active state is carried by the tinted
+// wash, the full-strength colour and a lift, rather than by the label's
+// presence.
+//
 // Modern bits, all first-party to the SDK:
-//   · Reanimated 4 layout animations (LinearTransition) do the pill's width
-//     change — no manual width measuring, no LayoutAnimation flicker.
-//   · The label fades in/out with entering/exiting, springing the pill open.
+//   · Reanimated 4 shared values spring the wash + icon between states.
 //   · expo-haptics fires a selection tick on tab change (iOS + Android).
 //
 // The bar is attached to the bottom (not floating) on purpose: a floating bar
@@ -16,9 +19,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Animated, {
-  FadeIn,
-  FadeOut,
-  LinearTransition,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -138,7 +138,7 @@ const TabSlot: React.FC<{
       onPressOut={() => { press.value = 0; }}
       style={styles.slot}
     >
-      <Animated.View style={[styles.pill, pillStyle]} layout={LinearTransition.springify().damping(20)}>
+      <Animated.View style={[styles.pill, pillStyle]}>
         {/* Separate wash layer so the pill can fade in without animating the
             colour string itself (cheaper, and no interpolateColor jank). */}
         <Animated.View
@@ -146,28 +146,28 @@ const TabSlot: React.FC<{
           style={[StyleSheet.absoluteFill, styles.wash, { backgroundColor: tint + '1F' }, washStyle]}
         />
 
-        <Animated.View style={iconStyle}>
-          {renderIcon(tint, 21)}
-        </Animated.View>
+        <View style={styles.iconWrap}>
+          <Animated.View style={iconStyle}>
+            {renderIcon(tint, 21)}
+          </Animated.View>
+          {/* Badge sits OUTSIDE the dimming wrapper so an unread count stays
+              at full strength on an idle tab. */}
+          {badge != null && badge > 0 && (
+            <View style={[styles.badge, { backgroundColor: tint, borderColor: surface }]}>
+              <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
+            </View>
+          )}
+        </View>
 
-        {active && (
-          <Animated.Text
-            entering={FadeIn.duration(160)}
-            exiting={FadeOut.duration(90)}
-            layout={LinearTransition}
-            numberOfLines={1}
-            allowFontScaling={false}
-            style={[styles.label, { color: tint }]}
-          >
-            {label}
-          </Animated.Text>
-        )}
-
-        {badge != null && badge > 0 && (
-          <View style={[styles.badge, { backgroundColor: tint, borderColor: surface }]}>
-            <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
-          </View>
-        )}
+        {/* Always labelled — kids shouldn't have to recognise an icon alone.
+            The label carries the tab's own hue, dimmed when idle. */}
+        <Animated.Text
+          numberOfLines={1}
+          allowFontScaling={false}
+          style={[styles.label, { color: tint }, active ? styles.labelActive : styles.labelIdle]}
+        >
+          {label}
+        </Animated.Text>
       </Animated.View>
     </Pressable>
   );
@@ -188,20 +188,35 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 12,
   },
-  slot: { flexShrink: 1, minWidth: 0 },
+  // Every tab is the same width so a six-tab student bar stays even.
+  slot: { flex: 1, minWidth: 0, alignItems: 'center' },
   pill: {
-    flexDirection: 'row',
+    // Icon above label: with every tab labelled, a side-by-side pill would be
+    // far too wide to fit six destinations.
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+    paddingHorizontal: 4,
+    paddingTop: 7,
+    paddingBottom: 6,
+    borderRadius: 16,
     overflow: 'hidden',
   },
-  wash: { borderRadius: 999 },
-  label: { fontSize: 11.5, fontFamily: fonts.bold, letterSpacing: -0.2, maxWidth: 92 },
+  wash: { borderRadius: 16 },
+  label: {
+    fontSize: 9.5,
+    fontFamily: fonts.bold,
+    letterSpacing: -0.1,
+    marginTop: 3,
+    maxWidth: '100%',
+    textAlign: 'center',
+  },
+  labelActive: { opacity: 1 },
+  // Matches the idle icon so label and glyph fade together.
+  labelIdle: { opacity: 0.45 },
+  iconWrap: { position: 'relative' },
   badge: {
-    position: 'absolute', top: 2, right: 6,
+    position: 'absolute', top: -5, right: -11,
     minWidth: 16, height: 16, paddingHorizontal: 4, borderRadius: 8,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1.5,
   },
