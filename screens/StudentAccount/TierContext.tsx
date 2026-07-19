@@ -25,6 +25,10 @@ interface TierContextValue {
   tier: Tier;
   setTier: (t: Tier) => void;
   layout: HomeLayout;
+  /** Enrolled at a partner school (has a className) — gates school-only nav. */
+  inSchool: boolean;
+  /** 8-4-4 Form 3/4 (grade 103/104) — excluded from adult-only nav. */
+  isForm34: boolean;
 }
 
 const TierContext = createContext<TierContextValue | undefined>(undefined);
@@ -82,6 +86,10 @@ export const TierProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // never briefly sees the teen layout (or a teenager the toddler one) while
   // the profile loads.
   const [tier, setTier] = useState<Tier>(DEFAULT_TIER);
+  // Nav gates, mirroring lms-react StudentDashboard: school-only entries need a
+  // className, adult-only entries exclude 8-4-4 Form 3/4.
+  const [inSchool, setInSchool] = useState(false);
+  const [isForm34, setIsForm34] = useState(false);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -90,6 +98,8 @@ export const TierProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
         const prof = await getStudentProfile(accessToken);
         if (cancelled) return;
+        setInSchool(!!prof?.className);
+        setIsForm34(prof?.grade === 103 || prof?.grade === 104);
         // Trust the backend's own tier when it sends a valid one, else fall
         // back to grade, then date of birth.
         const fromApi = String(prof?.tier ?? '').toLowerCase() as Tier;
@@ -104,7 +114,7 @@ export const TierProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [accessToken]);
 
   return (
-    <TierContext.Provider value={{ tier, setTier, layout: TIER_LAYOUT[tier] }}>
+    <TierContext.Provider value={{ tier, setTier, layout: TIER_LAYOUT[tier], inSchool, isForm34 }}>
       {children}
     </TierContext.Provider>
   );
