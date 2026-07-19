@@ -192,7 +192,12 @@ export const HomeScreen: React.FC = () => {
               onPress={hasMultiple ? () => setSwitcherOpen(true) : () => router.push('/settings' as any)}
             >
               <View style={styles.childAvatar}>
-                <Text style={styles.childAvatarText}>{initials(child.fullName || (child as any).name)}</Text>
+                {/* Real photo when the child has one; initials are the fallback. */}
+                {child.photoUrl ? (
+                  <Image source={{ uri: child.photoUrl }} style={styles.childAvatarImg} />
+                ) : (
+                  <Text style={styles.childAvatarText}>{initials(child.fullName || (child as any).name)}</Text>
+                )}
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.childName} numberOfLines={1}>{child.fullName || (child as any).name}</Text>
@@ -579,7 +584,9 @@ function makeStyles(c: ColorPalette) {
       width: 42, height: 42, borderRadius: 21,
       backgroundColor: 'rgba(255,255,255,0.22)',
       alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden', // clip the photo to the circle
     },
+    childAvatarImg: { width: '100%', height: '100%' },
     childAvatarText: { color: '#FFF', fontSize: 14, fontFamily: fonts.extrabold },
     childName: { color: '#FFF', fontSize: 14.5, fontFamily: fonts.bold, letterSpacing: -0.2 },
     childMeta: { color: 'rgba(255,255,255,0.8)', fontSize: 11.5, fontFamily: fonts.regular, marginTop: 2 },

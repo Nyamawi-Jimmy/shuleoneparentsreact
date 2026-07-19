@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -80,7 +80,12 @@ export const ParentHeader: React.FC<Props> = ({
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 16 }]}>
       <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initials(parent?.name || displayName)}</Text>
+        {/* Real photo when the parent has one; initials are the fallback. */}
+        {parent?.photoUrl ? (
+          <Image source={{ uri: parent.photoUrl }} style={styles.avatarImg} />
+        ) : (
+          <Text style={styles.avatarText}>{initials(parent?.name || displayName)}</Text>
+        )}
       </View>
       <View style={styles.greetingCol}>
         <Text style={styles.greetingLabel}>{getGreeting()}</Text>
@@ -106,7 +111,9 @@ function makeStyles(c: ColorPalette) {
       width: 42, height: 42, borderRadius: 21,
       backgroundColor: c.primarySoft,
       alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden', // clip the photo to the circle
     },
+    avatarImg: { width: '100%', height: '100%' },
     avatarText: { color: c.primary, fontFamily: fonts.extrabold, fontSize: 15 },
     greetingCol: { flex: 1 },
     greetingLabel: { color: c.textSecondary, fontFamily: fonts.medium, fontSize: 12.5, letterSpacing: 0.1 },
