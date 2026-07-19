@@ -51,7 +51,6 @@ export const StudentHomeScreen: React.FC = () => {
 
   const firstName = profile?.firstName ?? user?.username ?? 'Learner';
   const className = profile?.className ?? '—';
-  const tier = profile?.tier ?? null;
   const level = gamification.level ?? 1;
   const totalXp = gamification.totalXp ?? 0;
   const streakCurrent = gamification.streak?.current ?? 0;
@@ -79,7 +78,8 @@ export const StudentHomeScreen: React.FC = () => {
           </View>
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.greeting}>Hi, {firstName}! 👋</Text>
-            <Text style={styles.subgreeting}>{className}{tier ? `  •  ${tier}` : ''}</Text>
+            {/* Class only — the age tier is internal and never named here. */}
+            <Text style={styles.subgreeting}>{className}</Text>
           </View>
           <TouchableOpacity hitSlop={10} onPress={() => router.push('/notifications' as any)}>
             <View>
