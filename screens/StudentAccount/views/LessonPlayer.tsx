@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LearningHeader } from '../components/LearningHeader';
 import { useAuth } from '../../../context/AuthContext';
 import { getStageLesson, completeStage, StageAnswer } from '../../../api/quests';
@@ -39,6 +40,8 @@ export const LessonPlayer: React.FC = () => {
     lessonId?: string; questId?: string; stageId?: string;
   }>();
   const { accessToken } = useAuth();
+  // Back/Next live in a fixed footer — pad it above Android's nav keys.
+  const insets = useSafeAreaInsets();
   const uiScheme = useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
 
   const [lesson, setLesson] = useState<Lesson | null>(null);
@@ -272,7 +275,7 @@ export const LessonPlayer: React.FC = () => {
       </ScrollView>
 
       {/* Footer nav */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 14 }]}>
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={goPrev}
@@ -860,7 +863,9 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
 
   footer: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 12, paddingBottom: 22,
+    paddingHorizontal: 16, paddingVertical: 12,
+    // paddingBottom comes from the safe-area inset inline — a fixed 22 sat
+    // under Android's ~48dp nav keys, hiding Back/Next entirely.
     backgroundColor: S.card,
     borderTopWidth: 1, borderTopColor: S.divider,
   },
