@@ -19,6 +19,18 @@ const ICONS: Record<string, (active: boolean, color: string) => React.ReactNode>
   communication: (a, c) => <Ionicons name={a ? 'chatbubbles' : 'chatbubbles-outline'} size={20} color={c} />,
 };
 
+// One signature colour per destination, so the bar reads as a colourful row
+// on a neutral surface. Inactive tabs wear the same hue, just muted — the tab
+// keeps its identity instead of greying out into an anonymous icon.
+const TINTS: Record<string, string> = {
+  index: '#E11D48',          // rose — Home (brand)
+  learning: '#7C3AED',       // violet — Learning
+  finance: '#059669',        // emerald — Fees
+  academics: '#2563EB',      // blue — Academics
+  communication: '#EA580C',  // orange — Messages
+};
+const FALLBACK_TINT = '#E11D48';
+
 interface TabRoute { key: string; name: string; params?: object }
 
 // Minimal shape of the react-navigation tab-bar props this component uses
@@ -42,22 +54,21 @@ export const BrandTabBar: React.FC<TabBarProps> = ({ state, descriptors, navigat
   const unread = contacts.reduce((s, c) => s + (c.unreadCount ?? 0), 0);
 
   return (
-    // Brand-coloured bar: the rose primary carries through to the bottom of
-    // every screen, and the inset padding below is the same colour so it reads
-    // as one band behind Android's nav keys.
+    // Neutral surface — the colour lives in the ICONS, not the bar.
     <View style={[styles.bar, {
-      backgroundColor: colors.primary,
-      borderTopColor: colors.primaryDeep,
-      shadowOpacity: colors.scheme === 'dark' ? 0.4 : 0.18,
+      backgroundColor: colors.card,
+      borderTopColor: colors.border,
+      shadowOpacity: colors.scheme === 'dark' ? 0.4 : 0.07,
       paddingBottom: insets.bottom + 8,
     }]}>
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const label = String(options.title ?? route.name);
         const active = state.index === index;
-        // On the coloured bar the contrast is white vs translucent white — the
-        // old primary/textTertiary pair would vanish against the rose.
-        const color = active ? '#FFFFFF' : 'rgba(255,255,255,0.72)';
+        const tint = TINTS[route.name] ?? FALLBACK_TINT;
+        // Always the tab's own hue; inactive is the same colour dimmed rather
+        // than a flat grey, which is what makes the row read as "coloured".
+        const color = tint;
 
         const onPress = () => {
           const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -72,15 +83,14 @@ export const BrandTabBar: React.FC<TabBarProps> = ({ state, descriptors, navigat
             accessibilityLabel={label}
             onPress={onPress}
             activeOpacity={0.7}
-            style={styles.slot}
+            style={[styles.slot, !active && styles.slotIdle]}
           >
-            <View style={[styles.indicator, active && { backgroundColor: '#FFFFFF' }]} />
+            <View style={[styles.indicator, active && { backgroundColor: tint }]} />
             <View>
               {ICONS[route.name]?.(active, color) ?? <Ionicons name="ellipse-outline" size={20} color={color} />}
               {route.name === 'communication' && unread > 0 && (
-                // A red badge would disappear into the rose bar — invert it.
-                <View style={[styles.badge, { backgroundColor: '#FFFFFF', borderColor: colors.primary }]}>
-                  <Text style={[styles.badgeText, { color: colors.primary }]}>{unread > 99 ? '99+' : unread}</Text>
+                <View style={[styles.badge, { backgroundColor: colors.danger, borderColor: colors.card }]}>
+                  <Text style={styles.badgeText}>{unread > 99 ? '99+' : unread}</Text>
                 </View>
               )}
             </View>
@@ -110,6 +120,9 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   slot: { flex: 1, alignItems: 'center', paddingTop: 7, paddingBottom: 2, minWidth: 0 },
+  // Dim the whole slot rather than swapping in grey, so an inactive tab keeps
+  // its hue and the row still reads as colourful.
+  slotIdle: { opacity: 0.42 },
   indicator: {
     width: 20, height: 3, borderRadius: 2,
     backgroundColor: 'transparent',
