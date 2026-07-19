@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useParentProfile } from '../context/ParentProfileContext';
+import { AccountMenu } from './AccountMenu';
 import { useTheme } from '../theme/ThemeContext';
 import { ColorPalette } from '../theme/palettes';
 import { fonts } from '../constants/theme';
@@ -40,6 +41,7 @@ export const ParentHeader: React.FC<Props> = ({
   const { colors } = useTheme();
   const styles = React.useMemo(() => makeStyles(colors), [colors]);
   const { parent } = useParentProfile();
+  const [menuOpen, setMenuOpen] = React.useState(false);
   // Pad by the real status-bar height instead of a hardcoded guess, so the
   // clock/battery/notification icons are never sat on by the header row.
   const insets = useSafeAreaInsets();
@@ -79,14 +81,16 @@ export const ParentHeader: React.FC<Props> = ({
   // ── Greeting mode (Today) ───────────────────────────────────────
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + 16 }]}>
-      <View style={styles.avatar}>
+      {/* Avatar opens the account menu — sign-out from any sub-page. */}
+      <TouchableOpacity activeOpacity={0.8} onPress={() => setMenuOpen(true)} style={styles.avatar}>
         {/* Real photo when the parent has one; initials are the fallback. */}
         {parent?.photoUrl ? (
           <Image source={{ uri: parent.photoUrl }} style={styles.avatarImg} />
         ) : (
           <Text style={styles.avatarText}>{initials(parent?.name || displayName)}</Text>
         )}
-      </View>
+      </TouchableOpacity>
+      <AccountMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
       <View style={styles.greetingCol}>
         <Text style={styles.greetingLabel}>{getGreeting()}</Text>
         <Text style={styles.greetingName} numberOfLines={1}>{displayName}</Text>

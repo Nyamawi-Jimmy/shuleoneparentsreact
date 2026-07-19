@@ -23,6 +23,25 @@ interface AgendaItem {
 }
 
 const toKey = (iso?: string | null) => (iso ? String(iso).slice(0, 10) : '');
+
+/**
+ * TermEvent.className is ShuleOne's own CSS class for colouring the event
+ * ("bg-gradient-danger") — NOT a school class, despite the name. Rendering it
+ * put raw CSS on the card. The real audience is targetClass; fall back to the
+ * description, then to a plain label.
+ */
+const looksLikeCssClass = (s?: string | null) =>
+  !!s && /^(bg|text|border|from|to)-/.test(s.trim());
+
+const eventSubtitle = (e: TermEvent): string => {
+  const target = e.targetClass?.trim();
+  if (target && target.toLowerCase() !== 'all' && !looksLikeCssClass(target)) return target;
+  const desc = e.description
+    ? String(e.description).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    : '';
+  if (desc) return desc;
+  return 'Whole school';
+};
 const localKey = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 const todayKey = () => localKey(new Date());
 const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
@@ -62,7 +81,7 @@ export const CalendarScreen: React.FC = () => {
       if (!e.startDate) return;
       items.push({
         id: `EV:${e.id}`, kind: 'event', category: 'school',
-        title: e.title || 'School event', desc: e.className || 'School event',
+        title: e.title || 'School event', desc: eventSubtitle(e),
         dateKey: toKey(e.startDate), endKey: toKey(e.endDate) || toKey(e.startDate),
         time: 'All day', isNow: false,
       });
@@ -196,20 +215,46 @@ export const CalendarScreen: React.FC = () => {
           <View style={{ gap: 10 }}>
             {upcoming.slice(0, 20).map((i) => {
               const d = new Date(i.dateKey + 'T00:00:00');
-              const dateLabel = isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+              const valid = !isNaN(d.getTime());
               const tone = i.category === 'live' ? colors.primary : colors.info;
               const reminded = i.live?.id ? reminders.has(`LIVE_CLASS:${i.live.id}`) : false;
+              // Full date, plus the end date when the event spans days.
+              const fullLabel = valid
+                ? d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+                : 'Date to be confirmed';
+              const spans = i.endKey && i.endKey !== i.dateKey;
+              const endD = spans ? new Date(i.endKey + 'T00:00:00') : null;
+              const endLabel = endD && !isNaN(endD.getTime())
+                ? endD.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+                : '';
               return (
-                <View key={i.id} style={styles.eventCard}>
-                  <View style={[styles.eventIcon, { backgroundColor: tone + '1A' }]}>
-                    <Ionicons name={i.category === 'live' ? 'radio' : 'calendar'} size={18} color={tone} />
+                <View key={i.id} style={[styles.eventCard, i.isNow && { borderColor: colors.success }]}>
+                  {/* Calendar date block — the day leads, as on a real diary. */}
+                  <View style={[styles.dateBlock, { backgroundColor: tone + '14', borderColor: tone + '2E' }]}>
+                    <Text style={[styles.dateBlockMon, { color: tone }]}>
+                      {valid ? d.toLocaleDateString('en-GB', { month: 'short' }).toUpperCase() : '—'}
+                    </Text>
+                    <Text style={[styles.dateBlockDay, { color: tone }]}>{valid ? d.getDate() : '?'}</Text>
+                    <Text style={[styles.dateBlockDow, { color: tone }]}>
+                      {valid ? d.toLocaleDateString('en-GB', { weekday: 'short' }).toUpperCase() : ''}
+                    </Text>
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.eventTitle} numberOfLines={1}>{i.title}</Text>
+                    <View style={styles.eventTopRow}>
+                      <View style={[styles.eventChip, { backgroundColor: i.isNow ? colors.success + '1A' : tone + '14' }]}>
+                        {i.isNow && <View style={[styles.liveDot, { backgroundColor: colors.success }]} />}
+                        <Text style={[styles.eventChipText, { color: i.isNow ? colors.success : tone }]}>
+                          {i.isNow ? 'Live now' : i.category === 'live' ? 'Live class' : 'School event'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.eventTitle} numberOfLines={2}>{i.title}</Text>
                     <Text style={styles.eventDesc} numberOfLines={1}>{i.desc}</Text>
-                    <View style={styles.eventMetaRow}>
-                      <View style={[styles.eventChip, { backgroundColor: tone + '14' }]}><Text style={[styles.eventChipText, { color: tone }]}>{i.isNow ? 'Live now' : i.category === 'live' ? 'Live class' : 'School'}</Text></View>
-                      <Text style={styles.eventDate}>{dateLabel}{i.time ? ` · ${i.time}` : ''}</Text>
+                    <View style={styles.eventWhen}>
+                      <Ionicons name="time-outline" size={12} color={colors.textTertiary} />
+                      <Text style={styles.eventDate} numberOfLines={2}>
+                        {fullLabel}{endLabel ? ` – ${endLabel}` : ''}{i.time ? ` · ${i.time}` : ''}
+                      </Text>
                     </View>
                   </View>
                   {i.kind === 'live' && (
@@ -272,14 +317,29 @@ function makeStyles(c: ColorPalette) {
     emptyTitle: { fontSize: 15, fontFamily: fonts.bold, color: c.text, marginTop: 12 },
     emptyText: { fontSize: 13, fontFamily: fonts.regular, color: c.textSecondary, textAlign: 'center', marginTop: 5, lineHeight: 19 },
 
-    eventCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border, padding: 13 },
-    eventIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    eventTitle: { fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
-    eventDesc: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 1 },
-    eventMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-    eventChip: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+    eventCard: {
+      flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+      backgroundColor: c.card, borderRadius: 18, borderWidth: 1, borderColor: c.border,
+      padding: 13,
+      shadowColor: '#000', shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.06, shadowRadius: 10, elevation: 2,
+    },
+    // Diary-style date block: month, big day numeral, weekday.
+    dateBlock: {
+      width: 52, borderRadius: 13, borderWidth: 1,
+      alignItems: 'center', paddingVertical: 7,
+    },
+    dateBlockMon: { fontSize: 9, fontFamily: fonts.extrabold, letterSpacing: 0.8 },
+    dateBlockDay: { fontSize: 21, fontFamily: fonts.extrabold, letterSpacing: -0.6, marginTop: -1 },
+    dateBlockDow: { fontSize: 8.5, fontFamily: fonts.bold, letterSpacing: 0.5, opacity: 0.8 },
+    eventTopRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 5 },
+    eventTitle: { fontSize: 14.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2, lineHeight: 19 },
+    eventDesc: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 2 },
+    eventWhen: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginTop: 7 },
+    eventChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
     eventChipText: { fontSize: 10, fontFamily: fonts.bold },
-    eventDate: { fontSize: 11, fontFamily: fonts.medium, color: c.textTertiary },
+    liveDot: { width: 6, height: 6, borderRadius: 3 },
+    eventDate: { flex: 1, fontSize: 11, fontFamily: fonts.medium, color: c.textTertiary, lineHeight: 15 },
     eventActions: { alignItems: 'center', gap: 6 },
     joinBtn: { backgroundColor: c.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8, minWidth: 56, alignItems: 'center' },
     joinBtnText: { color: '#FFF', fontSize: 12.5, fontFamily: fonts.bold },

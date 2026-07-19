@@ -20,6 +20,7 @@ import { useTheme } from '../../theme/ThemeContext';
 import { ColorPalette } from '../../theme/palettes';
 import { fonts } from '../../constants/theme';
 import { ChildSwitcherModal } from '../../components/ChildSwitcherModal';
+import { AccountMenu } from '../../components/AccountMenu';
 import { useSelectedChild } from '../../context/SelectedChildContext';
 import { useParentProfile } from '../../context/ParentProfileContext';
 import { useParentHome } from '../../hooks/useParentHome';
@@ -118,6 +119,9 @@ export const HomeScreen: React.FC = () => {
   const { t } = useLanguage();
   const { selectedChild: child, children } = useSelectedChild();
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  // Header avatar opens the account menu — sign-out used to mean Settings then
+  // a scroll to the very bottom.
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const { data: home, loading: homeLoading, refreshing, error: homeError, refresh } = useParentHome();
   const { summary: feesSummary } = useChildFees();
@@ -150,8 +154,10 @@ export const HomeScreen: React.FC = () => {
   // Cleared reads as a paid/billed fraction — "63,000 / 63,000" — so the two
   // numbers matching IS the proof it's settled. A lone figure looked like a
   // balance still owing.
+  // Currency appears once, on the paid figure — repeating "KSh" in the
+  // denominator only made the line long enough to truncate.
   const feesSuffix = feesCleared && feesBilled != null
-    ? ` / ${formatKsh(feesBilled)}`
+    ? ` / ${formatKsh(feesBilled).replace(/^KSh\s*/i, '')}`
     : undefined;
   const feesTone = feesBalance != null && feesBalance > 0 ? colors.danger : colors.success;
   const feesFoot = feesBalance == null
@@ -196,7 +202,7 @@ export const HomeScreen: React.FC = () => {
         {/* ── Integrated header: greeting, bell, child switcher ─────────── */}
         <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.header, { paddingTop: insets.top + 20 }]}>
           <View style={styles.headerTop}>
-            <TouchableOpacity style={styles.avatarWrap} activeOpacity={0.8} onPress={() => router.push('/settings' as any)}>
+            <TouchableOpacity style={styles.avatarWrap} activeOpacity={0.8} onPress={() => setMenuOpen(true)}>
               {parent?.photoUrl ? (
                 <Image source={{ uri: parent.photoUrl }} style={styles.avatarImg} />
               ) : (
@@ -404,6 +410,7 @@ export const HomeScreen: React.FC = () => {
       </ScrollView>
 
       <ChildSwitcherModal visible={switcherOpen} onClose={() => setSwitcherOpen(false)} />
+      <AccountMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
     </View>
   );
 };
@@ -518,7 +525,14 @@ const StatCard: React.FC<{
       ) : null}
     </View>
     <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
-    <Text style={[styles.statValue, valueColor ? { color: valueColor } : null]} numberOfLines={1}>
+    {/* Shrink to fit rather than ellipsize — a truncated money figure is
+        worse than a slightly smaller one. */}
+    <Text
+      style={[styles.statValue, valueColor ? { color: valueColor } : null]}
+      numberOfLines={1}
+      adjustsFontSizeToFit
+      minimumFontScale={0.65}
+    >
       {value}
       {!!valueSuffix && <Text style={styles.statValueSuffix}>{valueSuffix}</Text>}
     </Text>
