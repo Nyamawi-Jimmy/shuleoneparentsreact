@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Circle } from 'react-native-svg';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTier, pickByTier } from '../TierContext';
 import { useTokens } from '../tokens';
 import { TopBar } from '../components/TopBar';
@@ -77,36 +79,55 @@ const STATUS_TABS: { key: StatusKey | 'all'; label: string; tone: string }[] = [
   { key: 'missed', label: 'Missed', tone: '#9b94c4' },
 ];
 
-const shortDate = (iso?: string | null) => {
+// FULL date — weekday, day, month and year. A deadline shown as "29" is
+// useless in January when the task was set in December.
+const fullDate = (iso?: string | null) => {
   if (!iso) return '';
-  const d = new Date(iso); return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+  });
+};
+// Time of day, only when the deadline actually carries one.
+const timeOf = (iso?: string | null) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  if (d.getHours() === 0 && d.getMinutes() === 0) return '';
+  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 };
 // Human due countdown; `urgent` drives the red tint.
-function dueInfo(a: StudentAssignment, isDone: boolean): { text: string; urgent: boolean } {
-  // The date is ALWAYS shown when we have one. A bare "Missed" or "Overdue"
-  // tells a student nothing about which deadline they slipped on.
-  const on = shortDate(a.dueAt);
-  if (a.status === 'MISSED') {
-    return { text: on ? `Missed · was due ${on}` : 'Missed · no due date', urgent: false };
-  }
+/**
+ * Two-part deadline: `lead` is the human urgency ("Due tomorrow", "Overdue"),
+ * `date` is always the full calendar date. Splitting them lets the card show
+ * urgency in colour and the date in plain type, instead of one long string.
+ */
+function dueInfo(a: StudentAssignment, isDone: boolean): {
+  lead: string; date: string; urgent: boolean;
+} {
+  const on = fullDate(a.dueAt);
+  const at = timeOf(a.dueAt);
+  const stamp = on ? (at ? `${on} · ${at}` : on) : 'No due date set';
+
+  if (a.status === 'MISSED') return { lead: 'Missed', date: stamp, urgent: false };
   if (isDone) {
     return {
-      text: a.submittedAt ? `Submitted ${shortDate(a.submittedAt)}` : 'Submitted',
+      lead: a.status === 'GRADED' ? 'Graded' : 'Submitted',
+      date: a.submittedAt ? fullDate(a.submittedAt) : stamp,
       urgent: false,
     };
   }
-  if (a.status === 'OVERDUE') {
-    return { text: on ? `Overdue · was due ${on}` : 'Overdue', urgent: true };
-  }
+  if (a.status === 'OVERDUE') return { lead: 'Overdue', date: stamp, urgent: true };
+
   const t = a.dueAt ? new Date(a.dueAt).getTime() : NaN;
-  if (isNaN(t)) return { text: 'No due date', urgent: false };
+  if (isNaN(t)) return { lead: 'No deadline', date: 'No due date set', urgent: false };
   const days = Math.ceil((t - Date.now()) / 86400000);
-  if (days < 0) return { text: `Overdue · was due ${on}`, urgent: true };
-  if (days === 0) return { text: `Due today · ${on}`, urgent: true };
-  if (days === 1) return { text: `Due tomorrow · ${on}`, urgent: true };
-  // Keep the countdown, but name the day so it can be diarised.
-  if (days <= 6) return { text: `Due in ${days} days · ${on}`, urgent: false };
-  return { text: `Due ${on}`, urgent: false };
+  if (days < 0) return { lead: 'Overdue', date: stamp, urgent: true };
+  if (days === 0) return { lead: 'Due today', date: stamp, urgent: true };
+  if (days === 1) return { lead: 'Due tomorrow', date: stamp, urgent: true };
+  if (days <= 6) return { lead: `Due in ${days} days`, date: stamp, urgent: false };
+  return { lead: `Due in ${Math.round(days / 7)} week${days >= 14 ? 's' : ''}`, date: stamp, urgent: false };
 }
 
 export const AssignmentsView: React.FC = () => {
@@ -247,33 +268,41 @@ export const AssignmentsView: React.FC = () => {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={tokens.accent1} />}
       >
-        <View style={styles.secH}>
-          <Text style={styles.secHTitle}>{title}</Text>
-          <View style={styles.secHLine} />
-        </View>
-
-        {/* Overview — the at-a-glance dashboard: counts + completion. */}
+        {/* Hero — completion ring carries the headline number; the counts sit
+            beside it as quiet supporting figures rather than three equal tiles. */}
         {list.length > 0 && (
-          <View style={[styles.statsCard, { borderRadius: tokens.radius }]}>
-            <View style={styles.statsRow}>
-              <View style={styles.statCell}>
-                <Text style={[styles.statNum, { color: tokens.accent1 }]}>{todo.length}</Text>
-                <Text style={styles.statLabel}>To do</Text>
+          <Animated.View entering={FadeInDown.duration(320)}>
+            <LinearGradient
+              colors={[tokens.accent1, tokens.accent2]}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={[styles.hero, { borderRadius: tokens.radius + 4 }]}
+            >
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.heroKick}>{title.replace(/^\S+\s/, '').toUpperCase()}</Text>
+                <Text style={styles.heroHead}>
+                  {nOverdue > 0
+                    ? `${nOverdue} need${nOverdue === 1 ? 's' : ''} attention`
+                    : todo.length > 0
+                      ? `${todo.length} task${todo.length === 1 ? '' : 's'} to go`
+                      : 'All caught up'}
+                </Text>
+                <View style={styles.heroChips}>
+                  <View style={styles.heroChip}>
+                    <Text style={styles.heroChipText}>{done.length} done</Text>
+                  </View>
+                  <View style={styles.heroChip}>
+                    <Text style={styles.heroChipText}>{todo.length} open</Text>
+                  </View>
+                  {nOverdue > 0 && (
+                    <View style={[styles.heroChip, styles.heroChipWarn]}>
+                      <Text style={styles.heroChipText}>{nOverdue} overdue</Text>
+                    </View>
+                  )}
+                </View>
               </View>
-              <View style={styles.statDiv} />
-              <View style={styles.statCell}>
-                <Text style={[styles.statNum, { color: '#15c98c' }]}>{done.length}</Text>
-                <Text style={styles.statLabel}>Done</Text>
-              </View>
-              <View style={styles.statDiv} />
-              <View style={styles.statCell}>
-                <Text style={[styles.statNum, { color: nOverdue ? '#ef4444' : C.faint }]}>{nOverdue}</Text>
-                <Text style={styles.statLabel}>Overdue</Text>
-              </View>
-            </View>
-            <View style={styles.statsBar}><View style={[styles.statsFill, { width: `${pctDone}%` }]} /></View>
-            <Text style={styles.statsCaption}>{pctDone}% complete this term</Text>
-          </View>
+              <Ring pct={pctDone} />
+            </LinearGradient>
+          </Animated.View>
         )}
 
         {list.length === 0 ? (
@@ -286,24 +315,25 @@ export const AssignmentsView: React.FC = () => {
           <>
             {/* Status filter — the primary cut. Counts are non-overlapping, so
                 Active + Upcoming + Done + Missed always equals All. */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusRow}>
-              {STATUS_TABS.map((t) => {
-                const on = status === t.key;
-                const n = t.key === 'all' ? byCat.length : counts[t.key as StatusKey];
-                return (
-                  <TouchableOpacity
-                    key={t.key}
-                    activeOpacity={0.8}
-                    onPress={() => setStatus(t.key)}
-                    style={[styles.statusTab, on && { backgroundColor: t.tone, borderColor: t.tone }]}
-                  >
-                    <Text style={[styles.statusTabText, on && { color: '#fff' }]}>{t.label}</Text>
-                    <View style={[styles.statusCount, on && { backgroundColor: 'rgba(255,255,255,0.26)' }]}>
-                      <Text style={[styles.statusCountText, on && { color: '#fff' }]}>{n}</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.statusTrack}>
+                {STATUS_TABS.map((t) => {
+                  const on = status === t.key;
+                  const n = t.key === 'all' ? byCat.length : counts[t.key as StatusKey];
+                  return (
+                    <TouchableOpacity
+                      key={t.key}
+                      activeOpacity={0.75}
+                      onPress={() => setStatus(t.key)}
+                      style={[styles.statusSeg, on && styles.statusSegOn]}
+                    >
+                      <View style={[styles.statusDot, { backgroundColor: on ? t.tone : C.line }]} />
+                      <Text style={[styles.statusSegText, on && { color: t.tone }]}>{t.label}</Text>
+                      <Text style={[styles.statusSegNum, on && { color: t.tone }]}>{n}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </ScrollView>
 
             {showChips && (
@@ -347,18 +377,31 @@ export const AssignmentsView: React.FC = () => {
 };
 
 // =================================================================
-// Task cards — the app's OWN look (deliberately unlike the web rows):
-// a status-tinted accent stripe, a calendar date block for the due /
-// submitted day, chips beneath the title, and a real action button.
+// Task cards — a full-height status edge bar instead of a border, the
+// subject in its own colour, and a deadline band carrying the urgency
+// word above the FULL calendar date.
 // =================================================================
-const dateParts = (iso: string | null | undefined) => {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return null;
-  return {
-    day: String(d.getDate()),
-    mon: d.toLocaleDateString('en-GB', { month: 'short' }).toUpperCase(),
-  };
+
+/** Completion ring for the hero — SVG, so it stays crisp at any density. */
+const Ring: React.FC<{ pct: number }> = ({ pct }) => {
+  const size = 74, stroke = 7, r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const off = circ - (Math.max(0, Math.min(100, pct)) / 100) * circ;
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.28)" strokeWidth={stroke} fill="none" />
+        <Circle
+          cx={size / 2} cy={size / 2} r={r}
+          stroke="#fff" strokeWidth={stroke} fill="none" strokeLinecap="round"
+          strokeDasharray={`${circ} ${circ}`} strokeDashoffset={off}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </Svg>
+      <Text style={styles.ringPct}>{pct}%</Text>
+      <Text style={styles.ringCap}>done</Text>
+    </View>
+  );
 };
 
 const Section: React.FC<{
@@ -374,7 +417,7 @@ const Section: React.FC<{
       </View>
       <View style={styles.sectionLine} />
     </View>
-    {rows.map((a) => {
+    {rows.map((a, i) => {
       const s = statusMeta(a);
       const cm = categoryMeta(a.category);
       const isDone = a.status === 'GRADED' || a.status === 'SUBMITTED';
@@ -382,49 +425,62 @@ const Section: React.FC<{
       const subjTint = subjectAccent(a);
       const due = dueInfo(a, isDone);
       const action = isDone ? 'View' : a.status === 'OVERDUE' ? 'Finish' : 'Start';
+      const pctScore = graded && a.score != null && a.maxScore ? Math.round((a.score / a.maxScore) * 100) : null;
       return (
-        <TouchableOpacity key={a.id} activeOpacity={0.85} onPress={() => onOpen(a.id)}
-          style={[styles.card, { borderRadius: radius, borderLeftColor: s.tint }]}>
-          {/* Top row — subject tile, title/meta, score or status */}
-          <View style={styles.cardTop}>
-            <View style={[styles.iconBox, { backgroundColor: subjTint + '1F' }]}>
-              <Text style={{ fontSize: 20 }}>{emojiFor(a)}</Text>
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.cardTitle} numberOfLines={2}>{a.title ?? 'Task'}</Text>
-              {(a.subject || a.teacher) && (
-                <Text style={styles.cardMeta} numberOfLines={1}>
-                  {a.subject ?? ''}{a.subject && a.teacher ? ' · ' : ''}{a.teacher ?? ''}
-                </Text>
-              )}
-            </View>
-            {graded && a.score != null && a.maxScore != null ? (
-              <View style={styles.scoreBadge}>
-                <Text style={styles.scoreNum}>{a.score}<Text style={styles.scoreDen}>/{a.maxScore}</Text></Text>
-                <Text style={styles.scoreLbl}>SCORE</Text>
-              </View>
-            ) : (
-              <View style={[styles.statusPill, { backgroundColor: s.bg }]}>
-                <Text style={[styles.statusPillText, { color: s.tint }]}>{s.emoji} {s.label}</Text>
-              </View>
-            )}
-          </View>
+        <Animated.View key={a.id} entering={FadeInDown.delay(Math.min(i, 6) * 45).duration(300)}>
+          <TouchableOpacity activeOpacity={0.85} onPress={() => onOpen(a.id)}
+            style={[styles.card, { borderRadius: radius }]}>
+            {/* Status is carried by a full-height edge bar, not a coloured
+                border — it reads as one object rather than a bordered box. */}
+            <View style={[styles.edge, { backgroundColor: s.tint }]} />
 
-          {/* Footer — category, due countdown, action */}
-          <View style={styles.cardFoot}>
-            <View style={styles.footLeft}>
-              <View style={[styles.catPill, { backgroundColor: cm.bg }]}>
-                <Text style={[styles.catPillText, { color: cm.fg }]}>{cm.label}</Text>
+            <View style={styles.cardBody}>
+              <View style={styles.cardTop}>
+                <View style={[styles.iconBox, { backgroundColor: subjTint + '1A', borderColor: subjTint + '33' }]}>
+                  <Text style={{ fontSize: 19 }}>{emojiFor(a)}</Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.cardTitle} numberOfLines={2}>{a.title ?? 'Task'}</Text>
+                  <View style={styles.metaRow}>
+                    {!!a.subject && <Text style={[styles.metaStrong, { color: subjTint }]} numberOfLines={1}>{a.subject}</Text>}
+                    {!!a.subject && !!a.teacher && <View style={styles.metaSep} />}
+                    {!!a.teacher && <Text style={styles.cardMeta} numberOfLines={1}>{a.teacher}</Text>}
+                  </View>
+                </View>
+                {graded && pctScore != null ? (
+                  <View style={styles.scoreBadge}>
+                    <Text style={[styles.scoreNum, { color: pctScore >= 50 ? '#15c98c' : '#ef4444' }]}>{pctScore}%</Text>
+                    <Text style={styles.scoreLbl}>{a.score}/{a.maxScore}</Text>
+                  </View>
+                ) : (
+                  <View style={[styles.statusPill, { backgroundColor: s.bg }]}>
+                    <Text style={[styles.statusPillText, { color: s.tint }]}>{s.label}</Text>
+                  </View>
+                )}
               </View>
-              <View style={[styles.duePill, { backgroundColor: due.urgent ? C.badSoft : C.soft }]}>
-                <Text style={[styles.duePillText, { color: due.urgent ? C.badInk : C.inkSoft }]}>🕓 {due.text}</Text>
+
+              {/* Deadline band — urgency word in colour, FULL date beneath it. */}
+              <View style={[styles.dueBand, { backgroundColor: due.urgent ? C.badSoft : C.soft }]}>
+                <View style={[styles.dueIcon, { backgroundColor: due.urgent ? C.badInk : C.inkSoft }]}>
+                  <Text style={styles.dueIconText}>{isDone ? '✓' : due.urgent ? '!' : '🗓'}</Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.dueLead, { color: due.urgent ? C.badInk : C.inkSoft }]}>{due.lead}</Text>
+                  <Text style={styles.dueDate} numberOfLines={1}>{due.date}</Text>
+                </View>
+                <View style={[styles.catPill, { backgroundColor: cm.bg }]}>
+                  <Text style={[styles.catPillText, { color: cm.fg }]}>{cm.label}</Text>
+                </View>
               </View>
+
+              <TouchableOpacity activeOpacity={0.85} onPress={() => onOpen(a.id)}
+                style={[styles.actionBtn, { backgroundColor: isDone ? 'transparent' : accent, borderColor: accent }]}>
+                <Text style={[styles.actionText, isDone && { color: accent }]}>{action}</Text>
+                <Text style={[styles.actionChev, isDone && { color: accent }]}>›</Text>
+              </TouchableOpacity>
             </View>
-            <View style={[styles.actionBtn, { backgroundColor: isDone ? C.soft : accent }]}>
-              <Text style={[styles.actionText, isDone && { color: accent }]}>{action} ›</Text>
-            </View>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </Animated.View>
       );
     })}
   </View>
@@ -442,18 +498,23 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: S.line },
   subline: { fontSize: 12, color: S.inkSoft, fontWeight: '700', marginBottom: 14 },
 
-  statusRow: { flexDirection: 'row', gap: 8, paddingRight: 4, marginBottom: 12 },
-  statusTab: {
+  // Inset segmented filter — same idiom as the parent fee-term switcher.
+  statusTrack: {
+    flexDirection: 'row', gap: 4,
+    backgroundColor: S.soft, borderRadius: 14, padding: 4, marginBottom: 14,
+  },
+  statusSeg: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
-    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9,
   },
-  statusTabText: { fontSize: 12.5, fontWeight: '800', color: S.inkSoft },
-  statusCount: {
-    minWidth: 20, paddingHorizontal: 5, paddingVertical: 1,
-    borderRadius: 7, backgroundColor: S.soft, alignItems: 'center',
+  statusSegOn: {
+    backgroundColor: S.card,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.10, shadowRadius: 3, elevation: 2,
   },
-  statusCountText: { fontSize: 11, fontWeight: '800', color: S.inkSoft },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusSegText: { fontSize: 12.5, fontWeight: '800', color: S.inkSoft },
+  statusSegNum: { fontSize: 11, fontWeight: '800', color: S.faint },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   chip: {
     backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line,
@@ -469,44 +530,69 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   sectionCount: { fontSize: 11, fontWeight: '900', opacity: 0.9 },
   sectionLine: { flex: 1, height: 2, borderRadius: 2, backgroundColor: S.line },
 
-  // Stats overview card
-  statsCard: {
-    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line, padding: 14, marginBottom: 16,
-    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 2,
+  // Hero — gradient band with the completion ring
+  hero: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    padding: 16, marginBottom: 16,
+    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22, shadowRadius: 14, elevation: 5,
   },
-  statsRow: { flexDirection: 'row', alignItems: 'center' },
-  statCell: { flex: 1, alignItems: 'center' },
-  statNum: { fontSize: 22, fontWeight: '900' },
-  statLabel: { fontSize: 10.5, fontWeight: '700', color: S.inkSoft, marginTop: 2 },
-  statDiv: { width: 1, height: 34, backgroundColor: S.line },
-  statsBar: { height: 8, borderRadius: 99, backgroundColor: S.line, overflow: 'hidden', marginTop: 14 },
-  statsFill: { height: '100%', borderRadius: 99, backgroundColor: '#15c98c' },
-  statsCaption: { fontSize: 10.5, fontWeight: '700', color: S.inkSoft, marginTop: 7, textAlign: 'center' },
+  heroKick: { color: 'rgba(255,255,255,0.82)', fontSize: 9.5, fontWeight: '800', letterSpacing: 1 },
+  heroHead: { color: '#fff', fontSize: 19, fontWeight: '800', letterSpacing: -0.4, marginTop: 3 },
+  heroChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  heroChip: {
+    backgroundColor: 'rgba(255,255,255,0.20)',
+    borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4,
+  },
+  heroChipWarn: { backgroundColor: 'rgba(0,0,0,0.20)' },
+  heroChipText: { color: '#fff', fontSize: 10.5, fontWeight: '800' },
+  ringPct: { color: '#fff', fontSize: 17, fontWeight: '900', letterSpacing: -0.4 },
+  ringCap: { color: 'rgba(255,255,255,0.85)', fontSize: 8.5, fontWeight: '800', letterSpacing: 0.6 },
 
-  // Task card — two-row, status-edged
+  // Task card — edge-barred, borderless, with a deadline band
   card: {
-    backgroundColor: S.card, borderWidth: 1.5, borderColor: S.line, borderLeftWidth: 4,
-    padding: 13, marginBottom: 11, overflow: 'hidden',
-    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
+    flexDirection: 'row',
+    backgroundColor: S.card,
+    marginBottom: 11, overflow: 'hidden',
+    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10, shadowRadius: 12, elevation: 3,
   },
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBox: { width: 44, height: 44, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  cardTitle: { fontSize: 13.5, fontWeight: '800', color: S.ink, lineHeight: 18 },
-  cardMeta: { fontSize: 11, color: S.faint, fontWeight: '600', marginTop: 3 },
-  statusPill: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+  edge: { width: 5 },
+  cardBody: { flex: 1, minWidth: 0, padding: 13 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  iconBox: {
+    width: 44, height: 44, borderRadius: 14, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  cardTitle: { fontSize: 14, fontWeight: '800', color: S.ink, lineHeight: 18.5, letterSpacing: -0.2 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  metaStrong: { fontSize: 11, fontWeight: '800', flexShrink: 1 },
+  metaSep: { width: 3, height: 3, borderRadius: 2, backgroundColor: S.line },
+  cardMeta: { fontSize: 11, color: S.faint, fontWeight: '600', flexShrink: 1 },
+  statusPill: { borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5 },
   statusPillText: { fontSize: 10, fontWeight: '800' },
-  scoreBadge: { alignItems: 'center', backgroundColor: S.okSoft, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 6, minWidth: 52 },
-  scoreNum: { fontSize: 15, fontWeight: '900', color: S.okInk },
-  scoreDen: { fontSize: 10, fontWeight: '800', color: S.okInk },
-  scoreLbl: { fontSize: 7.5, fontWeight: '800', color: S.okInk, letterSpacing: 0.5, marginTop: 1 },
-  cardFoot: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
-  footLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  catPill: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
+  scoreBadge: { alignItems: 'flex-end', minWidth: 48 },
+  scoreNum: { fontSize: 17, fontWeight: '900', letterSpacing: -0.5 },
+  scoreLbl: { fontSize: 9, fontWeight: '800', color: S.faint, marginTop: 1 },
+
+  // Deadline band — urgency word above the full date
+  dueBand: {
+    flexDirection: 'row', alignItems: 'center', gap: 9,
+    borderRadius: 12, paddingHorizontal: 10, paddingVertical: 9, marginTop: 12,
+  },
+  dueIcon: { width: 22, height: 22, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  dueIconText: { fontSize: 11, color: '#fff', fontWeight: '900' },
+  dueLead: { fontSize: 11, fontWeight: '900', letterSpacing: -0.1 },
+  dueDate: { fontSize: 11, fontWeight: '600', color: S.inkSoft, marginTop: 1 },
+  catPill: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   catPillText: { fontSize: 9.5, fontWeight: '800' },
-  duePill: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
-  duePillText: { fontSize: 9.5, fontWeight: '800' },
-  actionBtn: { borderRadius: 999, paddingHorizontal: 15, paddingVertical: 9 },
-  actionText: { fontSize: 12, fontWeight: '800', color: '#fff' },
+
+  actionBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    borderRadius: 12, paddingVertical: 11, marginTop: 10, borderWidth: 1.5,
+  },
+  actionText: { fontSize: 12.5, fontWeight: '800', color: '#fff' },
+  actionChev: { fontSize: 15, fontWeight: '800', color: '#fff', marginTop: -1 },
 
   empty: { alignItems: 'center', paddingVertical: 40 },
   emptyTitle: { fontSize: 16.5, fontWeight: '800', color: S.ink, marginTop: 10 },
