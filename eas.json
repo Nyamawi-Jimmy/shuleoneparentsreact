@@ -21,7 +21,8 @@
       },
       "ios": {},
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://portal.shuleone.co.ke"
+        "EXPO_PUBLIC_API_BASE_URL": "https://portal.shuleone.co.ke",
+        "EXPO_PUBLIC_ANDROID_MAPS_API_KEY": "AIzaSyA_yllOHMLscHDfZIjeHZHy-vRwYJwZ3E8"
       }
     },
     "production": {
@@ -30,7 +31,8 @@
         "resourceClass": "m-medium"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://portal.shuleone.co.ke"
+        "EXPO_PUBLIC_API_BASE_URL": "https://portal.shuleone.co.ke",
+        "EXPO_PUBLIC_ANDROID_MAPS_API_KEY": "AIzaSyA_yllOHMLscHDfZIjeHZHy-vRwYJwZ3E8"
       }
     }
   },
