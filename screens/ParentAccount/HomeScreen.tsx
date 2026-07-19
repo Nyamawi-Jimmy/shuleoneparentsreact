@@ -24,7 +24,7 @@ import { useSelectedChild } from '../../context/SelectedChildContext';
 import { useParentProfile } from '../../context/ParentProfileContext';
 import { useParentHome } from '../../hooks/useParentHome';
 import { useChildFees } from '../../hooks/useChildFees';
-import { useChildAttendance } from '../../hooks/useAcademics';
+import { useChildAcademics } from '../../hooks/useAcademics';
 import { useChildUpcoming } from '../../hooks/useChildUpcoming';
 import { moneyToNumber } from '../../api/fees.types';
 import { ParentHomeAction, ParentHomeSignal } from '../../api/home';
@@ -91,12 +91,14 @@ function greetingKey(): string {
 // Quick access — everything that isn't a bottom tab, one tap away (More is gone).
 interface QuickItem { key: string; route: string; icon: React.ReactNode; tint: string }
 const quickItems = (c: ColorPalette): QuickItem[] => [
+  // Learning first — it's the reason most parents open the app.
+  { key: 'nav.aiLearning', route: '/learning',                  tint: '#7C3AED', icon: <Ionicons name="sparkles-outline" size={21} color="#7C3AED" /> },
   { key: 'nav.coding',     route: '/coding',                    tint: '#059669', icon: <MaterialCommunityIcons name="code-tags" size={21} color="#059669" /> },
-  { key: 'nav.bus',        route: '/transport',                 tint: '#2563EB', icon: <MaterialCommunityIcons name="bus-school" size={21} color="#2563EB" /> },
-  { key: 'nav.attendance', route: '/academics?tab=attendance',  tint: '#0891B2', icon: <Ionicons name="checkmark-done-outline" size={21} color="#0891B2" /> },
   { key: 'nav.diary',      route: '/diary',                     tint: '#DB2777', icon: <Ionicons name="book-outline" size={21} color="#DB2777" /> },
+  // "Events" replaces "Calendar" — same screen, the name parents actually use.
+  { key: 'nav.events',     route: '/calendar',                  tint: '#0891B2', icon: <Ionicons name="calendar-outline" size={21} color="#0891B2" /> },
   { key: 'nav.live',       route: '/live-classes',              tint: '#E11D48', icon: <Ionicons name="videocam-outline" size={21} color="#E11D48" /> },
-  { key: 'nav.calendar',   route: '/calendar',                  tint: '#7C3AED', icon: <Ionicons name="calendar-outline" size={21} color="#7C3AED" /> },
+  { key: 'nav.bus',        route: '/transport',                 tint: '#2563EB', icon: <MaterialCommunityIcons name="bus-school" size={21} color="#2563EB" /> },
   { key: 'nav.documents',  route: '/documents',                 tint: '#D97706', icon: <Ionicons name="folder-open-outline" size={21} color="#D97706" /> },
   { key: 'nav.settings',   route: '/settings',                  tint: '#64748B', icon: <Ionicons name="settings-outline" size={21} color="#64748B" /> },
 ];
@@ -118,7 +120,7 @@ export const HomeScreen: React.FC = () => {
 
   const { data: home, loading: homeLoading, refreshing, error: homeError, refresh } = useParentHome();
   const { summary: feesSummary } = useChildFees();
-  const { summary: attendanceSummary } = useChildAttendance();
+  const { exams: academicExams } = useChildAcademics();
   const { items: upcoming } = useChildUpcoming();
 
   const parentName = parent?.firstName || 'there';
@@ -134,13 +136,16 @@ export const HomeScreen: React.FC = () => {
   const feesTone = feesBalance != null && feesBalance > 0 ? colors.danger : colors.success;
   const feesFoot = feesBalance == null ? 'Tap to view' : feesBalance > 0 ? 'Balance due · tap to pay' : 'All settled this term';
 
-  const attDays = attendanceSummary?.days ?? [];
-  const attLatest = attDays.length
-    ? [...attDays].sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]
-    : null;
-  const attRate = attendanceSummary?.attendanceRate;
-  const attValue = attRate != null ? `${Math.round(attRate)}%` : attLatest?.status ? String(attLatest.status) : '—';
-  const attFoot = attRate != null ? 'Attendance this term' : attLatest?.status ? 'Latest recorded day' : 'No records yet';
+  // Latest exam = highest examId, the same ordering AcademicsScreen uses, so
+  // the card and the screen never disagree about which exam is "latest".
+  const latestExam = useMemo(() => {
+    const list = [...(academicExams ?? [])].sort(
+      (a, b) => (Number(b.examId) || 0) - (Number(a.examId) || 0),
+    );
+    return list[0] ?? null;
+  }, [academicExams]);
+  const academicsValue = latestExam?.mean ?? latestExam?.grade ?? '—';
+  const academicsFoot = latestExam?.examName || (latestExam ? 'Latest exam' : 'No results yet');
 
   // Match the web's greeting subtitle ("Here's how <child> is doing today.")
   // instead of the backend's action-count status line.
@@ -231,12 +236,12 @@ export const HomeScreen: React.FC = () => {
               onPress={() => router.push('/finance' as any)}
             />
             <StatCard
-              styles={styles} colors={colors} label={t('home.attendance')}
+              styles={styles} colors={colors} label={t('home.academics')}
               gradient={['#6366F1', '#4F46E5']}
-              icon={<Ionicons name="checkmark-done-outline" size={17} color="#FFF" />}
-              ring={attRate != null ? Math.max(0, Math.min(100, attRate)) : null}
-              value={attValue} foot={attFoot}
-              onPress={() => router.push('/academics?tab=attendance' as any)}
+              icon={<Ionicons name="school-outline" size={17} color="#FFF" />}
+              chip={latestExam?.grade ? { text: latestExam.grade, tint: '#4F46E5' } : null}
+              value={academicsValue} foot={academicsFoot}
+              onPress={() => router.push('/academics' as any)}
             />
             <StatCard
               styles={styles} colors={colors} label={t('home.bus')}
