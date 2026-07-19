@@ -26,6 +26,18 @@ export interface StatementLine {
   credit: Money;
 }
 
+/**
+ * One academic (year, term) the child has fee activity in — powers the term
+ * switcher. `label` is the SCHOOL's own name for it ("Term 1", "Semester 2"),
+ * and `current` marks the school's active term. Mirrors the backend TermRef.
+ */
+export interface FeeTerm {
+  year: number | null;
+  term: number | null;
+  label: string | null;
+  current: boolean;
+}
+
 export interface FeeStatement {
   studentId: number | null;
   studentName: string | null;

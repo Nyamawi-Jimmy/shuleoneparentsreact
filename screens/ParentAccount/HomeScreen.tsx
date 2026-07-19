@@ -133,9 +133,26 @@ export const HomeScreen: React.FC = () => {
 
   // At a glance — real where available, honest neutral otherwise.
   const feesBalance = feesSummary ? moneyToNumber(feesSummary.balance) : null;
-  const feesValue = feesBalance == null ? '—' : feesBalance > 0 ? formatKsh(feesBalance) : 'Up to date';
+  // Billed = brought forward + this term's billing, the same total the Fees
+  // screen's donut is measured against.
+  const feesBilled = feesSummary
+    ? moneyToNumber(feesSummary.broughtForward) + moneyToNumber(feesSummary.termBilling)
+    : null;
+  const feesPaid = feesSummary ? moneyToNumber(feesSummary.paid) : null;
+  const feesCleared = feesBalance != null && feesBalance <= 0;
+  // Cleared accounts showed a bare "Up to date", which told a parent nothing.
+  // Show what was actually paid, against what was billed.
+  const feesValue = feesBalance == null
+    ? '—'
+    : feesCleared
+      ? formatKsh(feesPaid ?? 0)
+      : formatKsh(feesBalance);
   const feesTone = feesBalance != null && feesBalance > 0 ? colors.danger : colors.success;
-  const feesFoot = feesBalance == null ? 'Tap to view' : feesBalance > 0 ? 'Balance due · tap to pay' : 'All settled this term';
+  const feesFoot = feesBalance == null
+    ? 'Tap to view'
+    : feesCleared
+      ? `Paid of ${formatKsh(feesBilled ?? 0)} billed`
+      : 'Balance due · tap to pay';
 
   // Latest exam = highest examId, the same ordering AcademicsScreen uses, so
   // the card and the screen never disagree about which exam is "latest".

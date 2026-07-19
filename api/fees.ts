@@ -1,6 +1,6 @@
 import { apiFetch, API_BASE_URL } from '../config/api';
 import {
-  FeeSummary, FeeStatement, FeePayment,
+  FeeSummary, FeeStatement, FeeTerm, FeePayment,
   PaymentOptions, InitiateFeePaymentRequest,
 } from './fees.types';
 
@@ -10,6 +10,14 @@ import {
 export function getChildFees(accessToken: string, studentId: number) {
   return apiFetch<FeeSummary>(
     `/api/parent/children/${studentId}/fees`,
+    { accessToken },
+  );
+}
+
+/** Terms the child has fee activity in — drives the statement term switcher. */
+export function getChildFeeTerms(accessToken: string, studentId: number) {
+  return apiFetch<FeeTerm[]>(
+    `/api/parent/children/${studentId}/fees/terms`,
     { accessToken },
   );
 }
@@ -95,6 +103,12 @@ export function buildReceiptPdfUrl(studentId: number, ref?: string | null): stri
 export function buildStatementPdfUrl(
   studentId: number,
   scope: 'TERM' | 'FULL' = 'TERM',
+  // A past term needs an explicit year+term, otherwise the server returns the
+  // CURRENT term's PDF regardless of what the switcher is showing.
+  period?: { year?: number | null; term?: number | null },
 ): string {
-  return `${API_BASE_URL}/api/parent/children/${studentId}/fees/statement.pdf?scope=${scope}`;
+  const qs = new URLSearchParams({ scope });
+  if (scope === 'TERM' && period?.year != null) qs.set('year', String(period.year));
+  if (scope === 'TERM' && period?.term != null) qs.set('term', String(period.term));
+  return `${API_BASE_URL}/api/parent/children/${studentId}/fees/statement.pdf?${qs.toString()}`;
 }
