@@ -412,8 +412,11 @@ const QuestMapView: React.FC<{
   const minY = Math.min(...rawY), maxY = Math.max(...rawY);
   const spanY = Math.max(1, maxY - minY);
   const TOP = 8, BOT = 86; // leaves room at the top and (for labels) the bottom
+  // Nodes are centred on x, so an authored mapX near 0 or 100 pushes the bubble
+  // and its label past the map edge (which clips them). Keep them in a band.
+  const clampX = (v: number) => Math.max(20, Math.min(80, v));
   const positions = stages.map((s, i) => ({
-    x: hasCoords ? (s.mapX as number) : cols[i % cols.length],
+    x: clampX(hasCoords ? (s.mapX as number) : cols[i % cols.length]),
     y: stages.length <= 1 ? 50 : TOP + ((rawY[i] - minY) / spanY) * (BOT - TOP),
   }));
   const pathD = buildPath(positions);
