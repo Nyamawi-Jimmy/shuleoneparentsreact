@@ -15,7 +15,7 @@
 // Google Maps and requires an API key in app.json; on iOS it falls back to Apple
 // Maps, which needs no key.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, Text, ActivityIndicator } from 'react-native';
+import { Platform, StyleSheet, View, Text, ActivityIndicator } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { getTransportLive } from '../api/transport';
 import { TransportLive } from '../api/transport.types';
@@ -164,7 +164,11 @@ export default function LiveBusMap({
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        provider={PROVIDER_GOOGLE}
+        // Google Maps on Android (its default needs the key in app.json).
+        // On iOS leave the provider unset so it uses Apple Maps: forcing
+        // PROVIDER_GOOGLE there also requires the Google Maps iOS SDK and an
+        // ios.config.googleMapsApiKey, and without them the map renders blank.
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         initialRegion={regionFor([bus, stop, school].filter(Boolean) as LatLng[]) ?? undefined}
       >
         {route.length >= 2 && (
