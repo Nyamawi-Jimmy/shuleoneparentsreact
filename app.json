@@ -18,6 +18,10 @@
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         }
+      },
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "entitlements": {
+        "aps-environment": "production"
       }
     },
     "android": {
@@ -61,7 +65,17 @@
       "expo-status-bar",
       "expo-web-browser",
       "expo-secure-store",
-      "expo-notifications"
+      "expo-notifications",
+      "@react-native-firebase/app",
+      "@react-native-firebase/messaging",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
