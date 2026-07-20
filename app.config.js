@@ -27,6 +27,17 @@ const base = require('./app.json');
 // reason a dynamic config is needed.
 const MAPS_KEY = process.env.EXPO_PUBLIC_ANDROID_MAPS_API_KEY ?? '';
 
+// Android versionCode. MUST stay above whatever is live on Play, or the upload
+// is rejected as a downgrade.
+//
+// The live release is 88. EAS was previously on appVersionSource "remote" with
+// its own counter, which had no idea about Play and was issuing 4, 5, 6 — every
+// one of those would have been rejected. Keeping the number here means it is
+// reviewable in git instead of hidden in EAS state.
+//
+// Bump this for every Play upload.
+const ANDROID_VERSION_CODE = 89;
+
 /** android.config without its googleMaps entry. */
 function withoutGoogleMaps(config) {
   if (!config) return {};
@@ -40,6 +51,7 @@ module.exports = () => {
     ...expo,
     android: {
       ...expo.android,
+      versionCode: ANDROID_VERSION_CODE,
       googleServicesFile:
         process.env.GOOGLE_SERVICES_JSON ?? expo.android?.googleServicesFile,
       config: {
