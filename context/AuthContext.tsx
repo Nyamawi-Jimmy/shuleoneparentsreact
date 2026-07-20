@@ -7,6 +7,7 @@ import React, {
   useCallback,
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { ApiError } from '../config/api';
 import {
   AuthResponse,
   loginParent,
@@ -18,6 +19,7 @@ import {
   GoogleLoginOptions,
   GoogleLoginResult,
   refreshTokens,
+  fetchMe,
   UserType,
 } from '../api/auth';
 
@@ -96,17 +98,65 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   // ── Rehydrate on app launch ──────────────────────────────
+  //
+  // A stored token is NOT proof of a usable session. It may be expired, revoked,
+  // or — the case that bit us — issued by a different backend after
+  // EXPO_PUBLIC_API_BASE_URL changed. Restoring it blindly dropped users onto a
+  // home screen where every request 401s, which reads as "the app is broken"
+  // rather than "please sign in".
+  //
+  // So: verify with /auth/me, try a refresh once, and only then give up. A
+  // NETWORK failure is deliberately not treated as a bad session — being offline
+  // must not sign anyone out.
   useEffect(() => {
     (async () => {
       try {
-        const [access, userJson] = await Promise.all([
+        const [access, refreshToken, userJson] = await Promise.all([
           SecureStore.getItemAsync(KEY_ACCESS),
+          SecureStore.getItemAsync(KEY_REFRESH),
           SecureStore.getItemAsync(KEY_USER),
         ]);
-        if (access && userJson) {
+        if (!access || !userJson) return;             // nothing stored → login
+
+        const stored = JSON.parse(userJson) as AuthUser;
+
+        try {
+          await fetchMe(access);                      // token still good
           setAccessToken(access);
-          setUser(JSON.parse(userJson) as AuthUser);
+          setUser(stored);
+          return;
+        } catch (e) {
+          const status = e instanceof ApiError ? e.status : null;
+          if (status == null) {
+            // Couldn't reach the server at all — keep the session and let the
+            // screens show their own offline states.
+            setAccessToken(access);
+            setUser(stored);
+            return;
+          }
+          if (status !== 401 && status !== 403) {
+            setAccessToken(access);
+            setUser(stored);
+            return;
+          }
         }
+
+        // Rejected. One refresh attempt, then clear.
+        if (refreshToken) {
+          try {
+            const res = await refreshTokens(refreshToken);
+            await persist(res);
+            return;
+          } catch {
+            // fall through to the wipe below
+          }
+        }
+
+        await Promise.all([
+          SecureStore.deleteItemAsync(KEY_ACCESS),
+          SecureStore.deleteItemAsync(KEY_REFRESH),
+          SecureStore.deleteItemAsync(KEY_USER),
+        ]);
       } catch (e) {
         // bad storage state — just stay logged out
         console.warn('Auth rehydrate failed', e);
@@ -114,7 +164,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setLoading(false);
       }
     })();
-  }, []);
+  }, [persist]);
 
   // ── Login flows ──────────────────────────────────────────
   const signInParent = useCallback(
