@@ -414,7 +414,7 @@ const QuestMapView: React.FC<{
   // BOT is where the LAST node's CENTRE sits. Below it must fit the bubble's
   // lower half (46px for a 92px boss) plus a two-line label — at 86% of a
   // 640px canvas that was ~90px, i.e. exactly flush with the edge.
-  const TOP = 8, BOT = 80;
+  const TOP = 13, BOT = 80;
   // Nodes are centred on x, so an authored mapX near 0 or 100 pushes the bubble
   // and its label past the map edge (which clips them). Keep them in a band.
   const clampX = (v: number) => Math.max(20, Math.min(80, v));
@@ -733,7 +733,7 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   // Map
   mapWrap: {
     // Extra bottom padding so the last node's label never touches the edge.
-    paddingTop: 8, paddingHorizontal: 8, paddingBottom: 22,
+    paddingTop: 18, paddingHorizontal: 14, paddingBottom: 22,
     overflow: 'hidden',
     shadowColor: '#5038A0',
     shadowOffset: { width: 0, height: 6 },
