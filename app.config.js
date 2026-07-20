@@ -17,6 +17,23 @@
 // block so this file stays a thin override rather than a second source of truth.
 const base = require('./app.json');
 
+// The Maps key has the same problem for a different reason: app.json is STATIC
+// JSON and does not interpolate "${EXPO_PUBLIC_ANDROID_MAPS_API_KEY}". That
+// literal string was written into AndroidManifest.xml as a manifest
+// placeholder, and the merger then failed with
+//   "requires a placeholder substitution but no value for
+//    <EXPO_PUBLIC_ANDROID_MAPS_API_KEY> is provided"
+// — which is what killed the release build. Resolving it here is the whole
+// reason a dynamic config is needed.
+const MAPS_KEY = process.env.EXPO_PUBLIC_ANDROID_MAPS_API_KEY ?? '';
+
+/** android.config without its googleMaps entry. */
+function withoutGoogleMaps(config) {
+  if (!config) return {};
+  const { googleMaps, ...rest } = config;
+  return rest;
+}
+
 module.exports = () => {
   const expo = base.expo;
   return {
@@ -25,6 +42,16 @@ module.exports = () => {
       ...expo.android,
       googleServicesFile:
         process.env.GOOGLE_SERVICES_JSON ?? expo.android?.googleServicesFile,
+      config: {
+        // Drop app.json's googleMaps outright — keeping it would spread the
+        // literal "${EXPO_PUBLIC_ANDROID_MAPS_API_KEY}" straight back in
+        // whenever the env var is missing, reproducing the exact failure.
+        ...withoutGoogleMaps(expo.android?.config),
+        // Omit the block entirely when unset rather than emitting an empty
+        // key: an empty <meta-data> still fails validation on some AGP
+        // versions, whereas absent simply means "no Google Maps".
+        ...(MAPS_KEY ? { googleMaps: { apiKey: MAPS_KEY } } : {}),
+      },
     },
   };
 };
