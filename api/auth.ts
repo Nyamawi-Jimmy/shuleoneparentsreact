@@ -47,10 +47,66 @@ export function loginStudent(identifier: string, password: string) {
   });
 }
 
-export function loginWithGoogle(idToken: string, userType: UserType | null) {
-  return apiFetch<AuthResponse>('/api/auth/google', {
+// =================================================================
+// Google sign-in — POST /api/auth/google returns ONE OF three shapes.
+// The backend matches the token's verified email across parents, students
+// and learners, so no userType is sent on the first attempt.
+// =================================================================
+
+/** One account an email could sign into, when it matches more than one. */
+export interface AuthCandidate {
+  userType: UserType;
+  accountId: number | null;
+  label: string | null;
+  subtitle: string | null;
+}
+
+/** The email matches several accounts — the caller must pick one and retry. */
+export interface AuthChoiceResponse {
+  status: 'CHOOSE_ACCOUNT';
+  message: string | null;
+  candidates: AuthCandidate[] | null;
+}
+
+/** Brand-new Google email — needs a learner name + grade before an account exists. */
+export interface GoogleSetupRequiredResponse {
+  status: 'GOOGLE_SETUP_REQUIRED';
+  message: string | null;
+  name: string | null;
+  email: string | null;
+  picture: string | null;
+}
+
+export type GoogleLoginResult = AuthResponse | AuthChoiceResponse | GoogleSetupRequiredResponse;
+
+/** Success is identified by the presence of an access token, as on the web. */
+export const isAuthSuccess = (r: GoogleLoginResult): r is AuthResponse =>
+  !!(r as AuthResponse)?.accessToken;
+export const isChooseAccount = (r: GoogleLoginResult): r is AuthChoiceResponse =>
+  (r as any)?.status === 'CHOOSE_ACCOUNT';
+export const isSetupRequired = (r: GoogleLoginResult): r is GoogleSetupRequiredResponse =>
+  (r as any)?.status === 'GOOGLE_SETUP_REQUIRED';
+
+export interface GoogleLoginOptions {
+  /** Set when retrying after CHOOSE_ACCOUNT. */
+  userType?: UserType | null;
+  accountId?: number | null;
+  /** Set when retrying after GOOGLE_SETUP_REQUIRED. */
+  learnerName?: string | null;
+  learnerGrade?: number | null;
+}
+
+export function loginWithGoogle(idToken: string, opts: GoogleLoginOptions = {}) {
+  return apiFetch<GoogleLoginResult>('/api/auth/google', {
     method: 'POST',
-    body: { idToken, userType },
+    // All five keys are always sent (nulls included), matching the web client.
+    body: {
+      idToken,
+      userType: opts.userType ?? null,
+      accountId: opts.accountId ?? null,
+      learnerName: opts.learnerName ?? null,
+      learnerGrade: opts.learnerGrade ?? null,
+    },
   });
 }
 

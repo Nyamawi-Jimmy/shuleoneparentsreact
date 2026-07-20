@@ -14,6 +14,9 @@ import {
   loginUnified,
   UnifiedLoginResult,
   loginWithGoogle,
+  isAuthSuccess,
+  GoogleLoginOptions,
+  GoogleLoginResult,
   refreshTokens,
   UserType,
 } from '../api/auth';
@@ -51,7 +54,10 @@ interface AuthContextValue {
   signInUnified: (identifier: string, password: string, userType?: string | null, accountId?: number | string | null)
     => Promise<{ user: AuthUser } | { result: UnifiedLoginResult }>;
   signInStudent: (identifier: string, password: string) => Promise<AuthUser>;
-  signInGoogle: (idToken: string, userType: UserType) => Promise<AuthUser>;
+  /** Google: resolves to the signed-in user, or the raw CHOOSE_ACCOUNT /
+   *  GOOGLE_SETUP_REQUIRED payload for the login screen to handle. */
+  signInGoogle: (idToken: string, opts?: GoogleLoginOptions)
+    => Promise<{ user?: AuthUser; result: GoogleLoginResult }>;
 
   /** Wipes tokens from storage and resets state. */
   signOut: () => Promise<void>;
@@ -139,10 +145,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     [persist],
   );
 
+  /**
+   * Google sign-in. The backend may answer with a full session, a list of
+   * accounts to choose from, or a request to set up a new learner — so this
+   * returns the raw result and only persists when a session actually came back.
+   */
   const signInGoogle = useCallback(
-    async (idToken: string, userType: UserType) => {
-      const res = await loginWithGoogle(idToken, userType);
-      return persist(res);
+    async (idToken: string, opts: GoogleLoginOptions = {}) => {
+      const res = await loginWithGoogle(idToken, opts);
+      if (isAuthSuccess(res)) {
+        const user = await persist(res);
+        return { user, result: res };
+      }
+      return { result: res };
     },
     [persist],
   );
