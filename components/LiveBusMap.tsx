@@ -15,7 +15,7 @@
 // Google Maps and requires an API key in app.json; on iOS it falls back to Apple
 // Maps, which needs no key.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View, Text, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, ActivityIndicator, Platform } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import { getTransportLive } from '../api/transport';
 import { TransportLive } from '../api/transport.types';
@@ -149,11 +149,16 @@ export default function LiveBusMap({
     );
   }
 
-  if (!bus) {
+  // Show the map whenever there is ANYTHING to place on it. The stop and the
+  // school come back all day, so gating the whole map on a live bus fix meant
+  // parents saw a text placeholder outside trip hours — which reads as broken.
+  const points = [bus, stop, school].filter(Boolean) as LatLng[];
+
+  if (points.length === 0) {
     return (
       <View style={[styles.wrap, styles.centre]}>
         <Text style={styles.muted}>
-          {live?.active ? 'Waiting for the bus’s first location…' : 'Bus not on the road yet'}
+          {live?.active ? 'Waiting for the bus’s first location…' : 'No route location set for this child yet'}
         </Text>
       </View>
     );
@@ -164,8 +169,11 @@ export default function LiveBusMap({
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        provider={PROVIDER_GOOGLE}
-        initialRegion={regionFor([bus, stop, school].filter(Boolean) as LatLng[]) ?? undefined}
+        // Force Google only on Android. On iOS this would demand a separate
+        // iOS Maps SDK key; without one the map renders blank, so let iOS use
+        // Apple Maps, which needs no key.
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        initialRegion={regionFor(points) ?? undefined}
       >
         {route.length >= 2 && (
           <Polyline
@@ -178,20 +186,24 @@ export default function LiveBusMap({
         )}
         {school && <Marker coordinate={school} title={live?.school?.name ?? 'School'} pinColor="#0ea5e9" />}
         {stop && <Marker coordinate={stop} title={live?.pickupPoint?.name ?? 'Pickup'} pinColor="#16a34a" />}
-        <Marker
-          coordinate={bus}
-          title={live?.vehiclePlate ?? 'Bus'}
-          description={live?.etaMinutes != null ? `~${live.etaMinutes} min away` : undefined}
-          pinColor={live?.stale ? '#f59e0b' : '#db2777'}
-          rotation={live?.heading ?? 0}
-          flat
-        />
+        {bus && (
+          <Marker
+            coordinate={bus}
+            title={live?.vehiclePlate ?? 'Bus'}
+            description={live?.etaMinutes != null ? `~${live.etaMinutes} min away` : undefined}
+            pinColor={live?.stale ? '#f59e0b' : '#db2777'}
+            rotation={live?.heading ?? 0}
+            flat
+          />
+        )}
       </MapView>
 
       <View style={styles.pills} pointerEvents="none">
-        <View style={[styles.pill, live?.stale ? styles.pillStale : styles.pillLive]}>
+        {/* The pill must tell the truth about WHY there's no bus on the map —
+            "Live" over an empty road would be a lie. */}
+        <View style={[styles.pill, !bus ? styles.pillStale : live?.stale ? styles.pillStale : styles.pillLive]}>
           <Text style={styles.pillText}>
-            {live?.stale ? 'Signal delayed' : 'Live'}
+            {!bus ? 'Bus not on the road' : live?.stale ? 'Signal delayed' : 'Live'}
             {live?.vehiclePlate ? ` · ${live.vehiclePlate}` : ''}
           </Text>
         </View>

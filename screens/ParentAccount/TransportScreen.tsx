@@ -204,9 +204,11 @@ export const TransportScreen: React.FC = () => {
                   ) : null}
                 </View>
 
-                {/* Live map — mounted only while the bus is actually moving, so it
-                    does not poll or render an empty frame the rest of the day. */}
-                {live && child.studentId != null && accessToken ? (
+                {/* Map — shown for any child on transport, not only mid-trip.
+                    The live payload carries the pickup point and school all day,
+                    so outside trip hours it still shows the route context with
+                    a "bus not on the road" pill instead of nothing at all. */}
+                {child.onTransport && child.studentId != null && accessToken ? (
                   <View style={styles.liveMap}>
                     <LiveBusMap studentId={child.studentId} accessToken={accessToken} />
                   </View>
