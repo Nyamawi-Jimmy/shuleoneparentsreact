@@ -15,13 +15,27 @@
 import React from 'react';
 import { Text, StyleSheet, TouchableOpacity, ActivityIndicator, View, Platform } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import {
-  GoogleSignin,
-  statusCodes,
-} from '@react-native-google-signin/google-signin';
 import { useTheme } from '../theme/ThemeContext';
 import { ColorPalette } from '../theme/palettes';
 import { fonts } from '../constants/theme';
+
+// The native module is resolved LAZILY and defensively. A top-level import
+// throws `TurboModuleRegistry.getEnforcing('RNGoogleSignin')` inside Expo Go,
+// which has no custom native code — and because that happens at module-eval
+// time it takes down the whole login route and then the root layout with it.
+// Requiring it in a try/catch keeps the app usable in Expo Go; the button then
+// explains it needs the installed build rather than silently doing nothing.
+let GoogleSignin: any = null;
+let statusCodes: any = {};
+let nativeAvailable = false;
+try {
+  const mod = require('@react-native-google-signin/google-signin');
+  GoogleSignin = mod?.GoogleSignin ?? null;
+  statusCodes = mod?.statusCodes ?? {};
+  nativeAvailable = typeof GoogleSignin?.signIn === 'function';
+} catch {
+  nativeAvailable = false;   // Expo Go, or a build without the module
+}
 
 // Same project as the web (project number 509920554608). Overridable per build.
 const WEB_CLIENT_ID =
@@ -31,7 +45,7 @@ const IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? undefined;
 
 let configured = false;
 function configureOnce() {
-  if (configured) return;
+  if (configured || !nativeAvailable) return;
   GoogleSignin.configure({
     webClientId: WEB_CLIENT_ID,
     iosClientId: IOS_CLIENT_ID,
@@ -73,6 +87,12 @@ export const GoogleSignInButton: React.FC<Props> = ({
 
   const press = async () => {
     if (working || busy) return;
+    if (!nativeAvailable) {
+      // Expo Go can't do native Google sign-in. Say so plainly instead of
+      // failing in a way that looks like the account is at fault.
+      onError?.('Google sign-in needs the installed ShuleOne app — it is not available in Expo Go.');
+      return;
+    }
     setWorking(true);
     try {
       // Android only: surfaces the "update Play Services" dialog itself.
