@@ -121,20 +121,24 @@ export const LearningScreen: React.FC = () => {
   // Subject drill-down: tapping a subject card lists that subject's quests, each with a
   // Play button that hands the device to the child (kid-learn mode, deep-linked).
   const [openSubject, setOpenSubject] = useState<string | null>(null);
+  // "All quests" reuses the same list view with subject === null.
+  const [openAll, setOpenAll] = useState(false);
 
   const playQuest = (questId: number | null) => {
     router.push((questId != null ? `/kid-learn?questId=${questId}` : '/kid-learn') as any);
   };
 
-  if (openSubject) {
+  if (openSubject || openAll) {
     return (
       <SubjectQuestsView
         styles={styles}
         colors={colors}
-        subject={openSubject}
-        quests={quests.filter((q) => (q.subject || 'General') === openSubject)}
+        subject={openAll ? null : openSubject}
+        quests={openAll
+          ? quests
+          : quests.filter((q) => (q.subject || 'General') === openSubject)}
         childName={firstName}
-        onBack={() => setOpenSubject(null)}
+        onBack={() => { setOpenSubject(null); setOpenAll(false); }}
         onPlay={playQuest}
       />
     );
@@ -183,7 +187,12 @@ export const LearningScreen: React.FC = () => {
                 <View style={styles.sectionHeadRow}>
                   <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{firstName}’s quests</Text>
                   <View style={styles.countPill}><Text style={styles.countPillText}>{carouselQuests.length}</Text></View>
-                  <Text style={styles.swipeHint}>Swipe →</Text>
+                  {/* The carousel only shows a slice, and swiping hides the
+                      rest. "See all" opens the full list with subject filters. */}
+                  <TouchableOpacity style={styles.seeAllBtn} activeOpacity={0.8} onPress={() => setOpenAll(true)}>
+                    <Text style={[styles.seeAllText, { color: colors.primary }]}>See all {quests.length}</Text>
+                    <Feather name="arrow-right" size={13} color={colors.primary} />
+                  </TouchableOpacity>
                 </View>
                 <ScrollView
                   horizontal
@@ -412,16 +421,42 @@ export const LearningScreen: React.FC = () => {
 // The real quests behind one subject card — each with its live progress, a status
 // line, and a Play button that drops straight into kid-learn mode deep-linked to
 // that quest. Parent stays read-only; Play is the hand-the-device-over action.
+/**
+ * One quest list, two entry points:
+ *   · a single subject  (subject = "Mathematics")
+ *   · EVERY quest       (subject = null) with a subject filter row
+ *
+ * Same component either way — the filter simply starts on "All" and the header
+ * changes, rather than maintaining a near-identical second screen.
+ */
 const SubjectQuestsView: React.FC<{
-  styles: any; colors: ColorPalette; subject: string; quests: QuestSummary[];
+  styles: any; colors: ColorPalette; subject: string | null; quests: QuestSummary[];
   childName: string; onBack: () => void; onPlay: (questId: number | null) => void;
 }> = ({ styles, colors, subject, quests, childName, onBack, onPlay }) => {
-  const rows = [...quests].sort((a, b) => rankStatus(a.status) - rankStatus(b.status));
+  const showFilter = subject == null;
+  const [sel, setSel] = useState<string>('ALL');
+
+  // Counts describe the full set, so they never contradict the list below.
+  const subjects = useMemo(() => Array.from(
+    quests.reduce((m, q) => {
+      const s = (q.subject || 'General').trim();
+      m.set(s, (m.get(s) ?? 0) + 1);
+      return m;
+    }, new Map<string, number>()),
+  ).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])), [quests]);
+
+  const visible = !showFilter || sel === 'ALL'
+    ? quests
+    : quests.filter((q) => (q.subject || 'General').trim() === sel);
+
+  const rows = [...visible].sort((a, b) => rankStatus(a.status) - rankStatus(b.status));
   return (
     <View style={styles.root}>
       <GradientAppBar
-        title={subject}
-        subtitle={`${childName}’s quests in ${subject}`}
+        title={subject ?? 'All quests'}
+        subtitle={subject
+          ? `${childName}’s quests in ${subject}`
+          : `Every quest for ${childName} · ${quests.length}`}
         right={
           <TouchableOpacity style={styles.appBarAction} activeOpacity={0.7} onPress={onBack}>
             <Ionicons name="chevron-back" size={15} color="#FFF" />
@@ -430,12 +465,45 @@ const SubjectQuestsView: React.FC<{
         }
       />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        {/* Subject filter — only in "all quests" mode; filtering a single
+            subject by subject would be meaningless. */}
+        {showFilter && subjects.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterStrip}>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => setSel('ALL')}
+              style={[styles.filterChip, sel === 'ALL' && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+              <Text style={[styles.filterChipText, sel === 'ALL' && { color: '#FFF' }]}>All</Text>
+              <View style={[styles.filterCount, sel === 'ALL' && { backgroundColor: 'rgba(255,255,255,0.26)' }]}>
+                <Text style={[styles.filterCountText, sel === 'ALL' && { color: '#FFF' }]}>{quests.length}</Text>
+              </View>
+            </TouchableOpacity>
+            {subjects.map(([name, n]) => {
+              const on = sel === name;
+              return (
+                <TouchableOpacity key={name} activeOpacity={0.85}
+                  onPress={() => setSel(on ? 'ALL' : name)}
+                  style={[styles.filterChip, on && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                  <MaterialCommunityIcons name={subjectIconName(name)} size={14}
+                    color={on ? '#FFF' : colors.textSecondary} />
+                  <Text style={[styles.filterChipText, on && { color: '#FFF' }]} numberOfLines={1}>{name}</Text>
+                  <View style={[styles.filterCount, on && { backgroundColor: 'rgba(255,255,255,0.26)' }]}>
+                    <Text style={[styles.filterCountText, on && { color: '#FFF' }]}>{n}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
         {rows.map((q) => (
           <GamifiedQuestCard key={String(q.id ?? q.key)} styles={styles} quest={q} onPlay={onPlay} />
         ))}
         {rows.length === 0 && (
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>No quests in this subject yet.</Text>
+            <Text style={styles.emptyText}>
+              {showFilter && sel !== 'ALL'
+                ? `No ${sel} quests yet.`
+                : 'No quests in this subject yet.'}
+            </Text>
           </View>
         )}
         <Text style={styles.handOverNote}>
@@ -830,6 +898,22 @@ function makeStyles(c: ColorPalette) {
     countPill: { backgroundColor: c.primarySofter, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2 },
     countPillText: { fontSize: 11.5, fontFamily: fonts.bold, color: c.primary },
     swipeHint: { marginLeft: 'auto', fontSize: 11.5, fontFamily: fonts.semibold, color: c.textTertiary },
+    seeAllBtn: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingLeft: 8 },
+    seeAllText: { fontSize: 12, fontFamily: fonts.bold },
+
+    // Subject filter inside the all-quests list
+    filterStrip: { gap: 8, paddingBottom: 4, marginBottom: 14, paddingRight: 4 },
+    filterChip: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      borderWidth: 1.5, borderColor: c.border, backgroundColor: c.card,
+      borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, maxWidth: 200,
+    },
+    filterChipText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.textSecondary, flexShrink: 1 },
+    filterCount: {
+      minWidth: 20, paddingHorizontal: 5, paddingVertical: 1,
+      borderRadius: 8, backgroundColor: c.backgroundAlt, alignItems: 'center',
+    },
+    filterCountText: { fontSize: 10.5, fontFamily: fonts.bold, color: c.textTertiary },
     // Full-bleed horizontal carousel: cards run edge-to-edge and snap.
     questCarouselWrap: { marginHorizontal: -16, marginBottom: 22 },
     questCarousel: { gap: 12, paddingHorizontal: 16, paddingBottom: 8 },
