@@ -27,6 +27,38 @@ function gradeLabel(code?: string | null): string {
 }
 import { ApiError } from '../../../config/api';
 
+// Per-subject glyph + colour for the filter row. Matched on a substring so
+// "Mathematics", "Maths" and "Hisabati" all land on the same identity.
+const SUBJECT_LOOK: { match: string[]; emoji: string; tint: string }[] = [
+  { match: ['math', 'hisabati', 'numer'], emoji: '🔢', tint: '#7c5cff' },
+  { match: ['english', 'literac', 'read'], emoji: '📖', tint: '#3aa0ff' },
+  { match: ['kiswahili', 'lugha'], emoji: '🗣️', tint: '#ec4899' },
+  { match: ['scien', 'bio', 'chem', 'phys'], emoji: '🔬', tint: '#15c98c' },
+  { match: ['cod', 'comput', 'ict', 'robot'], emoji: '🤖', tint: '#0ea5e9' },
+  { match: ['art', 'craft', 'creativ'], emoji: '🎨', tint: '#f59e0b' },
+  { match: ['music'], emoji: '🎵', tint: '#a855f7' },
+  { match: ['social', 'geograph', 'histor'], emoji: '🌍', tint: '#14b8a6' },
+  { match: ['cre', 'religio'], emoji: '🙏', tint: '#8b5cf6' },
+  { match: ['health', 'life', 'hygien'], emoji: '🌱', tint: '#22c55e' },
+];
+const FALLBACK_TINTS = ['#7c5cff', '#ec4899', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444'];
+
+function subjectLook(name: string) {
+  const s = name.toLowerCase();
+  return SUBJECT_LOOK.find((e) => e.match.some((m) => s.includes(m)));
+}
+function subjectEmoji(name: string): string {
+  return subjectLook(name)?.emoji ?? '📚';
+}
+/** Unknown subjects get a stable colour from their name, so it never shifts. */
+function subjectTint(name: string): string {
+  const known = subjectLook(name);
+  if (known) return known.tint;
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return FALLBACK_TINTS[h % FALLBACK_TINTS.length];
+}
+
 // Default node positions for the 0..100 SVG coordinate space (kid-design.html)
 const DEFAULT_POSITIONS = [
   { x: 18, y: 88 },
@@ -49,6 +81,7 @@ export const QuestView: React.FC = () => {
   const [grades, setGrades] = useState<string[]>([]);
   const [myGrade, setMyGrade] = useState<string | null>(null);
   const [gradeSel, setGradeSel] = useState<string>('ALL'); // 'ALL' | class code
+  const [subjectSel, setSubjectSel] = useState<string>('ALL'); // 'ALL' | subject
   const [selectedQuestId, setSelectedQuestId] = useState<number | null>(null);
   const [questDetail, setQuestDetail] = useState<QuestDetail | null>(null);
 
@@ -157,7 +190,27 @@ export const QuestView: React.FC = () => {
 
   // ── Quest LIST view (default) ─────────────────────────
   // Class filter: default to the student's own class, but every grade stays open.
-  const shown = gradeSel === 'ALL' ? quests : quests.filter((q) => (q.grade ?? null) === gradeSel);
+  const byGrade = gradeSel === 'ALL' ? quests : quests.filter((q) => (q.grade ?? null) === gradeSel);
+
+  // Subjects come from the CLASS-filtered set, so the counts always describe
+  // what's actually on screen. Selecting Grade 4 then Science can't show
+  // "Science 6" while listing three.
+  const subjects = Array.from(
+    byGrade.reduce((m, q) => {
+      const s = (q.subject || 'General').trim();
+      m.set(s, (m.get(s) ?? 0) + 1);
+      return m;
+    }, new Map<string, number>()),
+  ).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+  // A subject can vanish when the class changes — fall back to All rather than
+  // silently showing an empty list.
+  const subjectValid = subjectSel === 'ALL' || subjects.some(([s]) => s === subjectSel);
+  const activeSubject = subjectValid ? subjectSel : 'ALL';
+
+  const shown = activeSubject === 'ALL'
+    ? byGrade
+    : byGrade.filter((q) => (q.subject || 'General').trim() === activeSubject);
   // Spotlight the quest to continue: the one in progress, else the next available.
   const resumeQuest = shown.find((q) => q.status === 'IN_PROGRESS') || shown.find((q) => q.status === 'AVAILABLE');
 
@@ -208,6 +261,50 @@ export const QuestView: React.FC = () => {
           </ScrollView>
         )}
 
+        {/* Subject filter — deliberately NOT the neutral segmented track used
+            on the parent side: each subject keeps its own colour and glyph, so
+            the row reads as a set of subjects rather than a generic control.
+            Only shown when there's more than one subject to choose between. */}
+        {subjects.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subjStrip}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => setSubjectSel('ALL')}
+              style={[styles.subjChip, activeSubject === 'ALL' && {
+                backgroundColor: tokens.accent1, borderColor: tokens.accent1,
+              }]}
+            >
+              <Text style={styles.subjEmoji}>✨</Text>
+              <Text style={[styles.subjText, activeSubject === 'ALL' && { color: '#fff' }]}>All</Text>
+              <View style={[styles.subjCount, activeSubject === 'ALL' && { backgroundColor: 'rgba(255,255,255,0.28)' }]}>
+                <Text style={[styles.subjCountText, activeSubject === 'ALL' && { color: '#fff' }]}>{byGrade.length}</Text>
+              </View>
+            </TouchableOpacity>
+
+            {subjects.map(([name, n]) => {
+              const on = activeSubject === name;
+              const tint = subjectTint(name);
+              return (
+                <TouchableOpacity
+                  key={name}
+                  activeOpacity={0.85}
+                  onPress={() => setSubjectSel(on ? 'ALL' : name)}
+                  style={[
+                    styles.subjChip,
+                    { borderColor: on ? tint : tint + '55', backgroundColor: on ? tint : tint + '12' },
+                  ]}
+                >
+                  <Text style={styles.subjEmoji}>{subjectEmoji(name)}</Text>
+                  <Text style={[styles.subjText, { color: on ? '#fff' : tint }]} numberOfLines={1}>{name}</Text>
+                  <View style={[styles.subjCount, { backgroundColor: on ? 'rgba(255,255,255,0.28)' : tint + '22' }]}>
+                    <Text style={[styles.subjCountText, { color: on ? '#fff' : tint }]}>{n}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
+
         {/* Continue spotlight */}
         {resumeQuest && (
           <ContinueCard quest={resumeQuest} tokens={tokens} onPress={() => handleSelectQuest(resumeQuest)} />
@@ -222,8 +319,31 @@ export const QuestView: React.FC = () => {
         ) : shown.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🌱</Text>
-            <Text style={styles.emptyTitle}>Nothing in {gradeLabel(gradeSel)} yet</Text>
-            <Text style={styles.emptyText}>Try another class!</Text>
+            {/* Name the filter that's actually responsible. gradeLabel('ALL')
+                returns "ALL", so the old copy read "Nothing in ALL yet". */}
+            <Text style={styles.emptyTitle}>
+              {activeSubject !== 'ALL'
+                ? `No ${activeSubject} quests here yet`
+                : gradeSel !== 'ALL'
+                  ? `Nothing in ${gradeLabel(gradeSel)} yet`
+                  : 'No quests yet'}
+            </Text>
+            <Text style={styles.emptyText}>
+              {activeSubject !== 'ALL'
+                ? 'Try another subject, or a different class.'
+                : gradeSel !== 'ALL'
+                  ? 'Try another class!'
+                  : 'New quests show up here as your teacher adds them.'}
+            </Text>
+            {(activeSubject !== 'ALL' || gradeSel !== 'ALL') && (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => { setSubjectSel('ALL'); setGradeSel('ALL'); }}
+                style={[styles.clearBtn, { backgroundColor: tokens.accent1 }]}
+              >
+                <Text style={styles.clearBtnText}>Show all quests</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <>
@@ -589,7 +709,25 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: S.line },
 
   // Class picker
-  classStrip: { gap: 8, paddingBottom: 4, marginBottom: 16 },
+  classStrip: { gap: 8, paddingBottom: 4, marginBottom: 12 },
+
+  // Subject filter — each chip wears its subject's own colour.
+  subjStrip: { gap: 8, paddingBottom: 4, marginBottom: 16, paddingRight: 4 },
+  subjChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1.5, borderRadius: 999,
+    paddingHorizontal: 12, paddingVertical: 8,
+    maxWidth: 190,
+  },
+  subjEmoji: { fontSize: 13 },
+  subjText: { fontSize: 12.5, fontWeight: '800', flexShrink: 1 },
+  subjCount: {
+    minWidth: 20, paddingHorizontal: 5, paddingVertical: 1,
+    borderRadius: 8, alignItems: 'center',
+  },
+  subjCountText: { fontSize: 10.5, fontWeight: '800' },
+  clearBtn: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10, marginTop: 14 },
+  clearBtnText: { color: '#fff', fontSize: 12.5, fontWeight: '800' },
   classChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderWidth: 1.5, borderColor: S.line, backgroundColor: S.card,

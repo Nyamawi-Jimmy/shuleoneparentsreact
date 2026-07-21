@@ -142,7 +142,7 @@ function ThemedAppShell() {
         <Stack.Screen name="help" />
 
         {/* Parent feature screens */}
-        <Stack.Screen name="communication-all" />   {/* ← add this line */}
+        <Stack.Screen name="communication-all" />
 
         {/* Messaging + voice */}
         <Stack.Screen name="chat" />

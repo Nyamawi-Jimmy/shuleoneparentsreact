@@ -15,7 +15,23 @@ import { fonts } from '../constants/theme';
 import { useTheme } from '../theme/ThemeContext';
 import { ColorPalette } from '../theme/palettes';
 import { useAuth } from '../context/AuthContext';
-import { LoginCandidate } from '../api/auth';
+import {
+  LoginCandidate, GoogleLoginOptions, GoogleSetupRequiredResponse,
+  isChooseAccount, isSetupRequired,
+} from '../api/auth';
+import { GoogleSignInButton } from '../components/GoogleSignInButton';
+
+// Class values match lms-react's lib/grades.js encoding EXACTLY — pre-primary
+// is negative, 8-4-4 forms are 103/104, and 200 is the adult/college track.
+const GRADES: { value: number; label: string }[] = [
+  { value: -3, label: 'Playgroup' },
+  { value: -2, label: 'PP1' },
+  { value: -1, label: 'PP2' },
+  ...Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: `Grade ${i + 1}` })),
+  { value: 103, label: 'Form 3' },
+  { value: 104, label: 'Form 4' },
+  { value: 200, label: 'Adult / College' },
+];
 
 const homeFor = (userType?: string | null) =>
   String(userType || '').toUpperCase() === 'PARENT' ? '/choose-child' : '/(student-tabs)';
@@ -23,7 +39,7 @@ const homeFor = (userType?: string | null) =>
 export const LoginScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { signInUnified } = useAuth();
+  const { signInUnified, signInGoogle } = useAuth();
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -32,6 +48,13 @@ export const LoginScreen: React.FC = () => {
   const [error, setError] = useState('');
   const [candidates, setCandidates] = useState<LoginCandidate[] | null>(null);
   const [choosing, setChoosing] = useState<string | null>(null); // accountId being tried
+  // Google: the token is kept so an account choice or learner setup can be
+  // retried against the SAME token — Google is not asked to sign in twice.
+  const [googleToken, setGoogleToken] = useState<string | null>(null);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [setup, setSetup] = useState<GoogleSetupRequiredResponse | null>(null);
+  const [learnerName, setLearnerName] = useState('');
+  const [learnerGrade, setLearnerGrade] = useState<number | null>(null);
 
   const attempt = async (userType?: string | null, accountId?: number | string | null) => {
     const id = identifier.trim();
@@ -57,6 +80,54 @@ export const LoginScreen: React.FC = () => {
     } finally {
       setBusy(false); setChoosing(null);
     }
+  };
+
+  /**
+   * Google sign-in. One token can produce three outcomes, all handled here:
+   *   session          → straight in
+   *   CHOOSE_ACCOUNT   → reuse the password chooser, retrying with the token
+   *   GOOGLE_SETUP_REQ → first-time Google email; collect a learner name+grade
+   */
+  const runGoogle = async (idToken: string, opts: GoogleLoginOptions = {}) => {
+    setError('');
+    setGoogleBusy(true);
+    try {
+      const out = await signInGoogle(idToken, opts);
+      if (out.user) {
+        setGoogleToken(null); setSetup(null); setCandidates(null);
+        router.replace(homeFor(out.user.userType) as any);
+        return;
+      }
+      const r = out.result;
+      if (isChooseAccount(r)) {
+        setGoogleToken(idToken);
+        setCandidates((r.candidates ?? []) as unknown as LoginCandidate[]);
+      } else if (isSetupRequired(r)) {
+        setGoogleToken(idToken);
+        setSetup(r);
+        setLearnerName(r.name ?? '');
+      } else {
+        setError((r as any)?.message || 'Could not sign you in with Google.');
+      }
+    } catch (e: any) {
+      // 409 = this email belongs to a partner school; the server's copy is
+      // clearer than anything generic we could write.
+      setError(e?.message || 'Could not sign you in with Google.');
+    } finally {
+      setGoogleBusy(false); setChoosing(null);
+    }
+  };
+
+  /** Submit the first-time learner setup, reusing the stored Google token. */
+  const submitSetup = () => {
+    if (!googleToken) return;
+    if (!learnerName.trim()) { setError('Enter the learner’s name.'); return; }
+    if (learnerGrade == null) { setError('Choose the class or grade.'); return; }
+    runGoogle(googleToken, {
+      userType: 'LEARNER' as any,
+      learnerName: learnerName.trim(),
+      learnerGrade,
+    });
   };
 
   const typeMeta = (t?: string | null) => {
@@ -99,7 +170,77 @@ export const LoginScreen: React.FC = () => {
             <Text style={styles.brandName}>ShuleOne</Text>
           </View>
 
-          {candidates ? (
+          {setup ? (
+            <>
+              {/* First-time Google email — the backend needs a learner name and
+                  class before it can create the account (GOOGLE_SETUP_REQUIRED). */}
+              <Text style={[styles.title, styles.centered]}>One quick step</Text>
+              {!!setup.email && (
+                <View style={styles.identRow}>
+                  <View style={styles.identPill}>
+                    <Ionicons name="logo-google" size={13} color={colors.textSecondary} />
+                    <Text style={styles.identPillText} numberOfLines={1}>{setup.email}</Text>
+                  </View>
+                </View>
+              )}
+              <Text style={[styles.subtitle, styles.centered]}>
+                {setup.message || 'Tell us who will be learning so we can set up the right class.'}
+              </Text>
+
+              <Text style={styles.fieldLabel}>LEARNER’S NAME</Text>
+              <View style={styles.inputWrap}>
+                <Ionicons name="person-outline" size={16} color={colors.textTertiary} />
+                <TextInput
+                  style={styles.input}
+                  value={learnerName}
+                  onChangeText={setLearnerName}
+                  placeholder="e.g. Amina Otieno"
+                  placeholderTextColor={colors.textTertiary}
+                  autoCapitalize="words"
+                />
+              </View>
+
+              <Text style={styles.fieldLabel}>CLASS / GRADE</Text>
+              <View style={styles.gradeGrid}>
+                {GRADES.map((g) => {
+                  const on = learnerGrade === g.value;
+                  return (
+                    <TouchableOpacity
+                      key={g.value}
+                      activeOpacity={0.8}
+                      onPress={() => setLearnerGrade(g.value)}
+                      style={[styles.gradeChip, on && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                    >
+                      <Text style={[styles.gradeChipText, on && { color: '#FFF' }]}>{g.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {!!error && (
+                <View style={styles.errorRow}>
+                  <Ionicons name="alert-circle" size={14} color={colors.danger} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
+
+              <TouchableOpacity activeOpacity={0.85} disabled={googleBusy} onPress={submitSetup}>
+                <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={[styles.signInBtn, googleBusy && { opacity: 0.7 }]}>
+                  {googleBusy ? <ActivityIndicator color="#FFF" /> : (
+                    <>
+                      <Text style={styles.signInText}>Create my account</Text>
+                      <Ionicons name="arrow-forward" size={16} color="#FFF" />
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => { setSetup(null); setGoogleToken(null); setError(''); }}>
+                <Text style={styles.link}>Use a different account</Text>
+              </TouchableOpacity>
+            </>
+          ) : candidates ? (
             <>
               {/* Step 2 — choose the account behind these details */}
               <View style={styles.stepDots}>
@@ -125,7 +266,12 @@ export const LoginScreen: React.FC = () => {
                   <TouchableOpacity key={`${c.userType}-${c.accountId}`}
                     style={[styles.accountCard, idx === 0 && { marginTop: 6 }, isBusy && { borderColor: m.tint }]}
                     activeOpacity={0.85} disabled={choosing != null}
-                    onPress={() => attempt(c.userType, c.accountId)}>
+                    // Retry against whichever credential produced this list.
+                    onPress={() => {
+                      setChoosing(String(c.accountId));
+                      if (googleToken) runGoogle(googleToken, { userType: c.userType as any, accountId: c.accountId as any });
+                      else attempt(c.userType, c.accountId);
+                    }}>
                     <LinearGradient colors={m.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.accountBadge}>
                       <Ionicons name={m.icon} size={20} color="#FFF" />
                     </LinearGradient>
@@ -215,9 +361,21 @@ export const LoginScreen: React.FC = () => {
                 </LinearGradient>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => router.push('/forgot-password' as any)}>
+              <TouchableOpacity onPress={() => router.push({ pathname: '/forgot-password', params: { identifier: identifier.trim() } } as any)}>
                 <Text style={styles.link}>Forgot password?</Text>
               </TouchableOpacity>
+
+              {/* Google — same ID-token contract as the web's GIS button. */}
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+              <GoogleSignInButton
+                busy={googleBusy}
+                onIdToken={(t) => runGoogle(t)}
+                onError={setError}
+              />
             </>
           )}
 
@@ -269,6 +427,19 @@ function makeStyles(c: ColorPalette) {
     },
     signInText: { color: '#FFF', fontSize: 15, fontFamily: fonts.extrabold },
     link: { textAlign: 'center', fontSize: 12.5, fontFamily: fonts.bold, color: c.primary, marginTop: 16 },
+
+    // "or" divider above the Google button
+    dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 22, marginBottom: 16 },
+    dividerLine: { flex: 1, height: 1, backgroundColor: c.border },
+    dividerText: { fontSize: 11.5, fontFamily: fonts.bold, color: c.textTertiary },
+
+    // First-time Google learner setup
+    gradeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+    gradeChip: {
+      borderWidth: 1.5, borderColor: c.border, backgroundColor: c.card,
+      borderRadius: 11, paddingHorizontal: 12, paddingVertical: 8,
+    },
+    gradeChipText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.textSecondary },
 
     // Step 2 — account picker
     centered: { textAlign: 'center' },

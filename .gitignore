@@ -50,3 +50,6 @@ app-example
 # Download per-environment from the Firebase console; do not commit.
 google-services.json
 GoogleService-Info.plist
+
+# local build logs
+*.log
