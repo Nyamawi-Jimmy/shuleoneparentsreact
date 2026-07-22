@@ -26,6 +26,20 @@ const Notifications: typeof NotificationsModule | null = (() => {
   }
 })();
 
+/**
+ * Firebase Messaging, guarded exactly like expo-notifications above: it is a
+ * native module, absent in Expo Go, and importing it there throws at module
+ * evaluation. Used on iOS only — see the token comment in the hook below.
+ */
+const firebaseMessaging: (() => any) | null = (() => {
+  if (isExpoGo) return null;
+  try {
+    return require('@react-native-firebase/messaging').default;
+  } catch {
+    return null;
+  }
+})();
+
 // Foreground display behaviour (SDK 56 handler shape). Only when available.
 if (Notifications) {
   try {
@@ -43,12 +57,23 @@ if (Notifications) {
 }
 
 /**
- * Registers this device's native push token with the backend for the logged-in
- * PARENT, and routes notification taps to the inbox.
+ * Registers this device's push token with the backend for the logged-in PARENT,
+ * and routes notification taps to the inbox.
  *
- * Uses getDevicePushTokenAsync() (the FCM registration token on Android), which
- * matches the backend's FCM pipeline. No-ops safely in Expo Go / simulators /
- * when Firebase isn't configured.
+ * <h3>Why the token differs by platform</h3>
+ * The backend sends every push through Firebase Admin, which only accepts FCM
+ * registration tokens — and the shared `fcm_token` table has no platform column
+ * to tell them apart.
+ *
+ * On Android, {@code getDevicePushTokenAsync()} already returns an FCM token, so
+ * that path is unchanged. On iOS it returns an **APNs** token, which Firebase
+ * rejects: registering one would look like success here and then fail silently
+ * on every send. So on iOS we ask Firebase Messaging for the real FCM token
+ * instead — it registers with APNs under the hood and hands back the FCM
+ * identifier the backend can actually use.
+ *
+ * No-ops safely in Expo Go, on simulators (which cannot receive remote push at
+ * all), and when Firebase is not configured.
  */
 export function usePushRegistration() {
   const { accessToken, user } = useAuth();
@@ -75,8 +100,23 @@ export function usePushRegistration() {
           });
         }
 
-        const { data } = await Notifications.getDevicePushTokenAsync();
-        const token = typeof data === 'string' ? data : JSON.stringify(data);
+        // The backend only speaks FCM. On Android getDevicePushTokenAsync()
+        // already returns an FCM token; on iOS it returns an APNs token, which
+        // Firebase rejects — so ask Firebase Messaging for the FCM token that
+        // APNs registration maps to. Falling back to the APNs token would
+        // register successfully here and then fail on every send.
+        let token: string | null = null;
+        if (Platform.OS === 'ios') {
+          if (!firebaseMessaging) return;   // no Firebase → no usable iOS token
+          const messaging = firebaseMessaging();
+          if (messaging.registerDeviceForRemoteMessages) {
+            await messaging.registerDeviceForRemoteMessages();
+          }
+          token = await messaging.getToken();
+        } else {
+          const { data } = await Notifications.getDevicePushTokenAsync();
+          token = typeof data === 'string' ? data : JSON.stringify(data);
+        }
         if (cancelled || !token) return;
 
         await registerFcmToken(accessToken, token);
