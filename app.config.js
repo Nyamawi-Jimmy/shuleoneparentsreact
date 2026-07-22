@@ -15,7 +15,26 @@
 //
 // app.config.js takes precedence over app.json, and we spread app.json's `expo`
 // block so this file stays a thin override rather than a second source of truth.
+const fs = require('fs');
 const base = require('./app.json');
+
+/**
+ * A googleServicesFile that exists, or undefined. Both Firebase config files
+ * (google-services.json, GoogleService-Info.plist) are gitignored, so a fresh
+ * clone — and any machine that hasn't downloaded them — does not have them.
+ * Pointing app.json at a MISSING file makes `expo config` fail to parse, which
+ * takes Metro down entirely ("Cannot read properties of undefined (reading
+ * 'exists')"). Resolve to the path only when the file is actually present; on
+ * EAS the *_FILE env secret provides it instead (see below).
+ */
+function fileIfExists(relPath) {
+  if (!relPath) return undefined;
+  try {
+    return fs.existsSync(relPath) ? relPath : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 // The Maps key has the same problem for a different reason: app.json is STATIC
 // JSON and does not interpolate "${EXPO_PUBLIC_ANDROID_MAPS_API_KEY}". That
@@ -47,13 +66,31 @@ function withoutGoogleMaps(config) {
 
 module.exports = () => {
   const expo = base.expo;
+
+  // Android Firebase config: EAS secret path, else the local file if present,
+  // else omit — never a dangling path (that crashes Metro).
+  const androidGoogleServices =
+    process.env.GOOGLE_SERVICES_JSON ?? fileIfExists(expo.android?.googleServicesFile);
+  // iOS Firebase config, same rule. GoogleService-Info.plist is gitignored, so
+  // it is typically absent on dev machines and only present on an EAS iOS build
+  // via the GOOGLE_SERVICES_INFO_PLIST file secret.
+  const iosGoogleServices =
+    process.env.GOOGLE_SERVICES_INFO_PLIST ?? fileIfExists(expo.ios?.googleServicesFile);
+
+  const ios = { ...expo.ios };
+  if (iosGoogleServices) ios.googleServicesFile = iosGoogleServices;
+  else delete ios.googleServicesFile;
+
+  const android = { ...expo.android };
+  delete android.googleServicesFile; // re-added below only if it resolves
+
   return {
     ...expo,
+    ios,
     android: {
-      ...expo.android,
+      ...android,
       versionCode: ANDROID_VERSION_CODE,
-      googleServicesFile:
-        process.env.GOOGLE_SERVICES_JSON ?? expo.android?.googleServicesFile,
+      ...(androidGoogleServices ? { googleServicesFile: androidGoogleServices } : {}),
       config: {
         // Drop app.json's googleMaps outright — keeping it would spread the
         // literal "${EXPO_PUBLIC_ANDROID_MAPS_API_KEY}" straight back in
