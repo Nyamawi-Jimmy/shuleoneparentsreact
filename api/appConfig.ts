@@ -1,14 +1,17 @@
 // Mobile app config — the force-update source of truth.
 //
-// The backend owns a MINIMUM supported Android versionCode. When you publish a
-// release that older versions must not keep running against (a breaking API
-// change, a critical fix), you raise minAndroidVersionCode on the server and
-// every install below it is hard-gated to the Play Store on next launch.
+// This is hosted as a plain JSON file in the app's OWN GitHub repo, NOT on the
+// backend — so forcing an update needs no server or deploy: you edit
+// mobile-config.json, push it, and within a few minutes (GitHub's CDN cache)
+// every install below minAndroidVersionCode is gated to the Play Store.
 //
-// Public endpoint (no auth) — the gate runs before login. See lms-spring
-// AppConfigController.
+//   Raw file: https://raw.githubusercontent.com/<owner>/<repo>/<branch>/mobile-config.json
+//
+// Override the URL per build with EXPO_PUBLIC_APP_CONFIG_URL if the repo moves.
 
-import { API_BASE_URL } from '../config/api';
+const CONFIG_URL =
+  process.env.EXPO_PUBLIC_APP_CONFIG_URL ??
+  'https://raw.githubusercontent.com/Nyamawi-Jimmy/shuleoneparentsreact/main/mobile-config.json';
 
 export interface MobileAppConfig {
   /** Installs with a lower Android versionCode MUST update before continuing. */
@@ -29,7 +32,9 @@ export async function getMobileAppConfig(): Promise<MobileAppConfig | null> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 6000);
-    const res = await fetch(`${API_BASE_URL}/api/app/mobile-config`, {
+    // Cache-bust so a freshly-pushed config isn't masked by a stale CDN copy
+    // longer than necessary.
+    const res = await fetch(`${CONFIG_URL}?t=${Date.now()}`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
       signal: controller.signal,

@@ -1,0 +1,6 @@
+{
+  "_comment": "Force-update gate. The app reads this file at launch. Installs with an Android versionCode BELOW minAndroidVersionCode are hard-gated to the Play Store. Set minAndroidVersionCode to 0 to disable the gate. To force everyone onto a release, set it to that release's versionCode and push this file. Change takes effect within ~5 minutes (GitHub CDN cache).",
+  "minAndroidVersionCode": 0,
+  "latestAndroidVersionCode": 91,
+  "androidStoreUrl": "https://play.google.com/store/apps/details?id=com.walgotech.shuleoneparents"
+}
