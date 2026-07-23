@@ -7,6 +7,7 @@ import React, {
   useCallback,
 } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import * as Application from 'expo-application';
 import { ApiError } from '../config/api';
 import {
   AuthResponse,
@@ -35,6 +36,11 @@ const KEY_USER = 'shuleone.auth.user';
 // a reinstall over old data) and are wiped, guaranteeing a fresh install always
 // starts at onboarding rather than a stale logged-in state.
 const KEY_INSTALL = 'shuleone.install.marker';
+// The versionCode the app was running last launch. When it changes, the app
+// was updated — we force a fresh login so the user re-authenticates against the
+// new version (requested behaviour, and a clean way to shed any assumptions the
+// old build's session carried).
+const KEY_LAST_VERSION = 'shuleone.last.version';
 
 // =================================================================
 // Types
@@ -131,7 +137,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (!installed) {
           await wipe();
           await SecureStore.setItemAsync(KEY_INSTALL, String(Date.now()));
+          await SecureStore.setItemAsync(KEY_LAST_VERSION, String(Application.nativeBuildVersion ?? ''));
           return; // no user set → onboarding
+        }
+
+        // ── Post-update forced re-login ──────────────────────
+        // If the app was updated since last launch (versionCode changed), clear
+        // the session so the user signs in fresh on the new build.
+        const thisVersion = String(Application.nativeBuildVersion ?? '');
+        const lastVersion = await SecureStore.getItemAsync(KEY_LAST_VERSION);
+        if (thisVersion && lastVersion && lastVersion !== thisVersion) {
+          await wipe();
+          await SecureStore.setItemAsync(KEY_LAST_VERSION, thisVersion);
+          return; // no user set → login
+        }
+        if (thisVersion && !lastVersion) {
+          await SecureStore.setItemAsync(KEY_LAST_VERSION, thisVersion);
         }
 
         const [access, refreshToken, userJson] = await Promise.all([

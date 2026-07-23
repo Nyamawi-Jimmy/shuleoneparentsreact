@@ -17,6 +17,8 @@ import { ParentProfileProvider } from '../context/ParentProfileContext';
 import { ThemeProvider, useTheme } from '../theme/ThemeContext';
 import { LanguageProvider } from '../context/LanguageContext';
 import { usePushRegistration } from '../hooks/usePushRegistration';
+import { useForceUpdate } from '../hooks/useForceUpdate';
+import { ForceUpdateScreen } from '../components/ForceUpdateScreen';
 
 export const unstable_settings = {
   anchor: 'onboarding',
@@ -71,6 +73,9 @@ export default function RootLayout() {
 function ThemedAppShell() {
   const { scheme, colors } = useTheme();
   usePushRegistration();
+  // Hard version gate: when the install is below the server's minimum, the
+  // whole app is replaced by the update screen — no route is reachable.
+  const forceUpdate = useForceUpdate();
 
   // Customise the Navigation theme so default backdrops use our colors
   const navTheme = scheme === 'dark'
@@ -96,6 +101,18 @@ function ThemedAppShell() {
           primary: colors.primary,
         },
       };
+
+  // Update required → the gate is the entire app. Rendered above the navigator
+  // so nothing behind it is reachable, and kept inside NavThemeProvider so it
+  // still gets the themed background + status bar.
+  if (forceUpdate.required) {
+    return (
+      <NavThemeProvider value={navTheme}>
+        <ForceUpdateScreen storeUrl={forceUpdate.storeUrl} />
+        <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+      </NavThemeProvider>
+    );
+  }
 
   return (
     <NavThemeProvider value={navTheme}>
