@@ -59,10 +59,13 @@ writeFileSync(GRADLE, gradle);
 console.log('▸ synced app.config.js + build.gradle');
 
 // ── 3. build ────────────────────────────────────────────────────
-const gradlew = platform() === 'win32' ? 'gradlew.bat' : './gradlew';
+const androidDir = join(root, 'android');
+// Absolute path to the wrapper — a bare "gradlew.bat" is NOT resolved from cwd
+// on Windows, which fails with "'gradlew.bat' is not recognized".
+const gradlew = join(androidDir, platform() === 'win32' ? 'gradlew.bat' : 'gradlew');
 console.log('▸ building signed AAB (this reuses the cached native layer)…\n');
 const res = spawnSync(gradlew, [':app:bundleRelease', '--no-daemon'], {
-  cwd: join(root, 'android'),
+  cwd: androidDir,
   stdio: 'inherit',
   shell: platform() === 'win32',
 });
