@@ -1,155 +1,79 @@
-import React, { useRef, useState, useEffect } from 'react';
+// Onboarding — the first thing a logged-out user sees. A modern, brand-led
+// intro carousel: a rose gradient stage with a glass illustration card, Inter
+// typography matching the rest of the app, a pill progress indicator and a
+// gradient CTA. Routing is handled by the entry gatekeeper (app/index.tsx);
+// this screen only presents the carousel and, on finish, moves to sign-in.
+
+import React, { useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  SafeAreaView,
-  Dimensions,
-  FlatList,
-  ViewToken,
-  StatusBar,
-  ActivityIndicator,
+  View, Text, StyleSheet, TouchableOpacity, Dimensions, FlatList,
+  ViewToken, StatusBar, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth } from '../context/AuthContext';
+import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
+import { fonts } from '../constants/theme';
 
 const { width } = Dimensions.get('window');
-
 const ONBOARDING_KEY = 'shuleone:onboarding:completed';
+
+// Brand rose is the through-line; each slide carries a soft accent within it.
+const BRAND: [string, string] = ['#F43F5E', '#BE123C'];
 
 interface Slide {
   id: string;
-  illustration: React.ReactNode;
+  icon: React.ReactNode;
+  glyphs: [string, string, string];
   title: string;
   subtitle: string;
-  gradient: [string, string];
-  shadowColor: string;
+  accent: string;       // soft tint for that slide's decorative dots
 }
+
+const SLIDES: Slide[] = [
+  {
+    id: '1',
+    icon: <MaterialCommunityIcons name="school" size={58} color="#FFF" />,
+    glyphs: ['📚', '✨', '🎓'],
+    accent: '#FDA4AF',
+    title: 'Welcome to ShuleOne',
+    subtitle: 'Learning, school records and family communication — all in one beautifully simple app.',
+  },
+  {
+    id: '2',
+    icon: <FontAwesome5 name="user-graduate" size={52} color="#FFF" />,
+    glyphs: ['🚀', '⭐', '🧠'],
+    accent: '#C4B5FD',
+    title: 'Learn, practise & code',
+    subtitle: 'Daily missions, smart quizzes, coding and robotics — with progress that grows alongside your child.',
+  },
+  {
+    id: '3',
+    icon: <Ionicons name="people" size={54} color="#FFF" />,
+    glyphs: ['💬', '📊', '💳'],
+    accent: '#F9A8D4',
+    title: 'Stay close to school',
+    subtitle: 'Fees, attendance, exam results and the school bus — always a glance away, wherever you are.',
+  },
+];
 
 export default function OnboardingScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
-  /** Initially true — we hide the UI behind a spinner until we know where to go. */
-  const [resolving, setResolving] = useState(true);
   const flatRef = useRef<FlatList>(null);
-  const { user, loading: authLoading } = useAuth();
-
-  const SLIDES: Slide[] = [
-    {
-      id: '1',
-      gradient: ['#FB7185', '#E11D48'],
-      shadowColor: '#E11D48',
-      illustration: (
-        <View style={styles.illustration}>
-          <View
-            style={[
-              styles.iconCircle,
-              { backgroundColor: 'rgba(255,255,255,0.18)' },
-            ]}
-          >
-            <MaterialCommunityIcons name="school" size={60} color="#FFF" />
-          </View>
-          <Text style={[styles.floater, styles.floater1]}>📚</Text>
-          <Text style={[styles.floater, styles.floater2]}>✨</Text>
-          <Text style={[styles.floater, styles.floater3]}>🎓</Text>
-        </View>
-      ),
-      title: 'Welcome to ShuleOne',
-      subtitle:
-        'Your all-in-one learning, school records and family communication app.',
-    },
-    {
-      id: '2',
-      gradient: ['#8B5CF6', '#6366F1'],
-      shadowColor: '#6366F1',
-      illustration: (
-        <View style={styles.illustration}>
-          <View
-            style={[
-              styles.iconCircle,
-              { backgroundColor: 'rgba(255,255,255,0.18)' },
-            ]}
-          >
-            <FontAwesome5 name="user-graduate" size={56} color="#FFF" />
-          </View>
-          <Text style={[styles.floater, styles.floater1]}>🚀</Text>
-          <Text style={[styles.floater, styles.floater2]}>⭐</Text>
-          <Text style={[styles.floater, styles.floater3]}>🧠</Text>
-        </View>
-      ),
-      title: 'Learn, practice & code',
-      subtitle:
-        'Daily missions, smart quizzes, coding, robotics and progress that grows with you.',
-    },
-    {
-      id: '3',
-      gradient: ['#F472B6', '#7C3AED'],
-      shadowColor: '#7C3AED',
-      illustration: (
-        <View style={styles.illustration}>
-          <View
-            style={[
-              styles.iconCircle,
-              { backgroundColor: 'rgba(255,255,255,0.18)' },
-            ]}
-          >
-            <Ionicons name="people" size={56} color="#FFF" />
-          </View>
-          <Text style={[styles.floater, styles.floater1]}>💬</Text>
-          <Text style={[styles.floater, styles.floater2]}>📊</Text>
-          <Text style={[styles.floater, styles.floater3]}>💳</Text>
-        </View>
-      ),
-      title: 'Stay close to school',
-      subtitle:
-        "Track fees, attendance, exam results and your child's learning — all in one place.",
-    },
-  ];
-
-  // -------------------------------------------------------
-  // Launch logic — runs once when AuthContext is done loading.
-  //
-  //   1. Logged in as PARENT  → /(tabs)
-  //   2. Logged in as STUDENT → /(student-tabs)
-  //   3. Onboarding already done → /chooser
-  //   4. Otherwise → show this onboarding carousel
-  // -------------------------------------------------------
-  useEffect(() => {
-    if (authLoading) return; // wait for token rehydration
-
-    (async () => {
-      try {
-        if (user?.userType === 'PARENT') {
-          router.replace('/(tabs)' as any);
-          return;
-        }
-        if (user?.userType === 'STUDENT') {
-          router.replace('/(student-tabs)' as any);
-          return;
-        }
-        const done = await AsyncStorage.getItem(ONBOARDING_KEY);
-        if (done === 'true') {
-          router.replace('/chooser' as any);
-          return;
-        }
-        // First-time visitor — let the carousel render
-        setResolving(false);
-      } catch {
-        setResolving(false);
-      }
-    })();
-  }, [authLoading, user]);
+  const insets = useSafeAreaInsets();
 
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      if (viewableItems[0]?.index != null) {
-        setActiveIndex(viewableItems[0].index);
-      }
+      if (viewableItems[0]?.index != null) setActiveIndex(viewableItems[0].index);
     },
   ).current;
+
+  const finish = async () => {
+    try { await AsyncStorage.setItem(ONBOARDING_KEY, 'true'); } catch { /* ignore */ }
+    router.replace('/login' as any);
+  };
 
   const goNext = () => {
     if (activeIndex < SLIDES.length - 1) {
@@ -159,170 +83,164 @@ export default function OnboardingScreen() {
     }
   };
 
-  const finish = async () => {
-    try {
-      await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
-    } catch {
-      // ignore
-    }
-    router.replace('/chooser' as any);
-  };
-
-  // Spinner while we decide where to send the user
-  if (resolving) {
-    return (
-      <View style={[styles.root, styles.center, { backgroundColor: '#FFF' }]}>
-        <ActivityIndicator size="large" color="#E11D48" />
-      </View>
-    );
-  }
-
-  const slide = SLIDES[activeIndex];
   const isLast = activeIndex === SLIDES.length - 1;
+  const slide = SLIDES[activeIndex];
 
   return (
-    <View style={[styles.root, { backgroundColor: '#FFF' }]}>
-      <StatusBar barStyle="light-content" />
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      <LinearGradient
-        colors={slide.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={[styles.heroBg, { shadowColor: slide.shadowColor }]}
-      >
-        <SafeAreaView style={styles.heroSafe}>
-          <View style={styles.topBar}>
-            {!isLast ? (
-              <TouchableOpacity hitSlop={10} onPress={finish}>
-                <Text style={styles.skipText}>Skip</Text>
-              </TouchableOpacity>
-            ) : (
-              <View />
-            )}
+      {/* ── Brand stage ─────────────────────────────────────── */}
+      <LinearGradient colors={BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.stage}>
+        {/* Decorative soft blobs for depth */}
+        <View style={[styles.blob, styles.blobA]} />
+        <View style={[styles.blob, styles.blobB]} />
+
+        <View style={[styles.stageTop, { paddingTop: insets.top + 8 }]}>
+          <View style={styles.brandRow}>
+            <View style={styles.brandMark}>
+              <MaterialCommunityIcons name="school" size={15} color="#BE123C" />
+            </View>
+            <Text style={styles.brandName}>ShuleOne</Text>
           </View>
+          {!isLast ? (
+            <TouchableOpacity hitSlop={12} onPress={finish}>
+              <Text style={styles.skip}>Skip</Text>
+            </TouchableOpacity>
+          ) : <View style={{ width: 34 }} />}
+        </View>
 
-          <FlatList
-            ref={flatRef}
-            data={SLIDES}
-            keyExtractor={(s) => s.id}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onViewableItemsChanged={onViewableItemsChanged}
-            viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
-            renderItem={({ item }) => (
-              <View style={[styles.slide, { width }]}>{item.illustration}</View>
-            )}
-          />
-        </SafeAreaView>
+        <FlatList
+          ref={flatRef}
+          data={SLIDES}
+          keyExtractor={(s) => s.id}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+          renderItem={({ item }) => (
+            <View style={[styles.slide, { width }]}>
+              {/* Glass illustration card */}
+              <View style={styles.glass}>
+                <View style={styles.glassInner}>{item.icon}</View>
+                <Text style={[styles.glyph, styles.glyph1]}>{item.glyphs[0]}</Text>
+                <Text style={[styles.glyph, styles.glyph2]}>{item.glyphs[1]}</Text>
+                <Text style={[styles.glyph, styles.glyph3]}>{item.glyphs[2]}</Text>
+              </View>
+            </View>
+          )}
+        />
       </LinearGradient>
 
-      <SafeAreaView style={styles.bottomSafe}>
-        <View style={styles.bottom}>
+      {/* ── Sheet ───────────────────────────────────────────── */}
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + 20 }]}>
+        {/* Re-key on slide so the copy fades in per page */}
+        <Animated.View key={slide.id} entering={FadeInDown.duration(340)} style={styles.copy}>
           <Text style={styles.title}>{slide.title}</Text>
           <Text style={styles.subtitle}>{slide.subtitle}</Text>
+        </Animated.View>
 
-          <View style={styles.dotsRow}>
+        <View style={styles.footer}>
+          <View style={styles.dots}>
             {SLIDES.map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.dot,
-                  i === activeIndex && [
-                    styles.dotActive,
-                    { backgroundColor: slide.gradient[1] },
-                  ],
-                ]}
-              />
+              <View key={i} style={[styles.dot, i === activeIndex && styles.dotActive]} />
             ))}
           </View>
 
-          <TouchableOpacity activeOpacity={0.9} onPress={goNext}>
-            <LinearGradient
-              colors={slide.gradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[styles.cta, { shadowColor: slide.shadowColor }]}
-            >
-              <Text style={styles.ctaText}>
-                {isLast ? 'Get Started' : 'Next'}
-              </Text>
-              <Ionicons
-                name={isLast ? 'rocket' : 'arrow-forward'}
-                size={18}
-                color="#FFF"
-              />
+          <TouchableOpacity activeOpacity={0.9} onPress={goNext} style={styles.ctaWrap}>
+            <LinearGradient colors={BRAND} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.cta}>
+              {isLast ? (
+                <Animated.View key="get" entering={FadeIn} style={styles.ctaRow}>
+                  <Text style={styles.ctaText}>Get started</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#FFF" />
+                </Animated.View>
+              ) : (
+                <View style={styles.ctaRow}>
+                  <Text style={styles.ctaText}>Continue</Text>
+                  <Ionicons name="arrow-forward" size={18} color="#FFF" />
+                </View>
+              )}
             </LinearGradient>
           </TouchableOpacity>
+
+          <TouchableOpacity onPress={finish} hitSlop={8} style={styles.signInHint}>
+            <Text style={styles.signInHintText}>
+              Already have an account? <Text style={styles.signInHintLink}>Sign in</Text>
+            </Text>
+          </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
-  center: { justifyContent: 'center', alignItems: 'center' },
-  heroBg: {
-    flex: 0.62,
-    borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
+  root: { flex: 1, backgroundColor: '#FFFFFF' },
+
+  // Stage
+  stage: {
+    flex: 0.60,
+    borderBottomLeftRadius: 34,
+    borderBottomRightRadius: 34,
     overflow: 'hidden',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 18,
-    elevation: 8,
   },
-  heroSafe: { flex: 1 },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 24,
-    paddingTop: 10,
+  blob: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.10)' },
+  blobA: { width: 240, height: 240, top: -70, right: -60 },
+  blobB: { width: 180, height: 180, bottom: 30, left: -70, backgroundColor: 'rgba(255,255,255,0.07)' },
+  stageTop: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 22, paddingBottom: 4,
   },
-  skipText: {
-    color: '#FFF',
-    fontSize: 14,
-    fontWeight: '700',
-    opacity: 0.9,
-    letterSpacing: 0.3,
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  brandMark: {
+    width: 26, height: 26, borderRadius: 9, backgroundColor: '#FFF',
+    alignItems: 'center', justifyContent: 'center',
   },
+  brandName: { color: '#FFF', fontSize: 15.5, fontFamily: fonts.extrabold, letterSpacing: -0.2 },
+  skip: { color: 'rgba(255,255,255,0.9)', fontSize: 13.5, fontFamily: fonts.bold, letterSpacing: 0.2 },
+
   slide: { alignItems: 'center', justifyContent: 'center', flex: 1 },
-  illustration: {
-    width: 240, height: 240,
+  glass: {
+    width: 190, height: 190, borderRadius: 46,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
     alignItems: 'center', justifyContent: 'center',
-    position: 'relative',
   },
-  iconCircle: {
-    width: 160, height: 160, borderRadius: 40,
+  glassInner: {
+    width: 118, height: 118, borderRadius: 34,
+    backgroundColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 3, borderColor: 'rgba(255,255,255,0.3)',
   },
-  floater: { position: 'absolute', fontSize: 28 },
-  floater1: { top: 10, right: 14 },
-  floater2: { bottom: 24, left: 4, fontSize: 24 },
-  floater3: { top: 36, left: 18, fontSize: 22 },
-  bottomSafe: { flex: 0.38, backgroundColor: '#FFF' },
-  bottom: {
-    flex: 1, paddingHorizontal: 28, paddingTop: 30, paddingBottom: 24,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 26, fontWeight: '800', color: '#2c2550',
-    textAlign: 'center', letterSpacing: -0.5,
-  },
+  glyph: { position: 'absolute', fontSize: 26 },
+  glyph1: { top: 8, right: 12 },
+  glyph2: { bottom: 20, left: 2, fontSize: 22 },
+  glyph3: { top: 30, left: 14, fontSize: 20 },
+
+  // Sheet
+  sheet: { flex: 0.40, paddingHorizontal: 28, paddingTop: 26, justifyContent: 'space-between' },
+  copy: { alignItems: 'center' },
+  title: { fontSize: 25, fontFamily: fonts.extrabold, color: '#1F2937', textAlign: 'center', letterSpacing: -0.6 },
   subtitle: {
-    fontSize: 14, color: '#6f679c', fontWeight: '500',
-    textAlign: 'center', marginTop: 10, lineHeight: 21, paddingHorizontal: 8,
+    fontSize: 14, fontFamily: fonts.regular, color: '#6B7280',
+    textAlign: 'center', marginTop: 12, lineHeight: 22, paddingHorizontal: 4,
   },
-  dotsRow: { flexDirection: 'row', gap: 8, marginTop: 'auto', marginBottom: 24 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E5E7EB' },
-  dotActive: { width: 28 },
+
+  footer: { alignItems: 'center' },
+  dots: { flexDirection: 'row', gap: 7, marginBottom: 22 },
+  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#E5E7EB' },
+  dotActive: { width: 26, backgroundColor: '#E11D48' },
+
+  ctaWrap: { width: '100%' },
   cta: {
-    width: width - 56, height: 56, borderRadius: 16,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3, shadowRadius: 14, elevation: 6,
+    height: 56, borderRadius: 17, alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#BE123C', shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: Platform.OS === 'ios' ? 0.3 : 0.4, shadowRadius: 14, elevation: 7,
   },
-  ctaText: { color: '#FFF', fontSize: 16, fontWeight: '800', letterSpacing: 0.2 },
+  ctaRow: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  ctaText: { color: '#FFF', fontSize: 15.5, fontFamily: fonts.bold, letterSpacing: 0.2 },
+
+  signInHint: { marginTop: 16 },
+  signInHintText: { fontSize: 13, fontFamily: fonts.medium, color: '#9CA3AF' },
+  signInHintLink: { color: '#E11D48', fontFamily: fonts.bold },
 });

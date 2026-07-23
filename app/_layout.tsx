@@ -21,7 +21,9 @@ import { useForceUpdate } from '../hooks/useForceUpdate';
 import { ForceUpdateScreen } from '../components/ForceUpdateScreen';
 
 export const unstable_settings = {
-  anchor: 'onboarding',
+  // The entry route is the gatekeeper at app/index.tsx (see it for why). Making
+  // it the anchor stops "/" from resolving to a tab group's index.
+  anchor: 'index',
 };
 
 SplashScreen.preventAutoHideAsync();
@@ -117,6 +119,8 @@ function ThemedAppShell() {
   return (
     <NavThemeProvider value={navTheme}>
       <Stack screenOptions={{ headerShown: false }}>
+        {/* Entry gatekeeper — owns "/" and redirects by auth state. */}
+        <Stack.Screen name="index" />
         {/* Auth + onboarding */}
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="chooser" />
