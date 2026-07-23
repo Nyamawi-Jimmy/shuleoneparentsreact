@@ -30,6 +30,11 @@ import {
 const KEY_ACCESS = 'shuleone.auth.access';
 const KEY_REFRESH = 'shuleone.auth.refresh';
 const KEY_USER = 'shuleone.auth.user';
+// Written the first time the app runs after an install. Its ABSENCE means this
+// is a fresh install — so any auth tokens present must be leftovers (a restore,
+// a reinstall over old data) and are wiped, guaranteeing a fresh install always
+// starts at onboarding rather than a stale logged-in state.
+const KEY_INSTALL = 'shuleone.install.marker';
 
 // =================================================================
 // Types
@@ -109,8 +114,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // NETWORK failure is deliberately not treated as a bad session — being offline
   // must not sign anyone out.
   useEffect(() => {
+    const wipe = () => Promise.all([
+      SecureStore.deleteItemAsync(KEY_ACCESS),
+      SecureStore.deleteItemAsync(KEY_REFRESH),
+      SecureStore.deleteItemAsync(KEY_USER),
+    ]);
+
     (async () => {
       try {
+        // ── Fresh-install guard ──────────────────────────────
+        // No install marker = this is the app's first run after an install.
+        // Any tokens present are therefore stale leftovers (a cloud restore, or
+        // an install over old data), so wipe them and let onboarding show. This
+        // is what guarantees a fresh install NEVER opens into a logged-in state.
+        const installed = await SecureStore.getItemAsync(KEY_INSTALL);
+        if (!installed) {
+          await wipe();
+          await SecureStore.setItemAsync(KEY_INSTALL, String(Date.now()));
+          return; // no user set → onboarding
+        }
+
         const [access, refreshToken, userJson] = await Promise.all([
           SecureStore.getItemAsync(KEY_ACCESS),
           SecureStore.getItemAsync(KEY_REFRESH),
@@ -121,27 +144,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const stored = JSON.parse(userJson) as AuthUser;
 
         try {
-          await fetchMe(access);                      // token still good
+          await fetchMe(access);                      // token still good (200)
           setAccessToken(access);
           setUser(stored);
           return;
         } catch (e) {
           const status = e instanceof ApiError ? e.status : null;
+          // Keep the session ONLY when the server was genuinely unreachable
+          // (no HTTP status at all) — that is a real offline case. ANY HTTP
+          // rejection (401/403/404/5xx) means the token is no good here, so we
+          // fall through and clear it. Keeping it produced the "logged in but
+          // no data" state the user reported.
           if (status == null) {
-            // Couldn't reach the server at all — keep the session and let the
-            // screens show their own offline states.
-            setAccessToken(access);
-            setUser(stored);
-            return;
-          }
-          if (status !== 401 && status !== 403) {
             setAccessToken(access);
             setUser(stored);
             return;
           }
         }
 
-        // Rejected. One refresh attempt, then clear.
+        // Rejected. One refresh attempt, then clear and drop to login.
         if (refreshToken) {
           try {
             const res = await refreshTokens(refreshToken);
@@ -152,11 +173,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
 
-        await Promise.all([
-          SecureStore.deleteItemAsync(KEY_ACCESS),
-          SecureStore.deleteItemAsync(KEY_REFRESH),
-          SecureStore.deleteItemAsync(KEY_USER),
-        ]);
+        await wipe();
       } catch (e) {
         // bad storage state — just stay logged out
         console.warn('Auth rehydrate failed', e);
