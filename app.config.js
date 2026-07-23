@@ -55,7 +55,7 @@ const MAPS_KEY = process.env.EXPO_PUBLIC_ANDROID_MAPS_API_KEY ?? '';
 // reviewable in git instead of hidden in EAS state.
 //
 // Bump this for every Play upload.
-const ANDROID_VERSION_CODE = 90;
+const ANDROID_VERSION_CODE = 91;
 
 /** android.config without its googleMaps entry. */
 function withoutGoogleMaps(config) {
