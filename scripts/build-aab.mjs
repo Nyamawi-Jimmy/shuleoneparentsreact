@@ -60,14 +60,18 @@ console.log('▸ synced app.config.js + build.gradle');
 
 // ── 3. build ────────────────────────────────────────────────────
 const androidDir = join(root, 'android');
+const isWin = platform() === 'win32';
 // Absolute path to the wrapper — a bare "gradlew.bat" is NOT resolved from cwd
-// on Windows, which fails with "'gradlew.bat' is not recognized".
-const gradlew = join(androidDir, platform() === 'win32' ? 'gradlew.bat' : 'gradlew');
+// on Windows. And because the path can contain spaces (e.g. "C:\EDUCRAFT
+// PROJECTS\…"), it must be QUOTED and passed as a single shell command string,
+// or the shell splits on the space ("'C:\EDUCRAFT' is not recognized").
+const gradlew = join(androidDir, isWin ? 'gradlew.bat' : 'gradlew');
 console.log('▸ building signed AAB (this reuses the cached native layer)…\n');
-const res = spawnSync(gradlew, [':app:bundleRelease', '--no-daemon'], {
+const cmd = `"${gradlew}" :app:bundleRelease --no-daemon`;
+const res = spawnSync(cmd, {
   cwd: androidDir,
   stdio: 'inherit',
-  shell: platform() === 'win32',
+  shell: true,
 });
 if (res.status !== 0) fail(`Gradle build failed (exit ${res.status}). versionCode was already bumped to ${next}; the next run continues from there.`);
 
