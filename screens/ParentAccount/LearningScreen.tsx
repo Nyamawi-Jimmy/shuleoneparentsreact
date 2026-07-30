@@ -514,7 +514,15 @@ const AllQuestsView: React.FC<{
       if (list) list.push(quest); else g.set(subject, [quest]);
     }
     return Array.from(g.entries())
-      .map(([subject, qs]) => ({ subject, quests: [...qs].sort((a, b) => rankStatus(a.status) - rankStatus(b.status)) }))
+      .map(([subject, qs]) => {
+        const total = qs.reduce((s, x) => s + (x.totalStages || 0), 0);
+        const done = qs.reduce((s, x) => s + (x.completedStages || 0), 0);
+        return {
+          subject,
+          quests: [...qs].sort((a, b) => rankStatus(a.status) - rankStatus(b.status)),
+          total, done, pct: total > 0 ? Math.round((done / total) * 100) : 0,
+        };
+      })
       .sort((a, b) => b.quests.length - a.quests.length || a.subject.localeCompare(b.subject));
   }, [quests, q, initialSubject]);
 
@@ -571,15 +579,32 @@ const AllQuestsView: React.FC<{
             <View key={g.subject} style={styles.groupBlock}>
               <TouchableOpacity style={styles.groupHeader} activeOpacity={0.7} onPress={() => toggle(g.subject)}>
                 <View style={[styles.subjRowIcon, { backgroundColor: colors.primarySoft }]}>
-                  <MaterialCommunityIcons name={subjectIconName(g.subject)} size={16} color={colors.primary} />
+                  <MaterialCommunityIcons name={subjectIconName(g.subject)} size={17} color={colors.primary} />
                 </View>
-                <Text style={styles.groupHeaderName} numberOfLines={1}>{g.subject}</Text>
-                <View style={styles.groupCount}><Text style={styles.groupCountText}>{g.quests.length}</Text></View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.groupHeaderName} numberOfLines={1}>{g.subject}</Text>
+                  <Text style={styles.groupHeaderMeta} numberOfLines={1}>
+                    {g.quests.length} {g.quests.length === 1 ? 'quest' : 'quests'}{g.total > 0 ? ` · ${g.pct}% complete` : ''}
+                  </Text>
+                </View>
                 <Feather name={isCollapsed ? 'chevron-down' : 'chevron-up'} size={18} color={colors.textTertiary} />
               </TouchableOpacity>
-              {!isCollapsed && g.quests.map((quest) => (
-                <GamifiedQuestCard key={String(quest.id ?? quest.key)} styles={styles} quest={quest} onPlay={onPlay} />
-              ))}
+              {g.total > 0 && (
+                <View style={styles.groupProgressTrack}>
+                  <View style={[styles.groupProgressFill, { width: `${g.pct}%`, backgroundColor: colors.primary }]} />
+                </View>
+              )}
+              {/* Each subject's quests run in a horizontal row, so browsing is
+                  sideways-within-subject rather than one long downward scroll. */}
+              {!isCollapsed && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                  style={styles.groupRowWrap} contentContainerStyle={styles.groupRowScroll}
+                  snapToInterval={300} decelerationRate="fast">
+                  {g.quests.map((quest) => (
+                    <GamifiedQuestCard key={String(quest.id ?? quest.key)} styles={styles} quest={quest} onPlay={onPlay} carousel />
+                  ))}
+                </ScrollView>
+              )}
             </View>
           );
         })}
@@ -1013,11 +1038,18 @@ function makeStyles(c: ColorPalette) {
       paddingHorizontal: 12, height: 46, marginHorizontal: 16, marginTop: 6, marginBottom: 8,
     },
     searchInput: { flex: 1, fontSize: 13.5, fontFamily: fonts.regular, color: c.text, padding: 0 },
-    groupBlock: { marginBottom: 8 },
-    groupHeader: {
-      flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, marginTop: 2,
+    groupBlock: {
+      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+      paddingHorizontal: 12, paddingTop: 6, paddingBottom: 12, marginBottom: 12,
     },
-    groupHeaderName: { flex: 1, fontSize: 14.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.2 },
+    groupHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
+    groupHeaderName: { fontSize: 14.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.2 },
+    groupHeaderMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2 },
+    groupProgressTrack: { height: 5, borderRadius: 999, backgroundColor: c.backgroundAlt, overflow: 'hidden', marginBottom: 4 },
+    groupProgressFill: { height: '100%', borderRadius: 999 },
+    // Horizontal quest row, full-bleed within the section card (padding 12).
+    groupRowWrap: { marginHorizontal: -12 },
+    groupRowScroll: { gap: 12, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 2 },
     groupCount: { backgroundColor: c.primarySofter, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2 },
     groupCountText: { fontSize: 11, fontFamily: fonts.bold, color: c.primary },
 
