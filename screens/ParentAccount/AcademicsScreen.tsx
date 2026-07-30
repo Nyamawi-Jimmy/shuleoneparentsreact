@@ -64,6 +64,41 @@ const shortName = (name?: string | null) => {
   if (!name) return '';
   return String(name).replace(/EXAM/ig, '').replace(/\s+/g, ' ').trim().split(' ').slice(0, 2).join(' ');
 };
+
+// Compact but recognisable subject labels for the chart's x-axis. Known CBC /
+// 8-4-4 subjects map to their conventional short forms; anything unknown falls
+// back to initials (multi-word) or a clipped word. Full names still show in the
+// detail list below the chart.
+const SUBJECT_ABBR: Record<string, string> = {
+  'MATHEMATICS': 'Math', 'MATH': 'Math', 'MATHEMATICAL ACTIVITIES': 'Math',
+  'ENGLISH': 'Eng', 'ENGLISH LANGUAGE': 'Eng', 'ENGLISH ACTIVITIES': 'Eng',
+  'KISWAHILI': 'Kisw', 'KISWAHILI ACTIVITIES': 'Kisw', 'LUGHA': 'Lugha', 'FASIHI': 'Fasihi', 'INSHA': 'Insha',
+  'SCIENCE': 'Sci', 'SCIENCE AND TECHNOLOGY': 'Sci/Tech', 'INTEGRATED SCIENCE': 'Int Sci', 'SCIENCE ACTIVITIES': 'Sci',
+  'SOCIAL STUDIES': 'SST', 'GEOGRAPHY': 'Geo', 'HISTORY': 'Hist', 'HISTORY AND GOVERNMENT': 'Hist/Gov',
+  'CHRISTIAN RELIGIOUS EDUCATION': 'CRE', 'ISLAMIC RELIGIOUS EDUCATION': 'IRE', 'HINDU RELIGIOUS EDUCATION': 'HRE',
+  'RELIGIOUS EDUCATION': 'RE', 'RELIGIOUS ACTIVITIES': 'RE',
+  'BIOLOGY': 'Bio', 'CHEMISTRY': 'Chem', 'PHYSICS': 'Phys',
+  'BUSINESS STUDIES': 'Bus', 'AGRICULTURE': 'Agri', 'AGRICULTURE AND NUTRITION': 'Agri/Nut',
+  'HOME SCIENCE': 'H/Sci', 'COMPUTER STUDIES': 'Comp', 'COMPUTER SCIENCE': 'Comp',
+  'PHYSICAL EDUCATION': 'PE', 'PHYSICAL AND HEALTH EDUCATION': 'PHE',
+  'CREATIVE ARTS': 'Cre Arts', 'CREATIVE ARTS AND SPORTS': 'Cre Arts', 'ART AND CRAFT': 'Art', 'ART & CRAFT': 'Art', 'MUSIC': 'Music',
+  'LIFE SKILLS': 'Life Sk', 'LIFE SKILLS EDUCATION': 'Life Sk',
+  'PRE-TECHNICAL STUDIES': 'Pre-Tech', 'PRE TECHNICAL STUDIES': 'Pre-Tech',
+  'ENVIRONMENTAL ACTIVITIES': 'Env', 'HYGIENE AND NUTRITION': 'Hyg/Nut', 'HYGIENE': 'Hyg',
+  'LANGUAGE ACTIVITIES': 'Lang', 'LITERATURE': 'Lit', 'LITERATURE IN ENGLISH': 'Lit',
+  'FRENCH': 'Fre', 'GERMAN': 'Ger', 'ARABIC': 'Arab',
+  'PSYCHOMOTOR AND CREATIVE ACTIVITIES': 'Psych', 'PSYCHOMOTOR': 'Psych',
+};
+const abbrevSubject = (name?: string | null): string => {
+  const raw = String(name || '').trim();
+  if (!raw) return '—';
+  const key = raw.toUpperCase().replace(/\s+/g, ' ');
+  if (SUBJECT_ABBR[key]) return SUBJECT_ABBR[key];
+  const words = raw.split(/\s+/).filter(Boolean);
+  if (words.length === 1) return words[0].length <= 6 ? words[0] : words[0].slice(0, 5) + '.';
+  const initials = words.filter((w) => !/^(and|of|the|in|&)$/i.test(w)).map((w) => w[0].toUpperCase()).join('').slice(0, 4);
+  return initials || raw.slice(0, 5);
+};
 const gradeHex = (grade: string | null, c: ColorPalette): string => {
   const g = String(grade || '').trim().toUpperCase();
   if (g.startsWith('A')) return c.success;
@@ -739,8 +774,8 @@ const GroupedBars: React.FC<{ data: BarDatum[]; colors: ColorPalette }> = ({ dat
             cells.push(<SvgText key={`kv${i}`} x={c0 + bw / 2 + gap / 2} y={yk - 4} fontSize={8.5} fill={colors.textTertiary} textAnchor="middle">{Math.round(d.cls)}</SvgText>);
           }
           cells.push(
-            <SvgText key={`l${i}`} x={c0} y={H - 8} fontSize={9.5} fontWeight="600" fill={colors.textSecondary} textAnchor="middle">
-              {d.label.length > 9 ? d.label.slice(0, 8) + '…' : d.label}
+            <SvgText key={`l${i}`} x={c0} y={H - 8} fontSize={9} fontWeight="600" fill={colors.textSecondary} textAnchor="middle">
+              {abbrevSubject(d.label)}
             </SvgText>,
           );
           return <React.Fragment key={i}>{cells}</React.Fragment>;

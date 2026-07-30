@@ -125,15 +125,20 @@ export const CommunicationScreen: React.FC = () => {
     getAnnouncementReadIds(accessToken).then((ids) => setReadIds(new Set(ids ?? []))).catch(() => {});
   }, [accessToken]);
 
-  // School updates: show only current & upcoming items — anything dated before
-  // today is a past update and is dropped. Undated items are kept (can't be
-  // classified). The clock is read here in the memo, refreshed on refetch.
+  // School updates: only hide *past events*. Time-bound items (EVENT /
+  // INVITATION) carry the date of the event itself, so we drop them once that
+  // date has passed — but a future event posted a month ago still shows,
+  // because its date is in the future. Notices & newsletters are informational
+  // (their date is just when they were published), so they always show
+  // regardless of age. Clock read in the memo, refreshed on refetch.
   const annList = useMemo(() => {
     const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
     const cutoff = startOfToday.getTime();
     return [...announcements]
       .filter((a) => {
-        if (!a.date) return true;
+        const type = String(a.type || '').toUpperCase();
+        const timeBound = type === 'EVENT' || type === 'INVITATION';
+        if (!timeBound || !a.date) return true;
         const t = new Date(a.date).getTime();
         return isNaN(t) ? true : t >= cutoff;
       })
@@ -405,8 +410,8 @@ const UpdatesTab: React.FC<{ styles: any; colors: ColorPalette; loading: boolean
     return (
       <View style={styles.emptyCard}>
         <MaterialCommunityIcons name="bullhorn-outline" size={30} color={colors.textTertiary} />
-        <Text style={styles.emptyTitle}>No upcoming updates</Text>
-        <Text style={styles.emptyText}>Current and future notices, newsletters and events from the school will appear here.</Text>
+        <Text style={styles.emptyTitle}>No updates yet</Text>
+        <Text style={styles.emptyText}>Notices, newsletters and upcoming events from the school will appear here.</Text>
       </View>
     );
   }
