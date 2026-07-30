@@ -224,41 +224,36 @@ export const LearningScreen: React.FC = () => {
             />
           )}
 
-          {/* Recommended — actionable quests from the child's weakest subjects,
-              grouped by subject. The "do these next" list. */}
-          {recommendedGroups.length > 0 && (
-            <>
-              <View style={styles.sectionHeadRow}>
-                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Recommended for {firstName}</Text>
-              </View>
-              <Text style={styles.sectionSub}>Picked from {firstName}’s weaker subjects — a little practice here helps most.</Text>
-              {recommendedGroups.map((g) => (
-                <SubjectQuestRow key={`rec-${g.subject}`} styles={styles} colors={colors} group={g} onPlay={playQuest} recommended />
-              ))}
-            </>
-          )}
-
-          {/* Quests by subject — every subject its own labelled row, so a long
-              catalogue never becomes one endless scroll. "See all" opens the
-              grouped + searchable view. */}
-          {questGroups.length > 0 && (
-            <>
-              <View style={styles.sectionHeadRow}>
-                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Quests by subject</Text>
-                <View style={styles.countPill}><Text style={styles.countPillText}>{quests.length}</Text></View>
-                <TouchableOpacity style={styles.seeAllBtn} activeOpacity={0.8} onPress={() => setOpenAll(true)}>
-                  <Text style={[styles.seeAllText, { color: colors.primary }]}>See all</Text>
-                  <Feather name="arrow-right" size={13} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
-              {questGroups.map((g) => (
-                <SubjectQuestRow
-                  key={`grp-${g.subject}`} styles={styles} colors={colors} group={g}
-                  onPlay={playQuest} onSeeAll={() => setOpenSubject(g.subject)}
-                />
-              ))}
-            </>
-          )}
+          {/* Quests — grouped by subject as horizontal rows (weakest subjects
+              first). Capped to the recommended picks so the sections below stay
+              within reach; "View all" opens the full grouped + searchable page. */}
+          {questGroups.length > 0 && (() => {
+            const isRec = recommendedGroups.length > 0;
+            const rows = isRec ? recommendedGroups : questGroups.slice(0, 4);
+            return (
+              <>
+                <View style={styles.sectionHeadRow}>
+                  <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
+                    {isRec ? `Recommended for ${firstName}` : 'Quests by subject'}
+                  </Text>
+                  <View style={styles.countPill}><Text style={styles.countPillText}>{quests.length}</Text></View>
+                  <TouchableOpacity style={styles.seeAllBtn} activeOpacity={0.8} onPress={() => setOpenAll(true)}>
+                    <Text style={[styles.seeAllText, { color: colors.primary }]}>View all</Text>
+                    <Feather name="arrow-right" size={13} color={colors.primary} />
+                  </TouchableOpacity>
+                </View>
+                {isRec && (
+                  <Text style={styles.sectionSub}>Grouped by subject, starting with {firstName}’s weaker ones — a little practice here helps most.</Text>
+                )}
+                {rows.map((g) => (
+                  <SubjectQuestRow
+                    key={`q-${g.subject}`} styles={styles} colors={colors} group={g}
+                    onPlay={playQuest} recommended={isRec} onSeeAll={() => setOpenSubject(g.subject)}
+                  />
+                ))}
+              </>
+            );
+          })()}
 
           {/* Focus card — the web hero's content on a quiet card */}
           {subscribed ? (
