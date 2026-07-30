@@ -17,8 +17,15 @@ import { useTokens, SHARED, SHADOWS } from '../tokens';
 import { TopBar } from '../components/TopBar';
 import { Mascot } from '../components/Mascot';
 import { useStudentMe } from '../../../hooks/useStudentMe';
+import { useAuth } from '../../../context/AuthContext';
+import { getStudentFees } from '../../../api/student';
 import { masteryPct } from '../../../api/learner-me';
-import { dueAssignments, liveNowClasses } from '../../../api/student.types';
+import { dueAssignments, liveNowClasses, StudentFeeSummary } from '../../../api/student.types';
+
+const money = (v: number | string | null | undefined): string => {
+  const n = Number(String(v ?? '').replace(/[^0-9.\-]/g, ''));
+  return Number.isFinite(n) ? n.toLocaleString() : '—';
+};
 
 // Per-tier vocabulary — mirrors the web's VOCAB map so the same feature
 // reads age-appropriately everywhere.
@@ -36,8 +43,13 @@ const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 const isTier = (t: string | null | undefined): t is Tier => !!t && t in TIER_LAYOUT;
 
 export const MeView: React.FC = () => {
-  const { tier, setTier } = useTier();
+  const { tier, setTier, inSchool, isForm34 } = useTier();
+  const { accessToken } = useAuth();
   const tokens = useTokens(tier);
+  // Older learners get a grown-up dashboard: campus drops the game candy
+  // (streak/XP/goal) entirely and gains a fees card — mirrors the web's
+  // `gamified = tier !== 'campus'` and its fees/assessments rails.
+  const gamified = tier !== 'campus';
   const uiScheme = useSchemeTick(); // re-render on scheme flips (styles/C are scheme proxies)
   const {
     profile, game, next, mastery, access, assignments, liveClasses,
@@ -69,6 +81,16 @@ export const MeView: React.FC = () => {
   const due = dueAssignments(assignments);
   const overdue = due.filter((a) => a.status === 'OVERDUE');
   const liveNow = liveNowClasses(liveClasses);
+
+  // Fees — campus (adult) learners only, and never for Form 3/4 (minors routed
+  // to the campus surface). Fetched here, failing silently so it never blanks.
+  const [fees, setFees] = useState<StudentFeeSummary | null>(null);
+  useEffect(() => {
+    if (tier !== 'campus' || isForm34 || !accessToken) { setFees(null); return; }
+    let cancelled = false;
+    getStudentFees(accessToken).then((f) => { if (!cancelled) setFees(f); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [tier, isForm34, accessToken]);
 
   // Roadmap rows: mastered → in progress → locked (web's ranking).
   const roadmap = useMemo(() => {
@@ -204,8 +226,46 @@ export const MeView: React.FC = () => {
           </TouchableOpacity>
         ) : null}
 
-        {/* ── Today's goal + week strip ───────────────────────── */}
-        {goalTarget != null && goalTarget > 0 && (
+        {/* ── Fees (campus / college) ─────────────────────────── */}
+        {tier === 'campus' && !isForm34 && fees && (
+          <View style={[styles.card, { borderRadius: tokens.radius }]}>
+            <View style={styles.cardHead}>
+              <Text style={styles.cardTitle}>💳 Fees</Text>
+              {fees.term != null && <Text style={[styles.seeAll, { color: tokens.accent1 }]}>Term {fees.term}{fees.year ? ` · ${fees.year}` : ''}</Text>}
+            </View>
+            <View style={styles.feesRow}>
+              <View style={styles.feesCol}>
+                <Text style={styles.feesVal}>{money(fees.billed ?? fees.termBilling)}</Text>
+                <Text style={styles.feesLbl}>Billed</Text>
+              </View>
+              <View style={styles.feesCol}>
+                <Text style={styles.feesVal}>{money(fees.paid ?? fees.termPaid)}</Text>
+                <Text style={styles.feesLbl}>Paid</Text>
+              </View>
+              <View style={styles.feesCol}>
+                <Text style={[styles.feesVal, { color: Number(String(fees.balance ?? '').replace(/[^0-9.\-]/g, '')) > 0 ? '#e11d48' : '#15c98c' }]}>{money(fees.balance)}</Text>
+                <Text style={styles.feesLbl}>Balance</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* ── Assessments rail (senior / campus, in-school) ───── */}
+        {(tier === 'campus' || tier === 'scholar') && inSchool && (
+          <TouchableOpacity activeOpacity={0.9} onPress={() => router.push('/(student-tabs)/exams' as any)}>
+            <View style={[styles.card, { borderRadius: tokens.radius, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }]}>
+              <Text style={{ fontSize: 26 }}>📄</Text>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.cardTitle}>Assessments</Text>
+                <Text style={styles.feesLbl}>Exams, CATs & transcripts</Text>
+              </View>
+              <Text style={[styles.seeAll, { color: tokens.accent1, marginBottom: 0 }]}>Open ▶</Text>
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* ── Today's goal + week strip (game candy — not for campus) ── */}
+        {gamified && goalTarget != null && goalTarget > 0 && (
           <View style={[styles.card, { borderRadius: tokens.radius }]}>
             <Text style={styles.cardTitle}>🎯 Today’s goal</Text>
             <View style={styles.goalRow}>
@@ -414,6 +474,11 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { fontSize: 15, fontWeight: '800', color: S.ink, marginBottom: 10 },
   seeAll: { fontWeight: '800', fontSize: 12.5, marginBottom: 10 },
+
+  feesRow: { flexDirection: 'row', alignItems: 'center' },
+  feesCol: { flex: 1, alignItems: 'center' },
+  feesVal: { fontSize: 17, fontWeight: '800', color: S.ink, letterSpacing: -0.3 },
+  feesLbl: { fontSize: 11, fontWeight: '600', color: S.inkSoft, marginTop: 2 },
 
   goalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   goalBig: { fontSize: 26, fontWeight: '800', color: S.ink, letterSpacing: -0.5 },

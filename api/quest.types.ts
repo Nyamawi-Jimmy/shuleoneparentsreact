@@ -3,8 +3,8 @@
 // Source: com.educraft.lmsbacknew.quest.dto.*
 // =================================================================
 
-// Spring enum: AgeTier
-export type AgeTier = 'PLAY' | 'TEEN' | 'SENIOR' | 'CAMPUS';
+// Spring enum: AgeTier (matches quest/dto/AgeTier.java — includes UPPER_PRIMARY).
+export type AgeTier = 'PLAY' | 'UPPER_PRIMARY' | 'TEEN' | 'SENIOR' | 'CAMPUS';
 
 // Spring enum: ProgressStatus
 export type ProgressStatus = 'LOCKED' | 'AVAILABLE' | 'IN_PROGRESS' | 'COMPLETED';

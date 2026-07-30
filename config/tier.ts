@@ -20,7 +20,7 @@ import { AgeTier } from '../api/quest.types';
 export function tierToAgeTier(tier: Tier): AgeTier {
   switch (tier) {
     case 'sprout':   return 'PLAY';
-    case 'explorer': return 'TEEN';
+    case 'explorer': return 'UPPER_PRIMARY'; // G4–G6 — matches lms-react's explorer→UPPER_PRIMARY
     case 'voyager':  return 'TEEN';
     case 'scholar':  return 'SENIOR';
     case 'campus':   return 'CAMPUS';
@@ -31,9 +31,10 @@ export function tierToAgeTier(tier: Tier): AgeTier {
  *  AgeTier; this returns the most "typical" one. */
 export function ageTierToTier(age: AgeTier): Tier {
   switch (age) {
-    case 'PLAY':   return 'sprout';
-    case 'TEEN':   return 'explorer';
-    case 'SENIOR': return 'scholar';
-    case 'CAMPUS': return 'campus';
+    case 'PLAY':          return 'sprout';
+    case 'UPPER_PRIMARY': return 'explorer';
+    case 'TEEN':          return 'voyager';
+    case 'SENIOR':        return 'scholar';
+    case 'CAMPUS':        return 'campus';
   }
 }
