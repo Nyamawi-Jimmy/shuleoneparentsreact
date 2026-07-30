@@ -226,36 +226,64 @@ export const LearningScreen: React.FC = () => {
               in one horizontal row, so it stays small and the sections below
               aren't pushed down. Tapping a tile opens that subject's quests;
               "View all" opens the full grouped + searchable page. */}
-          {questGroups.length > 0 && (() => {
-            const isRec = recommendedGroups.length > 0;
-            const tiles = isRec ? recommendedGroups : questGroups;
-            return (
-              <>
-                <View style={styles.sectionHeadRow}>
-                  <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>
-                    {isRec ? `Recommended for ${firstName}` : 'Quests by subject'}
-                  </Text>
-                  <View style={styles.countPill}><Text style={styles.countPillText}>{quests.length}</Text></View>
-                  <TouchableOpacity style={styles.seeAllBtn} activeOpacity={0.8} onPress={() => setOpenAll(true)}>
-                    <Text style={[styles.seeAllText, { color: colors.primary }]}>View all</Text>
-                    <Feather name="arrow-right" size={13} color={colors.primary} />
-                  </TouchableOpacity>
+          {questGroups.length > 0 && (recommendedGroups.length > 0 ? (
+            // Recommended — an eye-catching card: gradient header + a short,
+            // tappable list of the child's weaker subjects (matches the student
+            // side's recommended card). "View all" opens the full grouped page.
+            <View style={styles.recCard}>
+              <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.recHeader}>
+                <Text style={styles.recHeaderEmoji}>🎯</Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.recHeaderTitle}>Recommended for {firstName}</Text>
+                  <Text style={styles.recHeaderSub}>Weaker subjects first — a little practice here moves the needle most.</Text>
                 </View>
-                {isRec && (
-                  <Text style={styles.sectionSub}>Grouped by subject, weaker subjects first — tap one to practise.</Text>
-                )}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                  style={styles.subjRowScrollWrap} contentContainerStyle={styles.subjChipRow}>
-                  {tiles.map((g) => (
-                    <SubjectChip
-                      key={`q-${g.subject}`} styles={styles} colors={colors} group={g}
-                      recommended={isRec} onOpen={() => setOpenSubject(g.subject)}
-                    />
-                  ))}
-                </ScrollView>
-              </>
-            );
-          })()}
+              </LinearGradient>
+              <View style={styles.recList}>
+                {recommendedGroups.slice(0, 4).map((g, idx) => {
+                  const meta = g.weakness !== Infinity
+                    ? `${g.quests.length} ${g.quests.length === 1 ? 'quest' : 'quests'} · ${Math.round(g.weakness)}% avg`
+                    : `${g.quests.length} ${g.quests.length === 1 ? 'quest' : 'quests'} · ${g.pct}% complete`;
+                  return (
+                    <TouchableOpacity key={g.subject} activeOpacity={0.8} onPress={() => setOpenSubject(g.subject)}
+                      style={[styles.recItem, idx > 0 && styles.recItemLine]}>
+                      <View style={[styles.recNum, { backgroundColor: colors.primary }]}>
+                        <MaterialCommunityIcons name={subjectIconName(g.subject)} size={16} color="#FFF" />
+                      </View>
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.recTopic} numberOfLines={1}>{g.subject}</Text>
+                        <Text style={styles.recWhy} numberOfLines={1}>{meta}</Text>
+                      </View>
+                      <Text style={[styles.recGo, { color: colors.primary }]}>Practise →</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <TouchableOpacity style={styles.recFooter} activeOpacity={0.7} onPress={() => setOpenAll(true)}>
+                <Text style={styles.recFooterText}>View all quests</Text>
+                <Feather name="arrow-right" size={13} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <View style={styles.sectionHeadRow}>
+                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Quests by subject</Text>
+                <View style={styles.countPill}><Text style={styles.countPillText}>{quests.length}</Text></View>
+                <TouchableOpacity style={styles.seeAllBtn} activeOpacity={0.8} onPress={() => setOpenAll(true)}>
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>View all</Text>
+                  <Feather name="arrow-right" size={13} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                style={styles.subjRowScrollWrap} contentContainerStyle={styles.subjChipRow}>
+                {questGroups.map((g) => (
+                  <SubjectChip
+                    key={`q-${g.subject}`} styles={styles} colors={colors} group={g}
+                    recommended={false} onOpen={() => setOpenSubject(g.subject)}
+                  />
+                ))}
+              </ScrollView>
+            </>
+          ))}
 
           {/* Focus card — the web hero's content on a quiet card */}
           {subscribed ? (
@@ -1006,6 +1034,26 @@ function makeStyles(c: ColorPalette) {
     seeAllBtn: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingLeft: 8 },
     seeAllText: { fontSize: 12, fontFamily: fonts.bold },
     sectionSub: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: -6, marginBottom: 12, lineHeight: 18 },
+
+    // Recommended card (eye-catching, matches the student side)
+    recCard: {
+      backgroundColor: c.card, borderRadius: 20, borderWidth: 1, borderColor: c.border,
+      overflow: 'hidden', marginBottom: 20,
+      shadowColor: c.primaryDeep, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.16, shadowRadius: 16, elevation: 5,
+    },
+    recHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
+    recHeaderEmoji: { fontSize: 26 },
+    recHeaderTitle: { color: '#FFF', fontSize: 16, fontFamily: fonts.extrabold, letterSpacing: -0.3 },
+    recHeaderSub: { color: 'rgba(255,255,255,0.92)', fontSize: 11.5, fontFamily: fonts.medium, marginTop: 2, lineHeight: 15 },
+    recList: { paddingHorizontal: 8 },
+    recItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 8 },
+    recItemLine: { borderTopWidth: 1, borderTopColor: c.border },
+    recNum: { width: 32, height: 32, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+    recTopic: { fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    recWhy: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 1 },
+    recGo: { fontSize: 12, fontFamily: fonts.bold },
+    recFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.border },
+    recFooterText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.primary },
 
     // Per-subject quest row (main Learning screen)
     subjRowBlock: { marginBottom: 18 },
