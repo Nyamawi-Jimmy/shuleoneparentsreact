@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator,
@@ -13,7 +13,7 @@ import { useTokens } from '../tokens';
 import { TopBar } from '../components/TopBar';
 import { useAuth } from '../../../context/AuthContext';
 import { tierToAgeTier } from '../../../config/tier';
-import { listQuests, getQuest, getQuestCatalog } from '../../../api/quests';
+import { listQuests, getQuest, getQuestCatalog, getRecommendedPath, RecommendedItem } from '../../../api/quests';
 import { QuestDetail, QuestSummary, Stage } from '../../../api/quest.types';
 
 // Friendly label for a canonical class code (PLAYGROUP/PP1/GRADE1../FORM1..).
@@ -168,6 +168,12 @@ export const QuestView: React.FC = () => {
     loadDetail(q.id);
   };
 
+  // Open a quest straight from its id (used by the recommended path card).
+  const openQuestById = (id: number) => {
+    setSelectedQuestId(id);
+    loadDetail(id);
+  };
+
   const handleBackToList = () => {
     setSelectedQuestId(null);
     setQuestDetail(null);
@@ -246,13 +252,6 @@ export const QuestView: React.FC = () => {
       actionable: list.some((q) => q.status === 'AVAILABLE' || q.status === 'IN_PROGRESS'),
     };
   });
-  // Recommended = subjects with something to do, least-finished first (most room
-  // to grow) — the student-side echo of the parent's weakest-first picks.
-  const recommended = subjectGroups
-    .filter((g) => g.actionable && g.pct < 100)
-    .sort((a, b) => a.pct - b.pct)
-    .slice(0, 4);
-
   return (
     <View style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
       <TopBar />
@@ -282,22 +281,36 @@ export const QuestView: React.FC = () => {
         {/* Class picker — default is the student's own class; every grade stays open
             so they can revise earlier classes or read ahead. */}
         {grades.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.classStrip}>
-            <TouchableOpacity activeOpacity={0.85} onPress={() => setGradeSel('ALL')}
-              style={[styles.classChip, gradeSel === 'ALL' && { backgroundColor: tokens.accent1, borderColor: tokens.accent1 }]}>
-              <Text style={[styles.classChipText, gradeSel === 'ALL' && { color: '#fff' }]}>All classes</Text>
-            </TouchableOpacity>
-            {grades.map((g) => {
-              const active = gradeSel === g;
-              return (
-                <TouchableOpacity key={g} activeOpacity={0.85} onPress={() => setGradeSel(g)}
-                  style={[styles.classChip, active && { backgroundColor: tokens.accent1, borderColor: tokens.accent1 }]}>
-                  <Text style={[styles.classChipText, active && { color: '#fff' }]}>{gradeLabel(g)}</Text>
-                  {g === myGrade && <View style={[styles.mineDot, active && { backgroundColor: '#fff' }]} />}
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+          <View style={styles.classSection}>
+            <Text style={styles.filterLabel}>CLASS</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.classStrip}>
+              <TouchableOpacity activeOpacity={0.85} onPress={() => setGradeSel('ALL')}
+                style={[styles.classChip, gradeSel === 'ALL' && [styles.classChipActive, { backgroundColor: tokens.accent1, borderColor: tokens.accent1, shadowColor: tokens.accent1 }]]}>
+                <Ionicons name="apps" size={13} color={gradeSel === 'ALL' ? '#fff' : C.inkSoft} />
+                <Text style={[styles.classChipText, gradeSel === 'ALL' && { color: '#fff' }]}>All classes</Text>
+              </TouchableOpacity>
+              {grades.map((g) => {
+                const active = gradeSel === g;
+                const mine = g === myGrade;
+                return (
+                  <TouchableOpacity key={g} activeOpacity={0.85} onPress={() => setGradeSel(g)}
+                    style={[
+                      styles.classChip,
+                      mine && !active && { borderColor: tokens.accent1 + '88' },
+                      active && [styles.classChipActive, { backgroundColor: tokens.accent1, borderColor: tokens.accent1, shadowColor: tokens.accent1 }],
+                    ]}>
+                    <Ionicons name="school" size={13} color={active ? '#fff' : tokens.accent1} />
+                    <Text style={[styles.classChipText, active && { color: '#fff' }]}>{gradeLabel(g)}</Text>
+                    {mine && (
+                      <View style={[styles.mineBadge, { backgroundColor: active ? 'rgba(255,255,255,0.24)' : tokens.accent1 + '22' }]}>
+                        <Text style={[styles.mineBadgeText, { color: active ? '#fff' : tokens.accent1 }]}>MY CLASS</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
         )}
 
         {/* Continue spotlight — only on the all-subjects overview. */}
@@ -358,22 +371,11 @@ export const QuestView: React.FC = () => {
             })()}
           </>
         ) : (
-          // ── All subjects: compact tiles (progress + count) + Recommended ──
+          // ── All subjects: recommended path card + subject tiles ──
           <>
-            {recommended.length > 0 && (
-              <>
-                <View style={[styles.secH, { marginTop: 4 }]}>
-                  <Text style={styles.allQuestsTitle}>⭐ Recommended</Text>
-                  <View style={styles.secHLine} />
-                </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}
-                  style={styles.recRowWrap} contentContainerStyle={styles.recRow}>
-                  {recommended.map((g) => (
-                    <SubjectTile key={`rec-${g.name}`} group={g} style={styles.subjTileRec} onOpen={() => setSubjectSel(g.name)} />
-                  ))}
-                </ScrollView>
-              </>
-            )}
+            {/* Real recommended path from the learner's exam results (endpoint,
+                like the web) — an eye-catching, ordered "do these next" list. */}
+            <RecommendedPathCard accessToken={accessToken} tokens={tokens} onOpenQuest={openQuestById} />
 
             <View style={[styles.secH, { marginTop: 4 }]}>
               <Text style={styles.allQuestsTitle}>All subjects</Text>
@@ -498,6 +500,64 @@ const MiniRing: React.FC<{ pct: number; tint: string; size?: number }> = ({ pct,
       {done
         ? <Ionicons name="checkmark" size={20} color="#15c98c" />
         : <Text style={{ fontSize: 12, fontWeight: '900', color: tint }}>{p}%</Text>}
+    </View>
+  );
+};
+
+// =================================================================
+// "Recommended for you" — the learner's exam-driven revision path, pulled from
+// the /quests/recommended endpoint (same source as the web). An eye-catching
+// gradient header over a numbered, tappable list. Fail-soft: no path / empty /
+// error → renders nothing, so an on-track learner just sees the catalogue.
+// =================================================================
+const RecommendedPathCard: React.FC<{
+  accessToken: string | null; tokens: any; onOpenQuest: (id: number) => void;
+}> = ({ accessToken, tokens, onOpenQuest }) => {
+  const [items, setItems] = useState<RecommendedItem[]>([]);
+  useEffect(() => {
+    if (!accessToken) return;
+    let cancelled = false;
+    getRecommendedPath(accessToken)
+      .then((p) => { if (!cancelled && p?.exists) setItems((p.items ?? []).filter((i) => i.questId != null)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [accessToken]);
+
+  if (items.length === 0) return null;
+
+  return (
+    <View style={styles.recCard}>
+      <LinearGradient colors={[tokens.accent1, tokens.accent2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.recHeader}>
+        <Text style={styles.recHeaderEmoji}>🎯</Text>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.recHeaderTitle}>Recommended for you</Text>
+          <Text style={styles.recHeaderSub}>Picked from your exam results — these close your biggest gaps first.</Text>
+        </View>
+      </LinearGradient>
+      <View style={styles.recList}>
+        {items.map((it, idx) => {
+          const done = String(it.status || '').toUpperCase() === 'DONE';
+          return (
+            <TouchableOpacity
+              key={`${it.position}-${it.lessonId ?? idx}`} activeOpacity={0.85}
+              disabled={it.questId == null} onPress={() => it.questId != null && onOpenQuest(it.questId)}
+              style={[styles.recItem, idx > 0 && styles.recItemLine]}
+            >
+              <View style={[styles.recNum, { backgroundColor: done ? '#15c98c' : tokens.accent1 }]}>
+                <Text style={styles.recNumText}>{done ? '✓' : it.position}</Text>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.recTopic} numberOfLines={1}>{it.subStrand ?? it.lessonTitle ?? 'Revision topic'}</Text>
+                {!!it.lessonTitle && it.lessonTitle !== it.subStrand && (
+                  <Text style={styles.recLesson} numberOfLines={1}>{it.lessonTitle}</Text>
+                )}
+                {!!it.reason && <Text style={styles.recWhy} numberOfLines={2}>{it.reason}</Text>}
+              </View>
+              <Text style={[styles.recGo, { color: done ? '#15c98c' : tokens.accent1 }]}>{done ? 'Done' : 'Start →'}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
     </View>
   );
 };
@@ -735,7 +795,9 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   secHLine: { flex: 1, height: 3, borderRadius: 3, backgroundColor: S.line },
 
   // Class picker
-  classStrip: { gap: 8, paddingBottom: 4, marginBottom: 12 },
+  classSection: { marginBottom: 14 },
+  filterLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.7, color: S.inkSoft, marginBottom: 8, marginLeft: 2 },
+  classStrip: { gap: 8, paddingBottom: 4 },
 
   // Subject filter — each chip wears its subject's own colour.
   subjStrip: { gap: 8, paddingBottom: 4, marginBottom: 16, paddingRight: 4 },
@@ -755,12 +817,16 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   clearBtn: { borderRadius: 999, paddingHorizontal: 16, paddingVertical: 10, marginTop: 14 },
   clearBtnText: { color: '#fff', fontSize: 12.5, fontWeight: '800' },
   classChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 7,
     borderWidth: 1.5, borderColor: S.line, backgroundColor: S.card,
-    borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8,
+    borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9,
+  },
+  classChipActive: {
+    shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.34, shadowRadius: 14, elevation: 5,
   },
   classChipText: { fontSize: 12.5, fontWeight: '800', color: S.inkSoft },
-  mineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#f4a716' },
+  mineBadge: { borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 },
+  mineBadgeText: { fontSize: 8.5, fontWeight: '900', letterSpacing: 0.5 },
 
   // Continue spotlight
   continueWrap: {
@@ -803,6 +869,25 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   strandTitle: { flex: 1, fontSize: 13.5, fontWeight: '800', color: S.inkSoft },
   strandCount: { minWidth: 22, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: S.soft, alignItems: 'center' },
   strandCountText: { fontSize: 11, fontWeight: '800', color: S.inkSoft },
+
+  // Recommended path card (exam-driven revision path)
+  recCard: {
+    backgroundColor: S.card, borderRadius: 20, overflow: 'hidden', marginBottom: 18,
+    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.16, shadowRadius: 16, elevation: 5,
+  },
+  recHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
+  recHeaderEmoji: { fontSize: 26 },
+  recHeaderTitle: { color: '#fff', fontWeight: '900', fontSize: 16, letterSpacing: -0.3 },
+  recHeaderSub: { color: 'rgba(255,255,255,0.92)', fontWeight: '600', fontSize: 11.5, marginTop: 2, lineHeight: 15 },
+  recList: { paddingHorizontal: 8, paddingVertical: 4 },
+  recItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 11, paddingHorizontal: 8 },
+  recItemLine: { borderTopWidth: 1, borderTopColor: S.line },
+  recNum: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  recNumText: { color: '#fff', fontWeight: '900', fontSize: 13 },
+  recTopic: { fontSize: 14, fontWeight: '800', color: S.ink },
+  recLesson: { fontSize: 11.5, fontWeight: '600', color: S.inkSoft, marginTop: 1 },
+  recWhy: { fontSize: 11, fontWeight: '500', color: S.inkSoft, marginTop: 3, lineHeight: 15, fontStyle: 'italic' },
+  recGo: { fontSize: 12, fontWeight: '800' },
 
   // Compact subject tiles (grouped overview + recommended)
   recRowWrap: { marginHorizontal: -16, marginBottom: 6 },

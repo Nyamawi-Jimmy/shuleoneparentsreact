@@ -18,6 +18,29 @@ export function getQuestCatalog(accessToken: string) {
   return apiFetch<QuestCatalog>('/api/quests/catalog', { accessToken });
 }
 
+// ── Recommended path (the learner's exam-driven revision path) ───────────────
+// GET /api/quests/recommended — self-scoped (JWT resolves the student). Mirrors
+// the web's questApi.recommended(). Fail-soft: { exists:false } when no path.
+export interface RecommendedItem {
+  position: number;
+  subStrandId?: number | null;
+  subStrand?: string | null;
+  lessonId?: number | null;
+  lessonTitle?: string | null;
+  reason?: string | null;
+  status?: string | null;      // e.g. DONE
+  questId?: number | null;     // null → lesson not staged in a quest here (skip)
+}
+export interface RecommendedPath {
+  exists: boolean;
+  generatedAt?: string | null;
+  validUntil?: string | null;
+  items?: RecommendedItem[];
+}
+export function getRecommendedPath(accessToken: string) {
+  return apiFetch<RecommendedPath>('/api/quests/recommended', { accessToken });
+}
+
 // =================================================================
 // QuestController endpoints. Most require a Bearer token; pass
 // `accessToken` from useAuth().
