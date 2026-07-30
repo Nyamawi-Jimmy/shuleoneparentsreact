@@ -319,8 +319,13 @@ const AnalyticsModal: React.FC<{
   }).filter(Boolean) as BarDatum[];
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { paddingBottom: insets.bottom + 18 }]} onPress={() => {}}>
+      {/* Backdrop: a full-screen tap-to-close layer BEHIND the sheet. The sheet
+          is a plain View (not a Pressable) — a Pressable parent swallows the
+          child ScrollViews' drag gestures on Android, which is what stopped the
+          breakdown from scrolling. */}
+      <View style={styles.backdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 18 }]}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHead}>
             <View style={{ flex: 1 }}>
@@ -358,77 +363,74 @@ const AnalyticsModal: React.FC<{
             )}
           </View>
 
+          {/* Grouped columns — child vs class (Option C). Kept OUTSIDE the
+              vertical list so its horizontal scroll isn't nested inside a
+              vertical scroll (they'd fight). Scrolls left↔right on its own. */}
+          {barData.length > 0 && (
+            <View style={styles.barCard}>
+              <GroupedBars data={barData} colors={colors} />
+              <View style={styles.subLegendRow}>
+                <View style={styles.subLegendItem}>
+                  <View style={[styles.subLegendSwatch, { backgroundColor: colors.primary }]} />
+                  <Text style={styles.subLegendLbl}>Your child</Text>
+                </View>
+                <View style={styles.subLegendItem}>
+                  <View style={[styles.subLegendSwatch, { backgroundColor: colors.textTertiary }]} />
+                  <Text style={styles.subLegendLbl}>Class average</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Per-subject detail — its own vertical scroll (bounded, so it always
+              scrolls no matter how many subjects). */}
           <ScrollView
             style={{ flexShrink: 1, minHeight: 0, maxHeight: listMaxH }}
             contentContainerStyle={{ paddingBottom: 4 }}
             showsVerticalScrollIndicator
-            nestedScrollEnabled
           >
             {subjects.length === 0 ? (
               <Text style={styles.chartNote}>No subject breakdown recorded for this exam.</Text>
-            ) : (
-              <>
-                {/* Grouped columns — child vs class per subject (Option C). */}
-                {barData.length > 0 && (
-                  <View style={styles.barCard}>
-                    <GroupedBars data={barData} colors={colors} />
-                    <View style={styles.subLegendRow}>
-                      <View style={styles.subLegendItem}>
-                        <View style={[styles.subLegendSwatch, { backgroundColor: colors.primary }]} />
-                        <Text style={styles.subLegendLbl}>Your child</Text>
+            ) : subjects.map((s, i) => {
+              const hex = gradeHex(s.grade, colors);
+              const outOf = outOfNum(s.score);
+              const childPct = toPct(leadNum(s.score), outOf);
+              const classPct = toPct(leadNum(s.average), outOf);
+              const diff = childPct != null && classPct != null ? Math.round(childPct - classPct) : null;
+              const vColor = diff == null ? colors.textTertiary
+                : diff > 0 ? colors.success : diff < 0 ? colors.danger : colors.textSecondary;
+              const vText = diff == null ? ''
+                : diff === 0 ? 'On the class average'
+                : `${Math.abs(diff)}% ${diff > 0 ? 'above' : 'below'} class`;
+              return (
+                <View key={i} style={[styles.subjCard, i > 0 && { marginTop: 8 }]}>
+                  <View style={styles.subjTop}>
+                    <View style={[styles.subjDot, { backgroundColor: hex }]} />
+                    <Text style={styles.subjName} numberOfLines={1}>{s.subject || '—'}</Text>
+                    {!!s.grade && (
+                      <View style={[styles.subjGrade, { backgroundColor: hex + '1A' }]}>
+                        <Text style={[styles.subjGradeText, { color: hex }]}>{s.grade}</Text>
                       </View>
-                      <View style={styles.subLegendItem}>
-                        <View style={[styles.subLegendSwatch, { backgroundColor: colors.textTertiary }]} />
-                        <Text style={styles.subLegendLbl}>Class average</Text>
-                      </View>
-                    </View>
+                    )}
+                    <Text style={[styles.subjPct, { color: hex }]}>
+                      {childPct != null ? `${Math.round(childPct)}%` : (s.score ?? '—')}
+                    </Text>
                   </View>
-                )}
 
-                {/* Compact per-subject detail — grade, score, verdict, position.
-                    The chart above already carries the visual comparison. */}
-                {subjects.map((s, i) => {
-                  const hex = gradeHex(s.grade, colors);
-                  const outOf = outOfNum(s.score);
-                  const childPct = toPct(leadNum(s.score), outOf);
-                  const classPct = toPct(leadNum(s.average), outOf);
-                  const diff = childPct != null && classPct != null ? Math.round(childPct - classPct) : null;
-                  const vColor = diff == null ? colors.textTertiary
-                    : diff > 0 ? colors.success : diff < 0 ? colors.danger : colors.textSecondary;
-                  const vText = diff == null ? ''
-                    : diff === 0 ? 'On the class average'
-                    : `${Math.abs(diff)}% ${diff > 0 ? 'above' : 'below'} class`;
-                  return (
-                    <View key={i} style={[styles.subjCard, i > 0 && { marginTop: 8 }]}>
-                      <View style={styles.subjTop}>
-                        <View style={[styles.subjDot, { backgroundColor: hex }]} />
-                        <Text style={styles.subjName} numberOfLines={1}>{s.subject || '—'}</Text>
-                        {!!s.grade && (
-                          <View style={[styles.subjGrade, { backgroundColor: hex + '1A' }]}>
-                            <Text style={[styles.subjGradeText, { color: hex }]}>{s.grade}</Text>
-                          </View>
-                        )}
-                        <Text style={[styles.subjPct, { color: hex }]}>
-                          {childPct != null ? `${Math.round(childPct)}%` : (s.score ?? '—')}
-                        </Text>
-                      </View>
-
-                      {(diff != null || !!s.position) && (
-                        <View style={styles.verdictRow}>
-                          {diff != null ? (
-                            <View style={[styles.verdictChip, { backgroundColor: vColor + '18' }]}>
-                              {diff !== 0 && <Ionicons name={diff > 0 ? 'arrow-up' : 'arrow-down'} size={10} color={vColor} />}
-                              <Text style={[styles.verdictText, { color: vColor }]}>{vText}</Text>
-                            </View>
-                          ) : <View />}
-                          {!!s.position && <Text style={styles.posText}>Position {s.position}</Text>}
+                  {(diff != null || !!s.position) && (
+                    <View style={styles.verdictRow}>
+                      {diff != null ? (
+                        <View style={[styles.verdictChip, { backgroundColor: vColor + '18' }]}>
+                          {diff !== 0 && <Ionicons name={diff > 0 ? 'arrow-up' : 'arrow-down'} size={10} color={vColor} />}
+                          <Text style={[styles.verdictText, { color: vColor }]}>{vText}</Text>
                         </View>
-                      )}
+                      ) : <View />}
+                      {!!s.position && <Text style={styles.posText}>Position {s.position}</Text>}
                     </View>
-                  );
-                })}
-              </>
-            )}
+                  )}
+                </View>
+              );
+            })}
           </ScrollView>
 
           <TouchableOpacity activeOpacity={0.85} onPress={onPrint} disabled={downloading}>
@@ -436,8 +438,8 @@ const AnalyticsModal: React.FC<{
               {downloading ? <ActivityIndicator size="small" color="#FFF" /> : <><Feather name="printer" size={16} color="#FFF" /><Text style={styles.printBtnText}>Print assessment (PDF)</Text></>}
             </LinearGradient>
           </TouchableOpacity>
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 };
@@ -703,8 +705,8 @@ const GroupedBars: React.FC<{ data: BarDatum[]; colors: ColorPalette }> = ({ dat
   const plotW = Math.max(avail, data.length * slot);
   const padL = 26, padR = 10;
   const W = plotW + padL + padR;
-  const H = 200;
-  const padT = 22, padB = 46;
+  const H = 186;
+  const padT = 20, padB = 44;
   const base = H - padB;
   const plotH = base - padT;
   const y = (v: number) => base - plotH * Math.max(0, Math.min(100, v)) / 100;
