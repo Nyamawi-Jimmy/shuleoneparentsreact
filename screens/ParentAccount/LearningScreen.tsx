@@ -159,15 +159,13 @@ export const LearningScreen: React.FC = () => {
       .sort((a, b) => a.weakness - b.weakness || a.subject.localeCompare(b.subject));
   }, [quests, subjectWeakness]);
 
-  // Recommended = actionable quests (available / in-progress) from the child's
-  // weakest subjects, still grouped by subject. Capped so it stays a focused
-  // "do these next", not another endless list.
+  // Recommended = subjects that have actionable quests (available / in-progress),
+  // ordered weakest-first. Rendered as compact subject tiles, so no per-subject
+  // slicing is needed — the tile shows the real actionable count.
   const recommendedGroups = useMemo<QuestGroup[]>(() =>
     questGroups
       .map((g) => ({ ...g, quests: g.quests.filter((q) => q.status === 'IN_PROGRESS' || q.status === 'AVAILABLE') }))
-      .filter((g) => g.quests.length > 0)
-      .slice(0, 3)
-      .map((g) => ({ ...g, quests: g.quests.slice(0, 5) })),
+      .filter((g) => g.quests.length > 0),
     [questGroups]);
 
   // Subject drill-down: tapping a subject's "See all" opens the grouped + search
@@ -224,12 +222,13 @@ export const LearningScreen: React.FC = () => {
             />
           )}
 
-          {/* Quests — grouped by subject as horizontal rows (weakest subjects
-              first). Capped to the recommended picks so the sections below stay
-              within reach; "View all" opens the full grouped + searchable page. */}
+          {/* Quests grouped by subject — compact tiles (subject + quest count)
+              in one horizontal row, so it stays small and the sections below
+              aren't pushed down. Tapping a tile opens that subject's quests;
+              "View all" opens the full grouped + searchable page. */}
           {questGroups.length > 0 && (() => {
             const isRec = recommendedGroups.length > 0;
-            const rows = isRec ? recommendedGroups : questGroups.slice(0, 4);
+            const tiles = isRec ? recommendedGroups : questGroups;
             return (
               <>
                 <View style={styles.sectionHeadRow}>
@@ -243,14 +242,17 @@ export const LearningScreen: React.FC = () => {
                   </TouchableOpacity>
                 </View>
                 {isRec && (
-                  <Text style={styles.sectionSub}>Grouped by subject, starting with {firstName}’s weaker ones — a little practice here helps most.</Text>
+                  <Text style={styles.sectionSub}>Grouped by subject, weaker subjects first — tap one to practise.</Text>
                 )}
-                {rows.map((g) => (
-                  <SubjectQuestRow
-                    key={`q-${g.subject}`} styles={styles} colors={colors} group={g}
-                    onPlay={playQuest} recommended={isRec} onSeeAll={() => setOpenSubject(g.subject)}
-                  />
-                ))}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                  style={styles.subjRowScrollWrap} contentContainerStyle={styles.subjChipRow}>
+                  {tiles.map((g) => (
+                    <SubjectChip
+                      key={`q-${g.subject}`} styles={styles} colors={colors} group={g}
+                      recommended={isRec} onOpen={() => setOpenSubject(g.subject)}
+                    />
+                  ))}
+                </ScrollView>
               </>
             );
           })()}
@@ -463,40 +465,30 @@ export const LearningScreen: React.FC = () => {
   );
 };
 
-// ── Subject quest row — one subject, one labelled horizontal row of its quests.
-// Keeps each subject a self-contained band with a clear start and end, instead
-// of one endless vertical list the child can get lost in.
-const SubjectQuestRow: React.FC<{
+// ── Subject tile — a compact card: subject name + how many quests. Grouped
+// quests without the vertical bulk of full quest cards; tapping opens that
+// subject's quests. Weakest subjects carry an "avg" tag in recommended mode.
+const SubjectChip: React.FC<{
   styles: any; colors: ColorPalette; group: QuestGroup;
-  onPlay: (id: number | null) => void; recommended?: boolean; onSeeAll?: () => void;
-}> = ({ styles, colors, group, onPlay, recommended, onSeeAll }) => {
-  const meta = recommended && group.weakness !== Infinity
-    ? `${Math.round(group.weakness)}% avg · practice this`
-    : `${group.pct}% complete · ${group.quests.length} ${group.quests.length === 1 ? 'quest' : 'quests'}`;
+  recommended?: boolean; onOpen: () => void;
+}> = ({ styles, colors, group, recommended, onOpen }) => {
+  const n = group.quests.length;
   return (
-    <View style={styles.subjRowBlock}>
-      <View style={styles.subjRowHead}>
-        <View style={[styles.subjRowIcon, { backgroundColor: colors.primarySoft }]}>
-          <MaterialCommunityIcons name={subjectIconName(group.subject)} size={16} color={colors.primary} />
+    <TouchableOpacity style={styles.subjChip} activeOpacity={0.85} onPress={onOpen}>
+      <View style={styles.subjChipTop}>
+        <View style={[styles.subjChipIcon, { backgroundColor: colors.primarySoft }]}>
+          <MaterialCommunityIcons name={subjectIconName(group.subject)} size={19} color={colors.primary} />
         </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.subjRowName} numberOfLines={1}>{group.subject}</Text>
-          <Text style={styles.subjRowMeta} numberOfLines={1}>{meta}</Text>
-        </View>
-        {onSeeAll && group.quests.length > 2 && (
-          <TouchableOpacity onPress={onSeeAll} hitSlop={8} activeOpacity={0.7}>
-            <Text style={styles.subjRowSeeAll}>All {group.quests.length}</Text>
-          </TouchableOpacity>
+        {recommended && group.weakness !== Infinity && (
+          <View style={styles.subjChipTag}><Text style={styles.subjChipTagText}>{Math.round(group.weakness)}% avg</Text></View>
         )}
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}
-        style={styles.subjRowScrollWrap} contentContainerStyle={styles.subjRowScroll}
-        snapToInterval={300} decelerationRate="fast">
-        {group.quests.map((q) => (
-          <GamifiedQuestCard key={String(q.id ?? q.key)} styles={styles} quest={q} onPlay={onPlay} carousel />
-        ))}
-      </ScrollView>
-    </View>
+      <Text style={styles.subjChipName} numberOfLines={2}>{group.subject}</Text>
+      <View style={styles.subjChipFoot}>
+        <Text style={styles.subjChipCount}>{n} {n === 1 ? 'quest' : 'quests'}</Text>
+        <Feather name="arrow-right" size={14} color={colors.primary} />
+      </View>
+    </TouchableOpacity>
   );
 };
 
@@ -999,6 +991,20 @@ function makeStyles(c: ColorPalette) {
     subjRowSeeAll: { fontSize: 12, fontFamily: fonts.bold, color: c.primary },
     subjRowScrollWrap: { marginHorizontal: -16 },
     subjRowScroll: { gap: 12, paddingHorizontal: 16, paddingBottom: 6 },
+
+    // Compact subject tile (recommended / quests-by-subject)
+    subjChipRow: { gap: 10, paddingHorizontal: 16, paddingBottom: 8, paddingTop: 2 },
+    subjChip: {
+      width: 138, backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+      padding: 12, justifyContent: 'space-between',
+    },
+    subjChipTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 },
+    subjChipIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    subjChipTag: { backgroundColor: c.primarySofter, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 3 },
+    subjChipTagText: { fontSize: 10, fontFamily: fonts.bold, color: c.primary },
+    subjChipName: { fontSize: 14, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2, lineHeight: 18, minHeight: 36 },
+    subjChipFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+    subjChipCount: { fontSize: 12, fontFamily: fonts.semibold, color: c.textSecondary },
 
     // All-quests grouped + search view
     searchWrap: {
