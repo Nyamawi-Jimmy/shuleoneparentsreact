@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert,
+  TextInput, Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,7 +33,12 @@ import { ApiError } from '../../../config/api';
 /** Answer object per activity index — same shapes the web posts. */
 type AnswerMap = Record<number, Record<string, unknown>>;
 
-const SCENE_KINDS = ['STORY_SCENE', 'CELEBRATE', 'VIDEO'];
+// "Scene"/content kinds need no answer — they auto-complete so the learner is
+// never blocked. Interactive kinds (below) each have a real player.
+const SCENE_KINDS = [
+  'STORY_SCENE', 'CELEBRATE', 'VIDEO', 'WATCH', 'READ', 'PRACTICAL',
+  'INTERACTIVE_VIDEO', 'SPEAK', 'DRAW', 'TRACE', 'TRACE_GUIDED', 'COLOUR_IN', 'LABEL_DIAGRAM',
+];
 const isScene = (kind: string) => SCENE_KINDS.includes(String(kind).toUpperCase());
 
 export const LessonPlayer: React.FC = () => {
@@ -337,6 +343,39 @@ const ActivityPlayer: React.FC<PlayerProps> = (props) => {
     case 'STORY_SCENE':
     case 'CELEBRATE':
       return <ScenePlayer {...props} />;
+    case 'TRUE_FALSE':
+      return <TrueFalsePlayer {...props} />;
+    case 'FILL_BLANK':
+      return <FillBlankPlayer {...props} />;
+    case 'LISTEN_TYPE':
+      return <ListenTypePlayer {...props} />;
+    case 'DRAG_MATCH':
+      return <DragMatchPlayer {...props} />;
+    case 'SEQUENCE_ORDER':
+      return <SequenceOrderPlayer {...props} />;
+    case 'COMPARE':
+      return <ComparePlayer {...props} />;
+    case 'MEMORY_PAIRS':
+      return <MemoryPairsPlayer {...props} />;
+    case 'HOTSPOT':
+      return <HotspotPlayer {...props} />;
+    case 'NUMBER_LINE':
+      return <NumberLinePlayer {...props} />;
+    // Content / media / creative — shown as a readable card and non-blocking
+    // (they're in SCENE_KINDS). DRAW/TRACE/COLOUR_IN aren't full canvases on
+    // mobile yet, so they present the instruction rather than hard-blocking.
+    case 'READ':
+    case 'WATCH':
+    case 'VIDEO':
+    case 'PRACTICAL':
+    case 'INTERACTIVE_VIDEO':
+    case 'SPEAK':
+    case 'DRAW':
+    case 'TRACE':
+    case 'TRACE_GUIDED':
+    case 'COLOUR_IN':
+    case 'LABEL_DIAGRAM':
+      return <ContentPlayer {...props} />;
     default:
       return <UnknownPlayer {...props} />;
   }
@@ -651,6 +690,372 @@ const ScenePlayer: React.FC<PlayerProps> = ({ activity }) => {
   );
 };
 
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+const cfgOf = (a: LessonActivity) => (a.config ?? {}) as Record<string, any>;
+const glyph = (o: any): string => o?.emoji ?? o?.label ?? o?.text ?? '❓';
+
+/** True / False. config { promptText, correct:Boolean }. Answer { value:Boolean }. */
+const TrueFalsePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
+  const cfg = cfgOf(activity);
+  const stmt = cfg.promptText || activity.prompt || 'True or false?';
+  const correct = cfg.correct === true || String(cfg.correct).toLowerCase() === 'true';
+  const [picked, setPicked] = useState<boolean | null>(null);
+  const tap = (v: boolean) => {
+    if (answered || picked != null) return;
+    setPicked(v);
+    Speech.stop();
+    Speech.speak(v === correct ? 'Correct!' : 'Not quite!', { language: 'en-US', pitch: 1.1 });
+    onSolved({ value: v });
+  };
+  return (
+    <View>
+      <Text style={styles.tfStmt}>{stmt}</Text>
+      <View style={styles.tfRow}>
+        {[{ v: true, l: 'True', e: '✅' }, { v: false, l: 'False', e: '❌' }].map((o) => {
+          const state = picked === o.v ? (o.v === correct ? 'right' : 'wrong')
+            : (picked != null && o.v === correct ? 'right' : 'idle');
+          return (
+            <TouchableOpacity key={o.l} activeOpacity={0.85} disabled={answered || picked != null} onPress={() => tap(o.v)}
+              style={[styles.tfBtn, state === 'right' && styles.tfRight, state === 'wrong' && styles.tfWrong]}>
+              <Text style={styles.tfEmoji}>{o.e}</Text>
+              <Text style={styles.tfLabel}>{o.l}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+};
+
+/** A short text answer + Check button. config { promptText, answers[] }. Answer { text }. */
+const TextAnswerPlayer: React.FC<PlayerProps & { onListen?: () => void }> = ({ activity, answered, onSolved, onListen }) => {
+  const cfg = cfgOf(activity);
+  const prompt = (cfg.promptText || activity.prompt || 'Type your answer.') as string;
+  const [value, setValue] = useState('');
+  const [sent, setSent] = useState(false);
+  const submit = () => { const t = value.trim(); if (!t || sent || answered) return; setSent(true); onSolved({ text: t }); };
+  return (
+    <View>
+      {!!onListen && (
+        <TouchableOpacity activeOpacity={0.85} onPress={onListen}>
+          <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bigListen}>
+            <Ionicons name="volume-high" size={22} color="#fff" />
+            <Text style={styles.bigListenText}>Play</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
+      <Text style={styles.fbPrompt}>{prompt.replace(/_{2,}/g, ' ____ ')}</Text>
+      <TextInput
+        style={styles.input} value={value} onChangeText={setValue}
+        placeholder="Type your answer" placeholderTextColor="#9b93c4"
+        editable={!answered && !sent} onSubmitEditing={submit} returnKeyType="done"
+      />
+      {!answered && !sent && (
+        <TouchableOpacity onPress={submit} disabled={!value.trim()} style={[styles.checkBtn, !value.trim() && styles.dim]}>
+          <Text style={styles.checkBtnText}>Check</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+};
+const FillBlankPlayer: React.FC<PlayerProps> = (props) => <TextAnswerPlayer {...props} />;
+const ListenTypePlayer: React.FC<PlayerProps> = (props) => {
+  const cfg = cfgOf(props.activity);
+  const listen = () => { Speech.stop(); if (cfg.text) Speech.speak(String(cfg.text), { language: 'en-US', rate: 0.85 }); };
+  return <TextAnswerPlayer {...props} onListen={listen} />;
+};
+
+/** Tap a left tile, then its match on the right. config { pairs:[{left,right}] }. */
+const DragMatchPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
+  const pairs: any[] = Array.isArray(cfgOf(activity).pairs) ? cfgOf(activity).pairs : [];
+  const lefts = pairs.map((p, i) => ({ ...(p.left || {}), pi: i }));
+  const [rights] = useState(() => shuffle(pairs.map((p, i) => ({ ...(p.right || {}), pi: i }))));
+  const [sel, setSel] = useState<number | null>(null);
+  const [matched, setMatched] = useState<Set<number>>(new Set());
+  const [wrong, setWrong] = useState<number | null>(null);
+  const done = answered || matched.size >= pairs.length;
+
+  const tapRight = (pi: number) => {
+    if (done || sel == null || matched.has(pi)) return;
+    if (pi === sel) {
+      const next = new Set(matched); next.add(pi); setMatched(next); setSel(null);
+      Speech.stop(); Speech.speak('Match!', { language: 'en-US', pitch: 1.1 });
+      if (next.size >= pairs.length) onSolved({ matches: Object.fromEntries(pairs.map((_, i) => [i, i])) });
+    } else { setWrong(pi); Speech.stop(); Speech.speak('Try again!', { language: 'en-US', pitch: 1.05 }); setTimeout(() => setWrong(null), 500); }
+  };
+
+  return (
+    <View>
+      <Text style={styles.hint}>{sel != null ? 'Now tap its match →' : 'Tap one, then its pair'}</Text>
+      <View style={styles.matchCols}>
+        <View style={styles.matchCol}>
+          {lefts.map((it) => (
+            <TouchableOpacity key={it.pi} activeOpacity={0.85} disabled={done || matched.has(it.pi)}
+              onPress={() => !matched.has(it.pi) && setSel(it.pi)}
+              style={[styles.matchCard, sel === it.pi && styles.matchCardSel, matched.has(it.pi) && styles.matchCardDone]}>
+              <Text style={styles.matchGlyph}>{glyph(it)}</Text>
+              {!!it.label && !it.emoji && null}
+              {matched.has(it.pi) && <Text style={styles.matchTick}>✓</Text>}
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={styles.matchCol}>
+          {rights.map((it) => (
+            <TouchableOpacity key={it.pi} activeOpacity={0.85} disabled={done || matched.has(it.pi)} onPress={() => tapRight(it.pi)}
+              style={[styles.matchCard, wrong === it.pi && styles.matchCardWrong, matched.has(it.pi) && styles.matchCardDone]}>
+              <Text style={styles.matchGlyph}>{glyph(it)}</Text>
+              {matched.has(it.pi) && <Text style={styles.matchTick}>✓</Text>}
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+};
+
+/** Tap items in the correct order. config { items:[...] } (config order = correct). */
+const SequenceOrderPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
+  const items: any[] = Array.isArray(cfgOf(activity).items) ? cfgOf(activity).items : [];
+  const [shuffled] = useState(() => shuffle(items.map((it, i) => ({ ...it, oi: i }))));
+  const [next, setNext] = useState(0);
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+  const [wrong, setWrong] = useState<number | null>(null);
+  const done = answered || picked.size >= items.length;
+
+  const tap = (oi: number) => {
+    if (done || picked.has(oi)) return;
+    if (oi === next) {
+      const p = new Set(picked); p.add(oi); setPicked(p); setNext(next + 1);
+      Speech.stop(); Speech.speak(String(next + 1), { language: 'en-US', pitch: 1.1 });
+      if (p.size >= items.length) onSolved({ order: items.map((_, i) => i) });
+    } else { setWrong(oi); Speech.stop(); Speech.speak('Start from the beginning!', { language: 'en-US', pitch: 1.05 }); setTimeout(() => { setWrong(null); setPicked(new Set()); setNext(0); }, 700); }
+  };
+
+  return (
+    <View>
+      <Text style={styles.hint}>Tap them in order — {picked.size}/{items.length}</Text>
+      <View style={styles.tileGrid}>
+        {shuffled.map((it) => (
+          <TouchableOpacity key={it.oi} activeOpacity={0.85} disabled={done} onPress={() => tap(it.oi)}
+            style={[styles.tile, picked.has(it.oi) && { borderColor: '#15c98c', backgroundColor: '#eafef3' }, wrong === it.oi && { borderColor: '#ef4444', backgroundColor: '#fee2e2' }]}>
+            <Text style={styles.tileEmoji}>{glyph(it)}</Text>
+            {picked.has(it.oi) && <Text style={styles.seqNum}>{[...picked].indexOf(it.oi) + 1}</Text>}
+            {!!it.label && <Text style={styles.tileLabel} numberOfLines={1}>{it.label}</Text>}
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+};
+
+/** Which group has more / fewer? config { groups:[{count,emoji}], mode }. */
+const ComparePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
+  const cfg = cfgOf(activity);
+  const groups: any[] = Array.isArray(cfg.groups) ? cfg.groups : [];
+  const mode = cfg.mode === 'fewer' ? 'fewer' : 'more';
+  const counts = groups.map((g) => Number(g.count) || 0);
+  const target = mode === 'fewer' ? Math.min(...counts) : Math.max(...counts);
+  const [pick, setPick] = useState<number | null>(null);
+  const tap = (i: number) => {
+    if (answered || pick != null) return;
+    setPick(i);
+    const ok = counts[i] === target;
+    Speech.stop(); Speech.speak(ok ? 'Yes!' : 'Look again!', { language: 'en-US', pitch: 1.1 });
+    if (ok) onSolved({ groupIndex: i });
+    else setTimeout(() => setPick(null), 600);
+  };
+  return (
+    <View>
+      <Text style={styles.hint}>Which has {mode === 'fewer' ? 'fewer' : 'more'}?</Text>
+      <View style={styles.compareRow}>
+        {groups.map((g, i) => (
+          <TouchableOpacity key={i} activeOpacity={0.85} disabled={answered || pick != null} onPress={() => tap(i)}
+            style={[styles.compareGroup, pick === i && (counts[i] === target ? styles.tfRight : styles.tfWrong)]}>
+            <View style={styles.compareEmojis}>
+              {Array.from({ length: Number(g.count) || 0 }).map((_, k) => (
+                <Text key={k} style={styles.compareEmoji}>{g.emoji ?? '⭐'}</Text>
+              ))}
+            </View>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+};
+
+/** Flip two cards to find matching pairs. config { pairs:[{...}] }. */
+const MemoryPairsPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
+  const pairs: any[] = Array.isArray(cfgOf(activity).pairs) ? cfgOf(activity).pairs : [];
+  const [cards] = useState(() => shuffle(pairs.flatMap((p, i) => [
+    { pi: i, face: p.left || p.a || p, key: `${i}a` },
+    { pi: i, face: p.right || p.b || p, key: `${i}b` },
+  ])));
+  const [up, setUp] = useState<number[]>([]);
+  const [matched, setMatched] = useState<Set<number>>(new Set());
+  const [lock, setLock] = useState(false);
+  const done = answered || matched.size >= pairs.length;
+
+  const flip = (idx: number) => {
+    if (lock || done || up.includes(idx) || matched.has(cards[idx].pi)) return;
+    const next = [...up, idx];
+    setUp(next);
+    if (next.length === 2) {
+      setLock(true);
+      const [a, b] = next;
+      if (cards[a].pi === cards[b].pi) {
+        const m = new Set(matched); m.add(cards[a].pi); setMatched(m); setUp([]); setLock(false);
+        Speech.stop(); Speech.speak('Match!', { language: 'en-US', pitch: 1.1 });
+        if (m.size >= pairs.length) onSolved({ completed: true });
+      } else {
+        setTimeout(() => { setUp([]); setLock(false); }, 800);
+      }
+    }
+  };
+  return (
+    <View style={styles.memGrid}>
+      {cards.map((c, idx) => {
+        const faceUp = up.includes(idx) || matched.has(c.pi) || done;
+        return (
+          <TouchableOpacity key={c.key} activeOpacity={0.9} disabled={done} onPress={() => flip(idx)}
+            style={[styles.memCard, faceUp ? styles.memUp : styles.memDown, matched.has(c.pi) && styles.matchCardDone]}>
+            <Text style={styles.memGlyph}>{faceUp ? glyph(c.face) : '❔'}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+};
+
+/** Tap the target objects on a scene. config { bg, objects:[{x,y,emoji,target,label,size}] }. */
+const HotspotPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
+  const cfg = cfgOf(activity);
+  const objects: any[] = Array.isArray(cfg.objects) ? cfg.objects : [];
+  const targets = objects.map((o, i) => ({ o, i })).filter(({ o }) => o.target);
+  const [found, setFound] = useState<Set<number>>(new Set());
+  const [miss, setMiss] = useState<number | null>(null);
+  const done = answered || (targets.length > 0 && found.size >= targets.length);
+
+  const tap = (i: number) => {
+    if (done) return;
+    if (objects[i].target) {
+      const n = new Set(found); n.add(i); setFound(n);
+      Speech.stop(); Speech.speak('Found it!', { language: 'en-US', pitch: 1.1 });
+      if (n.size >= targets.length) onSolved({ selected: [...n] });
+    } else { setMiss(i); Speech.stop(); Speech.speak('Keep looking!', { language: 'en-US', pitch: 1.05 }); setTimeout(() => setMiss(null), 400); }
+  };
+  return (
+    <View>
+      <Text style={styles.hint}>Find {targets.length} — {found.size} found</Text>
+      <View style={[styles.hotspotScene, { backgroundColor: cfg.bg || '#EAF6FF' }]}>
+        {objects.map((o, i) => (
+          <TouchableOpacity key={i} activeOpacity={0.85} disabled={done} onPress={() => tap(i)}
+            style={[styles.hotspotObj, {
+              left: `${Math.max(0, Math.min(90, Number(o.x) || 0))}%`,
+              top: `${Math.max(0, Math.min(85, Number(o.y) || 0))}%`,
+            }, found.has(i) && styles.hotspotFound, miss === i && styles.hotspotMiss]}>
+            <Text style={styles.hotspotEmoji}>{o.emoji ?? '⭐'}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+};
+
+/** Pick the value on the number line. config { min,max,step,target,tolerance,label }. */
+const NumberLinePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
+  const cfg = cfgOf(activity);
+  const min = Number(cfg.min ?? 0), max = Number(cfg.max ?? 10);
+  const step = Number(cfg.step) > 0 ? Number(cfg.step) : 1;
+  const target = cfg.target != null ? Number(cfg.target) : null;
+  const tol = cfg.tolerance != null ? Number(cfg.tolerance) : 0;
+  const nums: number[] = [];
+  for (let n = min; n <= max; n += step) nums.push(Math.round(n * 100) / 100);
+  const [pick, setPick] = useState<number | null>(null);
+  const chips = nums.length <= 12;
+  const [value, setValue] = useState(nums[Math.floor(nums.length / 2)] ?? min);
+
+  const commit = (n: number) => {
+    if (answered || pick != null) return;
+    const ok = target == null || Math.abs(n - target) <= tol;
+    setPick(n);
+    Speech.stop(); Speech.speak(ok ? `Yes! ${n}` : 'Try again!', { language: 'en-US', pitch: 1.1 });
+    if (ok) onSolved({ value: n }); else setTimeout(() => setPick(null), 600);
+  };
+
+  if (chips) {
+    return (
+      <View>
+        {!!cfg.label && <Text style={styles.hint}>{cfg.label}</Text>}
+        <View style={styles.numRow}>
+          {nums.map((n) => (
+            <TouchableOpacity key={n} activeOpacity={0.85} disabled={answered || pick != null} onPress={() => commit(n)}
+              style={[styles.numChip, pick === n && (target == null || Math.abs(n - target) <= tol ? { backgroundColor: C.okSoft, borderColor: '#15c98c' } : { backgroundColor: C.badSoft, borderColor: '#ef4444' })]}>
+              <Text style={styles.numChipText}>{n}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View>
+      {!!cfg.label && <Text style={styles.hint}>{cfg.label}</Text>}
+      <Text style={styles.nlValue}>{value}</Text>
+      <View style={styles.nlStepper}>
+        <TouchableOpacity style={styles.nlBtn} disabled={answered || pick != null} onPress={() => setValue((v) => Math.max(min, Math.round((v - step) * 100) / 100))}><Text style={styles.nlBtnText}>−</Text></TouchableOpacity>
+        <View style={styles.nlTrack}><View style={[styles.nlFill, { width: `${((value - min) / Math.max(1, max - min)) * 100}%` }]} /></View>
+        <TouchableOpacity style={styles.nlBtn} disabled={answered || pick != null} onPress={() => setValue((v) => Math.min(max, Math.round((v + step) * 100) / 100))}><Text style={styles.nlBtnText}>+</Text></TouchableOpacity>
+      </View>
+      {!answered && pick == null && (
+        <TouchableOpacity onPress={() => commit(value)} style={styles.checkBtn}><Text style={styles.checkBtnText}>Check</Text></TouchableOpacity>
+      )}
+    </View>
+  );
+};
+
+/** Content / media / creative — a readable card. Non-blocking (SCENE_KINDS). */
+const ContentPlayer: React.FC<PlayerProps> = ({ activity }) => {
+  const cfg = cfgOf(activity);
+  const kind = String(activity.kind).toUpperCase();
+  const lines: string[] = Array.isArray(cfg.lines) ? cfg.lines.map(String)
+    : Array.isArray(cfg.instructions) ? cfg.instructions.map(String) : [];
+  const body = cfg.promptText || cfg.text || activity.prompt || activity.narration || '';
+  const media = (activity as any).mediaUrl || cfg.videoUrl || cfg.url || null;
+  const isVideo = kind === 'WATCH' || kind === 'VIDEO' || kind === 'INTERACTIVE_VIDEO';
+  const icon = isVideo ? '🎬' : kind === 'SPEAK' ? '🎤' : kind === 'READ' ? '📖'
+    : kind === 'DRAW' || kind === 'COLOUR_IN' ? '🎨' : kind === 'TRACE' || kind === 'TRACE_GUIDED' ? '✏️'
+    : kind === 'LABEL_DIAGRAM' ? '🏷️' : kind === 'PRACTICAL' ? '🧪' : '✨';
+  const speak = () => { Speech.stop(); if (body) Speech.speak(String(body), { language: 'en-US', rate: 0.9 }); };
+  return (
+    <View style={styles.contentCard}>
+      <Text style={styles.contentIcon}>{icon}</Text>
+      {!!body && <Text style={styles.contentBody}>{body}</Text>}
+      {lines.map((l, i) => <Text key={i} style={styles.contentLine}>• {l}</Text>)}
+      {isVideo && media && (
+        <TouchableOpacity activeOpacity={0.85} onPress={() => Linking.openURL(String(media)).catch(() => {})}>
+          <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.watchBtn}>
+            <Ionicons name="play" size={18} color="#fff" />
+            <Text style={styles.bigListenText}>Watch</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
+      {(kind === 'READ' || kind === 'SPEAK') && !!body && (
+        <TouchableOpacity activeOpacity={0.85} onPress={speak}>
+          <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.watchBtn}>
+            <Ionicons name="volume-high" size={18} color="#fff" />
+            <Text style={styles.bigListenText}>{kind === 'SPEAK' ? 'Hear it' : 'Read aloud'}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
+      <Text style={styles.contentHint}>Tap Next to continue</Text>
+    </View>
+  );
+};
+
 const UnknownPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => (
   <View style={styles.placeholder}>
     <Ionicons name="construct-outline" size={20} color="#f4a716" />
@@ -860,6 +1265,68 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   },
   placeholderText: { flex: 1, color: S.warnInk, fontSize: 13, fontWeight: '600' },
   placeholderSkip: { color: S.warnInk, fontWeight: '800', fontSize: 13 },
+
+  // True / False
+  tfStmt: { fontSize: 16, fontWeight: '800', color: S.ink, textAlign: 'center', marginBottom: 16, lineHeight: 22 },
+  tfRow: { flexDirection: 'row', gap: 12 },
+  tfBtn: { flex: 1, alignItems: 'center', gap: 6, backgroundColor: S.card, borderWidth: 2, borderColor: '#ece8fb', borderRadius: 18, paddingVertical: 20 },
+  tfRight: { borderColor: '#15c98c', backgroundColor: '#eafef3' },
+  tfWrong: { borderColor: '#ef4444', backgroundColor: '#fee2e2' },
+  tfEmoji: { fontSize: 30 },
+  tfLabel: { fontSize: 15, fontWeight: '800', color: S.ink },
+
+  // Text answer (FILL_BLANK / LISTEN_TYPE)
+  fbPrompt: { fontSize: 15.5, fontWeight: '700', color: S.ink, marginTop: 12, marginBottom: 10, lineHeight: 22 },
+  input: { borderWidth: 2, borderColor: '#ece8fb', borderRadius: 14, backgroundColor: S.card, paddingHorizontal: 14, height: 50, fontSize: 15, fontWeight: '600', color: S.ink },
+  checkBtn: { alignSelf: 'flex-start', backgroundColor: '#7c5cff', borderRadius: 12, paddingHorizontal: 22, paddingVertical: 11, marginTop: 12 },
+  checkBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+
+  // Match (DRAG_MATCH)
+  matchCols: { flexDirection: 'row', gap: 14, justifyContent: 'space-between' },
+  matchCol: { flex: 1, gap: 10 },
+  matchCard: { minHeight: 60, borderRadius: 16, borderWidth: 2, borderColor: '#ece8fb', backgroundColor: S.card, alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
+  matchCardSel: { borderColor: '#7c5cff', backgroundColor: C.ring },
+  matchCardDone: { borderColor: '#15c98c', backgroundColor: '#eafef3' },
+  matchCardWrong: { borderColor: '#ef4444', backgroundColor: '#fee2e2' },
+  matchGlyph: { fontSize: 26, fontWeight: '800', color: S.ink },
+  matchTick: { position: 'absolute', top: 4, right: 6, color: '#15c98c', fontWeight: '900' },
+  seqNum: { position: 'absolute', top: 3, right: 6, fontSize: 12, fontWeight: '900', color: '#15c98c' },
+
+  // Compare
+  compareRow: { flexDirection: 'row', gap: 12 },
+  compareGroup: { flex: 1, borderWidth: 2, borderColor: '#ece8fb', borderRadius: 18, backgroundColor: S.card, padding: 12, minHeight: 90, justifyContent: 'center' },
+  compareEmojis: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, justifyContent: 'center' },
+  compareEmoji: { fontSize: 22 },
+
+  // Memory pairs
+  memGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
+  memCard: { width: 68, height: 68, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
+  memUp: { backgroundColor: S.card, borderColor: '#7c5cff' },
+  memDown: { backgroundColor: '#7c5cff', borderColor: '#7c5cff' },
+  memGlyph: { fontSize: 30 },
+
+  // Hotspot
+  hotspotScene: { height: 280, borderRadius: 18, overflow: 'hidden', position: 'relative' },
+  hotspotObj: { position: 'absolute', width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
+  hotspotFound: { backgroundColor: 'rgba(21,201,140,0.3)', borderWidth: 2, borderColor: '#15c98c' },
+  hotspotMiss: { backgroundColor: 'rgba(239,68,68,0.25)' },
+  hotspotEmoji: { fontSize: 30 },
+
+  // Number line
+  nlValue: { fontSize: 32, fontWeight: '900', color: S.ink, textAlign: 'center', marginVertical: 10 },
+  nlStepper: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  nlBtn: { width: 48, height: 48, borderRadius: 14, backgroundColor: '#7c5cff', alignItems: 'center', justifyContent: 'center' },
+  nlBtnText: { color: '#fff', fontSize: 24, fontWeight: '900' },
+  nlTrack: { flex: 1, height: 10, borderRadius: 99, backgroundColor: S.line, overflow: 'hidden' },
+  nlFill: { height: '100%', borderRadius: 99, backgroundColor: '#7c5cff' },
+
+  // Content / media
+  contentCard: { backgroundColor: S.card, borderRadius: 18, borderWidth: 1, borderColor: S.line, padding: 18, alignItems: 'center' },
+  contentIcon: { fontSize: 40, marginBottom: 8 },
+  contentBody: { fontSize: 15, fontWeight: '600', color: S.ink, textAlign: 'center', lineHeight: 22 },
+  contentLine: { alignSelf: 'stretch', fontSize: 14, fontWeight: '600', color: S.inkSoft, marginTop: 8, lineHeight: 20 },
+  contentHint: { fontSize: 12, fontWeight: '700', color: S.inkSoft, marginTop: 14 },
+  watchBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 14, paddingHorizontal: 20, paddingVertical: 12, marginTop: 14 },
 
   footer: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
