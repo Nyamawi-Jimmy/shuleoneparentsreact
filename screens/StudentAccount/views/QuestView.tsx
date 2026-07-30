@@ -14,6 +14,8 @@ import { TopBar } from '../components/TopBar';
 import { useAuth } from '../../../context/AuthContext';
 import { tierToAgeTier } from '../../../config/tier';
 import { listQuests, getQuest, getQuestCatalog, getRecommendedPath, RecommendedItem } from '../../../api/quests';
+import { getStudentProfile } from '../../../api/student';
+import { getRecommendedNext, RecommendedNext } from '../../../api/learner-me';
 import { QuestDetail, QuestSummary, Stage } from '../../../api/quest.types';
 
 // Friendly label for a canonical class code (PLAYGROUP/PP1/GRADE1../FORM1..).
@@ -375,7 +377,7 @@ export const QuestView: React.FC = () => {
           <>
             {/* Real recommended path from the learner's exam results (endpoint,
                 like the web) — an eye-catching, ordered "do these next" list. */}
-            <RecommendedPathCard accessToken={accessToken} tokens={tokens} onOpenQuest={openQuestById} />
+            <RecommendedPathCard accessToken={accessToken} tokens={tokens} quests={quests} onOpenQuest={openQuestById} />
 
             <View style={[styles.secH, { marginTop: 4 }]}>
               <Text style={styles.allQuestsTitle}>All subjects</Text>
@@ -511,55 +513,109 @@ const MiniRing: React.FC<{ pct: number; tint: string; size?: number }> = ({ pct,
 // error → renders nothing, so an on-track learner just sees the catalogue.
 // =================================================================
 const RecommendedPathCard: React.FC<{
-  accessToken: string | null; tokens: any; onOpenQuest: (id: number) => void;
-}> = ({ accessToken, tokens, onOpenQuest }) => {
+  accessToken: string | null; tokens: any; quests: QuestSummary[]; onOpenQuest: (id: number) => void;
+}> = ({ accessToken, tokens, quests, onOpenQuest }) => {
   const [items, setItems] = useState<RecommendedItem[]>([]);
+  const [aiNext, setAiNext] = useState<RecommendedNext | null>(null);
+
   useEffect(() => {
     if (!accessToken) return;
     let cancelled = false;
     getRecommendedPath(accessToken)
-      .then((p) => { if (!cancelled && p?.exists) setItems((p.items ?? []).filter((i) => i.questId != null)); })
+      .then(async (p) => {
+        if (cancelled) return;
+        const list = p?.exists ? (p.items ?? []).filter((i) => i.questId != null) : [];
+        if (list.length > 0) { setItems(list); return; }
+        // No exam revision path → fall back to the AI "recommended next"
+        // (/api/learner/{id}/next), which needs the student id from the profile.
+        try {
+          const prof = await getStudentProfile(accessToken);
+          if (cancelled || prof?.studentId == null) return;
+          const n = await getRecommendedNext(accessToken, prof.studentId);
+          if (!cancelled) setAiNext(n);
+        } catch { /* fail-soft */ }
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [accessToken]);
 
-  if (items.length === 0) return null;
+  // Which quest the AI pick should open: match by strand/title, else the next
+  // actionable quest, so the card is never a dead end.
+  const resolveAiQuest = (): number | null => {
+    if (!aiNext) return null;
+    const name = (aiNext.subStrandName || '').toLowerCase().trim();
+    const byName = name
+      ? quests.find((q) => (q.strand || '').toLowerCase().trim() === name || (q.title || '').toLowerCase().includes(name))
+      : undefined;
+    const actionable = quests.find((q) => q.status === 'IN_PROGRESS' || q.status === 'AVAILABLE');
+    return (byName ?? actionable)?.id ?? null;
+  };
 
-  return (
-    <View style={styles.recCard}>
-      <LinearGradient colors={[tokens.accent1, tokens.accent2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.recHeader}>
-        <Text style={styles.recHeaderEmoji}>🎯</Text>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.recHeaderTitle}>Recommended for you</Text>
-          <Text style={styles.recHeaderSub}>Picked from your exam results — these close your biggest gaps first.</Text>
+  // ── Exam revision path (a numbered list) ──
+  if (items.length > 0) {
+    return (
+      <View style={styles.recCard}>
+        <LinearGradient colors={[tokens.accent1, tokens.accent2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.recHeader}>
+          <Text style={styles.recHeaderEmoji}>🎯</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.recHeaderTitle}>Recommended for you</Text>
+            <Text style={styles.recHeaderSub}>Picked from your exam results — these close your biggest gaps first.</Text>
+          </View>
+        </LinearGradient>
+        <View style={styles.recList}>
+          {items.map((it, idx) => {
+            const done = String(it.status || '').toUpperCase() === 'DONE';
+            return (
+              <TouchableOpacity
+                key={`${it.position}-${it.lessonId ?? idx}`} activeOpacity={0.85}
+                disabled={it.questId == null} onPress={() => it.questId != null && onOpenQuest(it.questId)}
+                style={[styles.recItem, idx > 0 && styles.recItemLine]}
+              >
+                <View style={[styles.recNum, { backgroundColor: done ? '#15c98c' : tokens.accent1 }]}>
+                  <Text style={styles.recNumText}>{done ? '✓' : it.position}</Text>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.recTopic} numberOfLines={1}>{it.subStrand ?? it.lessonTitle ?? 'Revision topic'}</Text>
+                  {!!it.lessonTitle && it.lessonTitle !== it.subStrand && (
+                    <Text style={styles.recLesson} numberOfLines={1}>{it.lessonTitle}</Text>
+                  )}
+                  {!!it.reason && <Text style={styles.recWhy} numberOfLines={2}>{it.reason}</Text>}
+                </View>
+                <Text style={[styles.recGo, { color: done ? '#15c98c' : tokens.accent1 }]}>{done ? 'Done' : 'Start →'}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
-      </LinearGradient>
-      <View style={styles.recList}>
-        {items.map((it, idx) => {
-          const done = String(it.status || '').toUpperCase() === 'DONE';
-          return (
-            <TouchableOpacity
-              key={`${it.position}-${it.lessonId ?? idx}`} activeOpacity={0.85}
-              disabled={it.questId == null} onPress={() => it.questId != null && onOpenQuest(it.questId)}
-              style={[styles.recItem, idx > 0 && styles.recItemLine]}
-            >
-              <View style={[styles.recNum, { backgroundColor: done ? '#15c98c' : tokens.accent1 }]}>
-                <Text style={styles.recNumText}>{done ? '✓' : it.position}</Text>
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.recTopic} numberOfLines={1}>{it.subStrand ?? it.lessonTitle ?? 'Revision topic'}</Text>
-                {!!it.lessonTitle && it.lessonTitle !== it.subStrand && (
-                  <Text style={styles.recLesson} numberOfLines={1}>{it.lessonTitle}</Text>
-                )}
-                {!!it.reason && <Text style={styles.recWhy} numberOfLines={2}>{it.reason}</Text>}
-              </View>
-              <Text style={[styles.recGo, { color: done ? '#15c98c' : tokens.accent1 }]}>{done ? 'Done' : 'Start →'}</Text>
-            </TouchableOpacity>
-          );
-        })}
       </View>
-    </View>
-  );
+    );
+  }
+
+  // ── AI recommended next (a single spotlight) ──
+  if (aiNext && aiNext.type !== 'LOCKED' && (aiNext.title || aiNext.subStrandName)) {
+    const qid = resolveAiQuest();
+    return (
+      <TouchableOpacity activeOpacity={0.9} disabled={qid == null} onPress={() => qid != null && onOpenQuest(qid)}>
+        <View style={styles.recCard}>
+          <LinearGradient colors={[tokens.accent1, tokens.accent2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.recHeader}>
+            <Text style={styles.recHeaderEmoji}>🎯</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.recHeaderTitle}>Recommended for you</Text>
+              <Text style={styles.recHeaderSub}>Your next best step, picked from how you’ve been doing.</Text>
+            </View>
+          </LinearGradient>
+          <View style={styles.recAiBody}>
+            <Text style={styles.recAiTitle} numberOfLines={2}>{aiNext.title ?? aiNext.subStrandName}</Text>
+            {!!aiNext.reason && <Text style={styles.recAiWhy} numberOfLines={3}>{aiNext.reason}</Text>}
+            <View style={[styles.recAiCta, { backgroundColor: tokens.accent1 }]}>
+              <Text style={styles.recAiCtaText}>Start ▶</Text>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  return null;
 };
 
 // =================================================================
@@ -888,6 +944,12 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   recLesson: { fontSize: 11.5, fontWeight: '600', color: S.inkSoft, marginTop: 1 },
   recWhy: { fontSize: 11, fontWeight: '500', color: S.inkSoft, marginTop: 3, lineHeight: 15, fontStyle: 'italic' },
   recGo: { fontSize: 12, fontWeight: '800' },
+  // AI single-recommendation spotlight (fallback when no exam revision path)
+  recAiBody: { padding: 16 },
+  recAiTitle: { fontSize: 16, fontWeight: '800', color: S.ink, letterSpacing: -0.3 },
+  recAiWhy: { fontSize: 12.5, fontWeight: '500', color: S.inkSoft, marginTop: 6, lineHeight: 18 },
+  recAiCta: { alignSelf: 'flex-start', borderRadius: 12, paddingHorizontal: 18, paddingVertical: 10, marginTop: 14 },
+  recAiCtaText: { color: '#fff', fontSize: 13.5, fontWeight: '800' },
 
   // Compact subject tiles (grouped overview + recommended)
   recRowWrap: { marginHorizontal: -16, marginBottom: 6 },

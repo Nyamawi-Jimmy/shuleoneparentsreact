@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator,
   TouchableOpacity, TextInput, Image,
@@ -18,6 +18,7 @@ import {
   QuestSummary, ChildInsights, InsightItem, CoachTurn,
   askChildCoach, getChildCoachHistory,
 } from '../../api/guardian';
+import { getRecommendedNext, RecommendedNext } from '../../api/learner-me';
 
 const num = (v: number | null | undefined) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 const isCoding = (s?: string | null) => /cod|robot/i.test(String(s || ''));
@@ -168,6 +169,22 @@ export const LearningScreen: React.FC = () => {
       .filter((g) => g.quests.length > 0),
     [questGroups]);
 
+  // AI "recommended next" for THIS child, straight from the backend
+  // (GET /api/learner/{childId}/next — the guardian may read a child they own).
+  // Same source the web parent uses; falls back to the weakest-subject tiles
+  // below when the endpoint has nothing actionable.
+  const [childNext, setChildNext] = useState<RecommendedNext | null>(null);
+  useEffect(() => {
+    if (!accessToken || studentId == null) { setChildNext(null); return; }
+    let cancelled = false;
+    getRecommendedNext(accessToken, studentId)
+      .then((n) => { if (!cancelled) setChildNext(n); })
+      .catch(() => { if (!cancelled) setChildNext(null); });
+    return () => { cancelled = true; };
+  }, [accessToken, studentId]);
+  const aiRec = childNext && childNext.type !== 'LOCKED' && (childNext.title || childNext.subStrandName)
+    ? childNext : null;
+
   // Subject drill-down: tapping a subject's "See all" opens the grouped + search
   // view scoped to that subject; "See all" at the section head opens it for all.
   const [openSubject, setOpenSubject] = useState<string | null>(null);
@@ -226,44 +243,40 @@ export const LearningScreen: React.FC = () => {
               in one horizontal row, so it stays small and the sections below
               aren't pushed down. Tapping a tile opens that subject's quests;
               "View all" opens the full grouped + searchable page. */}
-          {questGroups.length > 0 && (recommendedGroups.length > 0 ? (
-            // Recommended — an eye-catching card: gradient header + a short,
-            // tappable list of the child's weaker subjects (matches the student
-            // side's recommended card). "View all" opens the full grouped page.
-            <View style={styles.recCard}>
-              <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.recHeader}>
-                <Text style={styles.recHeaderEmoji}>🎯</Text>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.recHeaderTitle}>Recommended for {firstName}</Text>
-                  <Text style={styles.recHeaderSub}>Weaker subjects first — a little practice here moves the needle most.</Text>
+          {/* Recommended — straight from the backend AI endpoint
+              (GET /api/learner/{childId}/next). Eye-catching gradient card with
+              the real "what to do next" + why. Tapping opens the matching
+              subject's quests, else the full grouped page. */}
+          {aiRec && (
+            <TouchableOpacity activeOpacity={0.9} onPress={() => {
+              const name = (aiRec.subStrandName || '').toLowerCase().trim();
+              const match = name
+                ? questGroups.find((g) => g.subject.toLowerCase().includes(name) || name.includes(g.subject.toLowerCase()))
+                : undefined;
+              if (match) setOpenSubject(match.subject); else setOpenAll(true);
+            }}>
+              <View style={styles.recCard}>
+                <LinearGradient colors={[colors.primary, colors.primaryDeep]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.recHeader}>
+                  <Text style={styles.recHeaderEmoji}>🎯</Text>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.recHeaderTitle}>Recommended for {firstName}</Text>
+                    <Text style={styles.recHeaderSub}>Picked from how {firstName} has been doing.</Text>
+                  </View>
+                </LinearGradient>
+                <View style={styles.recAiBody}>
+                  <Text style={styles.recAiTitle} numberOfLines={2}>{aiRec.title ?? aiRec.subStrandName}</Text>
+                  {!!aiRec.reason && <Text style={styles.recAiWhy} numberOfLines={3}>{aiRec.reason}</Text>}
+                  <View style={[styles.recAiCta, { backgroundColor: colors.primary }]}>
+                    <Text style={styles.recAiCtaText}>View quests</Text>
+                    <Feather name="arrow-right" size={13} color="#FFF" />
+                  </View>
                 </View>
-              </LinearGradient>
-              <View style={styles.recList}>
-                {recommendedGroups.slice(0, 4).map((g, idx) => {
-                  const meta = g.weakness !== Infinity
-                    ? `${g.quests.length} ${g.quests.length === 1 ? 'quest' : 'quests'} · ${Math.round(g.weakness)}% avg`
-                    : `${g.quests.length} ${g.quests.length === 1 ? 'quest' : 'quests'} · ${g.pct}% complete`;
-                  return (
-                    <TouchableOpacity key={g.subject} activeOpacity={0.8} onPress={() => setOpenSubject(g.subject)}
-                      style={[styles.recItem, idx > 0 && styles.recItemLine]}>
-                      <View style={[styles.recNum, { backgroundColor: colors.primary }]}>
-                        <MaterialCommunityIcons name={subjectIconName(g.subject)} size={16} color="#FFF" />
-                      </View>
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text style={styles.recTopic} numberOfLines={1}>{g.subject}</Text>
-                        <Text style={styles.recWhy} numberOfLines={1}>{meta}</Text>
-                      </View>
-                      <Text style={[styles.recGo, { color: colors.primary }]}>Practise →</Text>
-                    </TouchableOpacity>
-                  );
-                })}
               </View>
-              <TouchableOpacity style={styles.recFooter} activeOpacity={0.7} onPress={() => setOpenAll(true)}>
-                <Text style={styles.recFooterText}>View all quests</Text>
-                <Feather name="arrow-right" size={13} color={colors.primary} />
-              </TouchableOpacity>
-            </View>
-          ) : (
+            </TouchableOpacity>
+          )}
+
+          {/* Quests by subject — compact tiles browse (weaker subjects tagged). */}
+          {questGroups.length > 0 && (
             <>
               <View style={styles.sectionHeadRow}>
                 <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Quests by subject</Text>
@@ -278,12 +291,12 @@ export const LearningScreen: React.FC = () => {
                 {questGroups.map((g) => (
                   <SubjectChip
                     key={`q-${g.subject}`} styles={styles} colors={colors} group={g}
-                    recommended={false} onOpen={() => setOpenSubject(g.subject)}
+                    recommended={g.weakness !== Infinity} onOpen={() => setOpenSubject(g.subject)}
                   />
                 ))}
               </ScrollView>
             </>
-          ))}
+          )}
 
           {/* Focus card — the web hero's content on a quiet card */}
           {subscribed ? (
@@ -1054,6 +1067,12 @@ function makeStyles(c: ColorPalette) {
     recGo: { fontSize: 12, fontFamily: fonts.bold },
     recFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.border },
     recFooterText: { fontSize: 12.5, fontFamily: fonts.bold, color: c.primary },
+    // AI single-recommendation body (from /learner/{id}/next)
+    recAiBody: { padding: 16 },
+    recAiTitle: { fontSize: 16, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3, lineHeight: 21 },
+    recAiWhy: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: 6, lineHeight: 18 },
+    recAiCta: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, marginTop: 14 },
+    recAiCtaText: { color: '#FFF', fontSize: 13, fontFamily: fonts.bold },
 
     // Per-subject quest row (main Learning screen)
     subjRowBlock: { marginBottom: 18 },
