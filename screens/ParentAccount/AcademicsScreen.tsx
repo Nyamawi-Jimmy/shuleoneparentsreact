@@ -295,6 +295,20 @@ const AnalyticsModal: React.FC<{
   const insets = useSafeAreaInsets();
   const subjects = (exam.subjects ?? []) as SubjectScore[];
   const up = delta != null && delta >= 0;
+
+  // Cap the scrollable breakdown to a slice of the screen so it ALWAYS scrolls,
+  // however many subjects there are, and the header + Print button stay put.
+  // (flexShrink alone left tall content overflowing the sheet, un-scrollable.)
+  const screenH = Dimensions.get('window').height;
+  const listMaxH = Math.max(200, screenH * 0.52);
+
+  // Small summary: how many subjects beat the class average (for the header).
+  const cmp = subjects.map((s) => {
+    const outOf = outOfNum(s.score);
+    return { c: toPct(leadNum(s.score), outOf), a: toPct(leadNum(s.average), outOf) };
+  }).filter((x) => x.c != null && x.a != null) as { c: number; a: number }[];
+  const hasClass = cmp.length > 0;
+  const aboveCount = cmp.filter((x) => x.c - x.a > 0.5).length;
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -328,30 +342,54 @@ const AnalyticsModal: React.FC<{
 
           <View style={styles.breakdownHead}>
             <Text style={[styles.breakdownTitle, { marginBottom: 0 }]}>Subject breakdown</Text>
-            {subjects.some((s) => leadNum(s.average) != null) && (
-              <Text style={styles.cmpHint}>vs class average</Text>
+            {hasClass && (
+              <Text style={styles.cmpHint}>
+                <Text style={{ color: colors.text, fontFamily: fonts.extrabold }}>{aboveCount}</Text>
+                {` of ${cmp.length} above class avg`}
+              </Text>
             )}
           </View>
-          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 4 }} showsVerticalScrollIndicator>
+
+          {/* Legend for the bullet bars below — a filled bar is your child, the
+              vertical marker is the class average. Shown once, not per row. */}
+          {hasClass && (
+            <View style={styles.subLegendRow}>
+              <View style={styles.subLegendItem}>
+                <View style={[styles.subLegendSwatch, { backgroundColor: colors.primary }]} />
+                <Text style={styles.subLegendLbl}>Your child</Text>
+              </View>
+              <View style={styles.subLegendItem}>
+                <View style={styles.subLegendTick} />
+                <Text style={styles.subLegendLbl}>Class average</Text>
+              </View>
+            </View>
+          )}
+
+          <ScrollView
+            style={{ flexShrink: 1, minHeight: 0, maxHeight: listMaxH }}
+            contentContainerStyle={{ paddingBottom: 4 }}
+            showsVerticalScrollIndicator
+            nestedScrollEnabled
+          >
             {subjects.length > 0 ? subjects.map((s, i) => {
               const hex = gradeHex(s.grade, colors);
               // Parse "got/outOf". Child % and class % share the same out-of so
-              // the two bars are directly comparable.
+              // the bar and its class marker are on one directly-comparable scale.
               const got = leadNum(s.score);
               const outOf = outOfNum(s.score);
               const childPct = toPct(got, outOf);
               const classPct = toPct(leadNum(s.average), outOf);
               const diff = childPct != null && classPct != null ? Math.round(childPct - classPct) : null;
-              const pctW = (v: number) => `${Math.max(3, Math.min(100, v))}%`;
+              const pctW = (v: number) => `${Math.max(2, Math.min(100, v))}%`;
               // Verdict colour + words from the gap to the class average.
               const vColor = diff == null ? colors.textTertiary
                 : diff > 0 ? colors.success : diff < 0 ? colors.danger : colors.textSecondary;
               const vText = diff == null ? ''
                 : diff === 0 ? 'On the class average'
-                : `${Math.abs(diff)}% ${diff > 0 ? 'above' : 'below'} the class average`;
+                : `${Math.abs(diff)}% ${diff > 0 ? 'above' : 'below'} class`;
               return (
-                <View key={i} style={[styles.subjCard, i > 0 && { marginTop: 10 }]}>
-                  {/* Header: subject · grade · child's own % */}
+                <View key={i} style={[styles.subjCard, i > 0 && { marginTop: 8 }]}>
+                  {/* Row 1: subject · grade · child's own % */}
                   <View style={styles.subjTop}>
                     <View style={[styles.subjDot, { backgroundColor: hex }]} />
                     <Text style={styles.subjName} numberOfLines={1}>{s.subject || '—'}</Text>
@@ -365,35 +403,38 @@ const AnalyticsModal: React.FC<{
                     </Text>
                   </View>
 
-                  {/* Two clearly-labelled bars on the same 0–100 scale. */}
-                  {childPct != null && classPct != null ? (
+                  {/* Row 2: bullet bar — child's fill with the class average as a
+                      target marker. One row instead of two, so more subjects fit. */}
+                  {childPct != null ? (
                     <>
-                      <View style={styles.cmpRow}>
-                        <Text style={styles.cmpRowLabel}>Your child</Text>
-                        <View style={styles.cmpTrack}>
-                          <View style={[styles.cmpFill, { width: pctW(childPct), backgroundColor: colors.primary }]} />
+                      <View style={styles.bulletTrack}>
+                        <View style={styles.bulletFillWrap}>
+                          <LinearGradient
+                            colors={[colors.primary, colors.primaryDeep]}
+                            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                            style={[styles.bulletFill, { width: pctW(childPct) }]}
+                          />
                         </View>
-                        <Text style={[styles.cmpRowVal, { color: colors.text }]}>{Math.round(childPct)}%</Text>
-                      </View>
-                      <View style={styles.cmpRow}>
-                        <Text style={styles.cmpRowLabel}>Class avg</Text>
-                        <View style={styles.cmpTrack}>
-                          <View style={[styles.cmpFill, { width: pctW(classPct), backgroundColor: colors.textTertiary }]} />
-                        </View>
-                        <Text style={[styles.cmpRowVal, { color: colors.textSecondary }]}>{Math.round(classPct)}%</Text>
-                      </View>
-                      <View style={styles.verdictRow}>
-                        <View style={[styles.verdictChip, { backgroundColor: vColor + '18' }]}>
-                          {diff !== 0 && <Ionicons name={diff! > 0 ? 'arrow-up' : 'arrow-down'} size={11} color={vColor} />}
-                          <Text style={[styles.verdictText, { color: vColor }]}>{vText}</Text>
-                        </View>
-                        {!!s.position && (
-                          <Text style={styles.posText}>Position {s.position}</Text>
+                        {classPct != null && (
+                          <View style={[styles.classMarker, { left: pctW(classPct) }]} />
                         )}
+                      </View>
+
+                      <View style={styles.verdictRow}>
+                        {diff != null ? (
+                          <View style={[styles.verdictChip, { backgroundColor: vColor + '18' }]}>
+                            {diff !== 0 && <Ionicons name={diff > 0 ? 'arrow-up' : 'arrow-down'} size={10} color={vColor} />}
+                            <Text style={[styles.verdictText, { color: vColor }]}>{vText}</Text>
+                          </View>
+                        ) : <View />}
+                        <View style={styles.verdictMeta}>
+                          {classPct != null && <Text style={styles.classHint}>Class {Math.round(classPct)}%</Text>}
+                          {!!s.position && <Text style={styles.posText}>Pos {s.position}</Text>}
+                        </View>
                       </View>
                     </>
                   ) : (
-                    // No class average to compare against — show the raw score.
+                    // No parsable score — show the raw string.
                     <View style={styles.cmpRow}>
                       <Text style={styles.cmpRowLabel}>Score</Text>
                       <Text style={[styles.cmpRowVal, { color: colors.text, marginLeft: 0 }]}>{s.score ?? '—'}</Text>
@@ -769,30 +810,47 @@ function makeStyles(c: ColorPalette) {
 
     breakdownTitle: { fontSize: 13.5, fontFamily: fonts.bold, color: c.text, marginBottom: 6 },
     breakdownHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-    cmpHint: { fontSize: 10.5, fontFamily: fonts.semibold, color: c.textTertiary },
+    cmpHint: { fontSize: 11, fontFamily: fonts.semibold, color: c.textTertiary },
 
-    // One card per subject: child vs class, clearly labelled and in %.
-    subjCard: {
-      backgroundColor: c.backgroundAlt, borderRadius: 14, padding: 13,
-    },
-    subjTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 11 },
+    // Legend for the subject bullet bars (shown once above them).
+    subLegendRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: -2, marginBottom: 12 },
+    subLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    subLegendSwatch: { width: 16, height: 8, borderRadius: 3 },
+    subLegendTick: { width: 3, height: 13, borderRadius: 2, backgroundColor: c.text },
+    subLegendLbl: { fontSize: 11, fontFamily: fonts.medium, color: c.textSecondary },
+
+    // One compact card per subject: a bullet bar (child fill + class marker).
+    subjCard: { backgroundColor: c.backgroundAlt, borderRadius: 14, padding: 13 },
+    subjTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 9 },
     subjDot: { width: 8, height: 8, borderRadius: 4, marginRight: 9 },
     subjName: { flex: 1, fontSize: 14, fontFamily: fonts.bold, color: c.text, marginRight: 8 },
     subjGrade: { minWidth: 28, alignItems: 'center', borderRadius: 7, paddingHorizontal: 6, paddingVertical: 2, marginRight: 8 },
     subjGradeText: { fontSize: 11, fontFamily: fonts.extrabold },
     subjPct: { fontSize: 16, fontFamily: fonts.extrabold, letterSpacing: -0.4 },
 
-    // Labelled comparison bars — both on the same 0–100 scale.
+    // Bullet bar: filled = child, vertical marker = class average benchmark.
+    bulletTrack: {
+      height: 16, borderRadius: 8, backgroundColor: c.card,
+      borderWidth: 1, borderColor: c.border, justifyContent: 'center',
+    },
+    bulletFillWrap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 8, overflow: 'hidden' },
+    bulletFill: { height: '100%', borderRadius: 8 },
+    classMarker: {
+      position: 'absolute', top: -3, bottom: -3, width: 3, marginLeft: -1.5,
+      borderRadius: 2, backgroundColor: c.text,
+    },
+
+    // Fallback (no parsable score).
     cmpRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 6 },
     cmpRowLabel: { width: 66, fontSize: 11, fontFamily: fonts.semibold, color: c.textSecondary },
-    cmpTrack: { flex: 1, height: 8, borderRadius: 5, backgroundColor: c.card, overflow: 'hidden' },
-    cmpFill: { height: '100%', borderRadius: 5 },
     cmpRowVal: { width: 38, textAlign: 'right', fontSize: 12.5, fontFamily: fonts.bold },
 
-    // Plain-language verdict + class position.
-    verdictRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+    // Plain-language verdict + class value + position.
+    verdictRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 8 },
     verdictChip: { flexDirection: 'row', alignItems: 'center', gap: 3, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
     verdictText: { fontSize: 11, fontFamily: fonts.bold },
+    verdictMeta: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    classHint: { fontSize: 11, fontFamily: fonts.semibold, color: c.textTertiary },
     posText: { fontSize: 11, fontFamily: fonts.semibold, color: c.textTertiary },
 
     printBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 13, paddingVertical: 13, marginTop: 14 },
