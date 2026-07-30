@@ -39,6 +39,13 @@ const subjectIconName = (subject?: string | null): any => {
   return 'book-open-variant';
 };
 
+// One subject's quests, with roll-up progress and the child's academic weakness
+// (avg score; Infinity when unknown) — used to order groups weakest-first.
+type QuestGroup = {
+  subject: string; quests: QuestSummary[];
+  total: number; done: number; pct: number; weakness: number;
+};
+
 export const LearningScreen: React.FC = () => {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -118,10 +125,54 @@ export const LearningScreen: React.FC = () => {
     return [...list].sort((a, b) => String(b.lastActivityAt || '').localeCompare(String(a.lastActivityAt || '')))[0];
   }, [quests]);
 
-  // Subject drill-down: tapping a subject card lists that subject's quests, each with a
-  // Play button that hands the device to the child (kid-learn mode, deep-linked).
+  // Academic weakness per subject (avg score; Infinity = unknown) — the signal
+  // that orders both the recommended picks and the by-subject rows weakest-first.
+  const subjectWeakness = useMemo(() => {
+    const m = new Map<string, number>();
+    subjects.forEach((s) => {
+      if (s.subject) m.set(s.subject.trim(), s.avgScorePct != null ? num(s.avgScorePct) : Infinity);
+    });
+    return m;
+  }, [subjects]);
+
+  // Every quest grouped under its subject, weakest subject first. This is the
+  // backbone of the redesign — quests are never shown as one flat list.
+  const questGroups = useMemo<QuestGroup[]>(() => {
+    const g = new Map<string, QuestSummary[]>();
+    for (const q of quests) {
+      const key = (q.subject || 'General').trim();
+      const list = g.get(key);
+      if (list) list.push(q); else g.set(key, [q]);
+    }
+    return Array.from(g.entries())
+      .map(([subject, qs]) => {
+        const total = qs.reduce((s, q) => s + (q.totalStages || 0), 0);
+        const done = qs.reduce((s, q) => s + (q.completedStages || 0), 0);
+        return {
+          subject,
+          quests: [...qs].sort((a, b) => rankStatus(a.status) - rankStatus(b.status)),
+          total, done,
+          pct: total > 0 ? Math.round((done / total) * 100) : 0,
+          weakness: subjectWeakness.get(subject) ?? Infinity,
+        };
+      })
+      .sort((a, b) => a.weakness - b.weakness || a.subject.localeCompare(b.subject));
+  }, [quests, subjectWeakness]);
+
+  // Recommended = actionable quests (available / in-progress) from the child's
+  // weakest subjects, still grouped by subject. Capped so it stays a focused
+  // "do these next", not another endless list.
+  const recommendedGroups = useMemo<QuestGroup[]>(() =>
+    questGroups
+      .map((g) => ({ ...g, quests: g.quests.filter((q) => q.status === 'IN_PROGRESS' || q.status === 'AVAILABLE') }))
+      .filter((g) => g.quests.length > 0)
+      .slice(0, 3)
+      .map((g) => ({ ...g, quests: g.quests.slice(0, 5) })),
+    [questGroups]);
+
+  // Subject drill-down: tapping a subject's "See all" opens the grouped + search
+  // view scoped to that subject; "See all" at the section head opens it for all.
   const [openSubject, setOpenSubject] = useState<string | null>(null);
-  // "All quests" reuses the same list view with subject === null.
   const [openAll, setOpenAll] = useState(false);
 
   const playQuest = (questId: number | null) => {
@@ -130,13 +181,11 @@ export const LearningScreen: React.FC = () => {
 
   if (openSubject || openAll) {
     return (
-      <SubjectQuestsView
+      <AllQuestsView
         styles={styles}
         colors={colors}
-        subject={openAll ? null : openSubject}
-        quests={openAll
-          ? quests
-          : quests.filter((q) => (q.subject || 'General') === openSubject)}
+        quests={quests}
+        initialSubject={openAll ? null : openSubject}
         childName={firstName}
         onBack={() => { setOpenSubject(null); setOpenAll(false); }}
         onPlay={playQuest}
@@ -175,40 +224,41 @@ export const LearningScreen: React.FC = () => {
             />
           )}
 
-          {/* Quests — a horizontal swipe carousel so a long list stays one row tall
-              and the sections below (By subject, Coding) stay within easy reach. */}
-          {(() => {
-            const carouselQuests = [...quests]
-              .filter((q) => q.id !== resumeQuest?.id)
-              .sort((a, b) => rankStatus(a.status) - rankStatus(b.status));
-            if (carouselQuests.length === 0) return null;
-            return (
-              <>
-                <View style={styles.sectionHeadRow}>
-                  <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{firstName}’s quests</Text>
-                  <View style={styles.countPill}><Text style={styles.countPillText}>{carouselQuests.length}</Text></View>
-                  {/* The carousel only shows a slice, and swiping hides the
-                      rest. "See all" opens the full list with subject filters. */}
-                  <TouchableOpacity style={styles.seeAllBtn} activeOpacity={0.8} onPress={() => setOpenAll(true)}>
-                    <Text style={[styles.seeAllText, { color: colors.primary }]}>See all {quests.length}</Text>
-                    <Feather name="arrow-right" size={13} color={colors.primary} />
-                  </TouchableOpacity>
-                </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.questCarouselWrap}
-                  contentContainerStyle={styles.questCarousel}
-                  snapToInterval={300}
-                  decelerationRate="fast"
-                >
-                  {carouselQuests.map((q) => (
-                    <GamifiedQuestCard key={String(q.id ?? q.key)} styles={styles} quest={q} onPlay={playQuest} carousel />
-                  ))}
-                </ScrollView>
-              </>
-            );
-          })()}
+          {/* Recommended — actionable quests from the child's weakest subjects,
+              grouped by subject. The "do these next" list. */}
+          {recommendedGroups.length > 0 && (
+            <>
+              <View style={styles.sectionHeadRow}>
+                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Recommended for {firstName}</Text>
+              </View>
+              <Text style={styles.sectionSub}>Picked from {firstName}’s weaker subjects — a little practice here helps most.</Text>
+              {recommendedGroups.map((g) => (
+                <SubjectQuestRow key={`rec-${g.subject}`} styles={styles} colors={colors} group={g} onPlay={playQuest} recommended />
+              ))}
+            </>
+          )}
+
+          {/* Quests by subject — every subject its own labelled row, so a long
+              catalogue never becomes one endless scroll. "See all" opens the
+              grouped + searchable view. */}
+          {questGroups.length > 0 && (
+            <>
+              <View style={styles.sectionHeadRow}>
+                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Quests by subject</Text>
+                <View style={styles.countPill}><Text style={styles.countPillText}>{quests.length}</Text></View>
+                <TouchableOpacity style={styles.seeAllBtn} activeOpacity={0.8} onPress={() => setOpenAll(true)}>
+                  <Text style={[styles.seeAllText, { color: colors.primary }]}>See all</Text>
+                  <Feather name="arrow-right" size={13} color={colors.primary} />
+                </TouchableOpacity>
+              </View>
+              {questGroups.map((g) => (
+                <SubjectQuestRow
+                  key={`grp-${g.subject}`} styles={styles} colors={colors} group={g}
+                  onPlay={playQuest} onSeeAll={() => setOpenSubject(g.subject)}
+                />
+              ))}
+            </>
+          )}
 
           {/* Focus card — the web hero's content on a quiet card */}
           {subscribed ? (
@@ -281,10 +331,11 @@ export const LearningScreen: React.FC = () => {
             </View>
           )}
 
-          {/* By subject (quests) */}
+          {/* Subject progress — overview of every subject (incl. academic-only
+              subjects with no quests) plus the Coding & Robotics entry. */}
           {(academicCards.length > 0 || hasCoding || hasCodingQuest) && (
             <>
-              <Text style={styles.sectionTitle}>By subject</Text>
+              <Text style={styles.sectionTitle}>Subject progress</Text>
               <View style={styles.subjectGrid}>
                 {/* Coding & Robotics FIRST — its own accent, full-width, above subjects. */}
                 {!hasCodingQuest && hasCoding && (
@@ -417,46 +468,84 @@ export const LearningScreen: React.FC = () => {
   );
 };
 
-// ── Subject drill-down ───────────────────────────────────────────────────────
-// The real quests behind one subject card — each with its live progress, a status
-// line, and a Play button that drops straight into kid-learn mode deep-linked to
-// that quest. Parent stays read-only; Play is the hand-the-device-over action.
-/**
- * One quest list, two entry points:
- *   · a single subject  (subject = "Mathematics")
- *   · EVERY quest       (subject = null) with a subject filter row
- *
- * Same component either way — the filter simply starts on "All" and the header
- * changes, rather than maintaining a near-identical second screen.
- */
-const SubjectQuestsView: React.FC<{
-  styles: any; colors: ColorPalette; subject: string | null; quests: QuestSummary[];
-  childName: string; onBack: () => void; onPlay: (questId: number | null) => void;
-}> = ({ styles, colors, subject, quests, childName, onBack, onPlay }) => {
-  const showFilter = subject == null;
-  const [sel, setSel] = useState<string>('ALL');
+// ── Subject quest row — one subject, one labelled horizontal row of its quests.
+// Keeps each subject a self-contained band with a clear start and end, instead
+// of one endless vertical list the child can get lost in.
+const SubjectQuestRow: React.FC<{
+  styles: any; colors: ColorPalette; group: QuestGroup;
+  onPlay: (id: number | null) => void; recommended?: boolean; onSeeAll?: () => void;
+}> = ({ styles, colors, group, onPlay, recommended, onSeeAll }) => {
+  const meta = recommended && group.weakness !== Infinity
+    ? `${Math.round(group.weakness)}% avg · practice this`
+    : `${group.pct}% complete · ${group.quests.length} ${group.quests.length === 1 ? 'quest' : 'quests'}`;
+  return (
+    <View style={styles.subjRowBlock}>
+      <View style={styles.subjRowHead}>
+        <View style={[styles.subjRowIcon, { backgroundColor: colors.primarySoft }]}>
+          <MaterialCommunityIcons name={subjectIconName(group.subject)} size={16} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.subjRowName} numberOfLines={1}>{group.subject}</Text>
+          <Text style={styles.subjRowMeta} numberOfLines={1}>{meta}</Text>
+        </View>
+        {onSeeAll && group.quests.length > 2 && (
+          <TouchableOpacity onPress={onSeeAll} hitSlop={8} activeOpacity={0.7}>
+            <Text style={styles.subjRowSeeAll}>All {group.quests.length}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}
+        style={styles.subjRowScrollWrap} contentContainerStyle={styles.subjRowScroll}
+        snapToInterval={300} decelerationRate="fast">
+        {group.quests.map((q) => (
+          <GamifiedQuestCard key={String(q.id ?? q.key)} styles={styles} quest={q} onPlay={onPlay} carousel />
+        ))}
+      </ScrollView>
+    </View>
+  );
+};
 
-  // Counts describe the full set, so they never contradict the list below.
-  const subjects = useMemo(() => Array.from(
-    quests.reduce((m, q) => {
-      const s = (q.subject || 'General').trim();
-      m.set(s, (m.get(s) ?? 0) + 1);
-      return m;
-    }, new Map<string, number>()),
-  ).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])), [quests]);
+// ── All quests — grouped by subject, searchable, with collapsible sections so
+// the reader always sees where each subject's quests begin and end. Opened for
+// every subject (initialSubject = null) or scoped to one (from a row's See all).
+const AllQuestsView: React.FC<{
+  styles: any; colors: ColorPalette; quests: QuestSummary[];
+  initialSubject: string | null; childName: string;
+  onBack: () => void; onPlay: (questId: number | null) => void;
+}> = ({ styles, colors, quests, initialSubject, childName, onBack, onPlay }) => {
+  const [query, setQuery] = useState('');
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const q = query.trim().toLowerCase();
 
-  const visible = !showFilter || sel === 'ALL'
-    ? quests
-    : quests.filter((q) => (q.subject || 'General').trim() === sel);
+  const groups = useMemo(() => {
+    const g = new Map<string, QuestSummary[]>();
+    for (const quest of quests) {
+      const subject = (quest.subject || 'General').trim();
+      if (initialSubject && subject !== initialSubject) continue;
+      if (q && !(`${quest.title || ''} ${subject} ${quest.description || ''}`.toLowerCase().includes(q))) continue;
+      const list = g.get(subject);
+      if (list) list.push(quest); else g.set(subject, [quest]);
+    }
+    return Array.from(g.entries())
+      .map(([subject, qs]) => ({ subject, quests: [...qs].sort((a, b) => rankStatus(a.status) - rankStatus(b.status)) }))
+      .sort((a, b) => b.quests.length - a.quests.length || a.subject.localeCompare(b.subject));
+  }, [quests, q, initialSubject]);
 
-  const rows = [...visible].sort((a, b) => rankStatus(a.status) - rankStatus(b.status));
+  const totalShown = groups.reduce((s, g) => s + g.quests.length, 0);
+  const toggle = (subject: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      next.has(subject) ? next.delete(subject) : next.add(subject);
+      return next;
+    });
+
   return (
     <View style={styles.root}>
       <GradientAppBar
-        title={subject ?? 'All quests'}
-        subtitle={subject
-          ? `${childName}’s quests in ${subject}`
-          : `Every quest for ${childName} · ${quests.length}`}
+        title={initialSubject ?? 'All quests'}
+        subtitle={initialSubject
+          ? `${childName}’s quests in ${initialSubject}`
+          : `Every quest for ${childName}, grouped by subject`}
         right={
           <TouchableOpacity style={styles.appBarAction} activeOpacity={0.7} onPress={onBack}>
             <Ionicons name="chevron-back" size={15} color="#FFF" />
@@ -464,51 +553,55 @@ const SubjectQuestsView: React.FC<{
           </TouchableOpacity>
         }
       />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Subject filter — only in "all quests" mode; filtering a single
-            subject by subject would be meaningless. */}
-        {showFilter && subjects.length > 1 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterStrip}>
-            <TouchableOpacity activeOpacity={0.85} onPress={() => setSel('ALL')}
-              style={[styles.filterChip, sel === 'ALL' && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
-              <Text style={[styles.filterChipText, sel === 'ALL' && { color: '#FFF' }]}>All</Text>
-              <View style={[styles.filterCount, sel === 'ALL' && { backgroundColor: 'rgba(255,255,255,0.26)' }]}>
-                <Text style={[styles.filterCountText, sel === 'ALL' && { color: '#FFF' }]}>{quests.length}</Text>
-              </View>
-            </TouchableOpacity>
-            {subjects.map(([name, n]) => {
-              const on = sel === name;
-              return (
-                <TouchableOpacity key={name} activeOpacity={0.85}
-                  onPress={() => setSel(on ? 'ALL' : name)}
-                  style={[styles.filterChip, on && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
-                  <MaterialCommunityIcons name={subjectIconName(name)} size={14}
-                    color={on ? '#FFF' : colors.textSecondary} />
-                  <Text style={[styles.filterChipText, on && { color: '#FFF' }]} numberOfLines={1}>{name}</Text>
-                  <View style={[styles.filterCount, on && { backgroundColor: 'rgba(255,255,255,0.26)' }]}>
-                    <Text style={[styles.filterCountText, on && { color: '#FFF' }]}>{n}</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
 
-        {rows.map((q) => (
-          <GamifiedQuestCard key={String(q.id ?? q.key)} styles={styles} quest={q} onPlay={onPlay} />
-        ))}
-        {rows.length === 0 && (
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>
-              {showFilter && sel !== 'ALL'
-                ? `No ${sel} quests yet.`
-                : 'No quests in this subject yet.'}
-            </Text>
-          </View>
+      {/* Search — filters across every subject at once. */}
+      <View style={styles.searchWrap}>
+        <Feather name="search" size={16} color={colors.textTertiary} />
+        <TextInput
+          style={styles.searchInput}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search quests…"
+          placeholderTextColor={colors.textTertiary}
+          returnKeyType="search"
+        />
+        {query.length > 0 && (
+          <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
+            <Feather name="x" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
         )}
-        <Text style={styles.handOverNote}>
-          Tapping Start or Continue hands the device to {childName} — everything they do counts on their own account.
-        </Text>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        {groups.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <MaterialCommunityIcons name="magnify-close" size={40} color={colors.textTertiary} />
+            <Text style={styles.emptyText}>{q ? `No quests match “${query}”.` : 'No quests here yet.'}</Text>
+          </View>
+        ) : groups.map((g) => {
+          const isCollapsed = collapsed.has(g.subject);
+          return (
+            <View key={g.subject} style={styles.groupBlock}>
+              <TouchableOpacity style={styles.groupHeader} activeOpacity={0.7} onPress={() => toggle(g.subject)}>
+                <View style={[styles.subjRowIcon, { backgroundColor: colors.primarySoft }]}>
+                  <MaterialCommunityIcons name={subjectIconName(g.subject)} size={16} color={colors.primary} />
+                </View>
+                <Text style={styles.groupHeaderName} numberOfLines={1}>{g.subject}</Text>
+                <View style={styles.groupCount}><Text style={styles.groupCountText}>{g.quests.length}</Text></View>
+                <Feather name={isCollapsed ? 'chevron-down' : 'chevron-up'} size={18} color={colors.textTertiary} />
+              </TouchableOpacity>
+              {!isCollapsed && g.quests.map((quest) => (
+                <GamifiedQuestCard key={String(quest.id ?? quest.key)} styles={styles} quest={quest} onPlay={onPlay} />
+              ))}
+            </View>
+          );
+        })}
+
+        {groups.length > 0 && (
+          <Text style={styles.handOverNote}>
+            Showing {totalShown} {totalShown === 1 ? 'quest' : 'quests'}. Tapping Start or Continue hands the device to {childName} — everything they do counts on their own account.
+          </Text>
+        )}
         <View style={{ height: 32 }} />
       </ScrollView>
     </View>
@@ -900,6 +993,32 @@ function makeStyles(c: ColorPalette) {
     swipeHint: { marginLeft: 'auto', fontSize: 11.5, fontFamily: fonts.semibold, color: c.textTertiary },
     seeAllBtn: { marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingLeft: 8 },
     seeAllText: { fontSize: 12, fontFamily: fonts.bold },
+    sectionSub: { fontSize: 12.5, fontFamily: fonts.regular, color: c.textSecondary, marginTop: -6, marginBottom: 12, lineHeight: 18 },
+
+    // Per-subject quest row (main Learning screen)
+    subjRowBlock: { marginBottom: 18 },
+    subjRowHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+    subjRowIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+    subjRowName: { fontSize: 14.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    subjRowMeta: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 1 },
+    subjRowSeeAll: { fontSize: 12, fontFamily: fonts.bold, color: c.primary },
+    subjRowScrollWrap: { marginHorizontal: -16 },
+    subjRowScroll: { gap: 12, paddingHorizontal: 16, paddingBottom: 6 },
+
+    // All-quests grouped + search view
+    searchWrap: {
+      flexDirection: 'row', alignItems: 'center', gap: 8,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 12,
+      paddingHorizontal: 12, height: 46, marginHorizontal: 16, marginTop: 6, marginBottom: 8,
+    },
+    searchInput: { flex: 1, fontSize: 13.5, fontFamily: fonts.regular, color: c.text, padding: 0 },
+    groupBlock: { marginBottom: 8 },
+    groupHeader: {
+      flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, marginTop: 2,
+    },
+    groupHeaderName: { flex: 1, fontSize: 14.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.2 },
+    groupCount: { backgroundColor: c.primarySofter, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2 },
+    groupCountText: { fontSize: 11, fontFamily: fonts.bold, color: c.primary },
 
     // Subject filter inside the all-quests list
     filterStrip: { gap: 8, paddingBottom: 4, marginBottom: 14, paddingRight: 4 },
