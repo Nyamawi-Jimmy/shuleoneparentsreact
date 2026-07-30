@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle, Polyline, Line as SvgLine, Path, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Polyline, Line as SvgLine, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { GradientAppBar } from '../../components/GradientAppBar';
 import { fonts } from '../../constants/theme';
 import { useTheme } from '../../theme/ThemeContext';
@@ -309,6 +309,14 @@ const AnalyticsModal: React.FC<{
   }).filter((x) => x.c != null && x.a != null) as { c: number; a: number }[];
   const hasClass = cmp.length > 0;
   const aboveCount = cmp.filter((x) => x.c - x.a > 0.5).length;
+
+  // Grouped-column data: one entry per subject with a parsable score.
+  const barData: BarDatum[] = subjects.map((s) => {
+    const outOf = outOfNum(s.score);
+    const child = toPct(leadNum(s.score), outOf);
+    if (child == null) return null;
+    return { label: s.subject || '—', child, cls: toPct(leadNum(s.average), outOf) };
+  }).filter(Boolean) as BarDatum[];
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -350,100 +358,77 @@ const AnalyticsModal: React.FC<{
             )}
           </View>
 
-          {/* Legend for the bullet bars below — a filled bar is your child, the
-              vertical marker is the class average. Shown once, not per row. */}
-          {hasClass && (
-            <View style={styles.subLegendRow}>
-              <View style={styles.subLegendItem}>
-                <View style={[styles.subLegendSwatch, { backgroundColor: colors.primary }]} />
-                <Text style={styles.subLegendLbl}>Your child</Text>
-              </View>
-              <View style={styles.subLegendItem}>
-                <View style={styles.subLegendTick} />
-                <Text style={styles.subLegendLbl}>Class average</Text>
-              </View>
-            </View>
-          )}
-
           <ScrollView
             style={{ flexShrink: 1, minHeight: 0, maxHeight: listMaxH }}
             contentContainerStyle={{ paddingBottom: 4 }}
             showsVerticalScrollIndicator
             nestedScrollEnabled
           >
-            {subjects.length > 0 ? subjects.map((s, i) => {
-              const hex = gradeHex(s.grade, colors);
-              // Parse "got/outOf". Child % and class % share the same out-of so
-              // the bar and its class marker are on one directly-comparable scale.
-              const got = leadNum(s.score);
-              const outOf = outOfNum(s.score);
-              const childPct = toPct(got, outOf);
-              const classPct = toPct(leadNum(s.average), outOf);
-              const diff = childPct != null && classPct != null ? Math.round(childPct - classPct) : null;
-              const pctW = (v: number) => `${Math.max(2, Math.min(100, v))}%`;
-              // Verdict colour + words from the gap to the class average.
-              const vColor = diff == null ? colors.textTertiary
-                : diff > 0 ? colors.success : diff < 0 ? colors.danger : colors.textSecondary;
-              const vText = diff == null ? ''
-                : diff === 0 ? 'On the class average'
-                : `${Math.abs(diff)}% ${diff > 0 ? 'above' : 'below'} class`;
-              return (
-                <View key={i} style={[styles.subjCard, i > 0 && { marginTop: 8 }]}>
-                  {/* Row 1: subject · grade · child's own % */}
-                  <View style={styles.subjTop}>
-                    <View style={[styles.subjDot, { backgroundColor: hex }]} />
-                    <Text style={styles.subjName} numberOfLines={1}>{s.subject || '—'}</Text>
-                    {!!s.grade && (
-                      <View style={[styles.subjGrade, { backgroundColor: hex + '1A' }]}>
-                        <Text style={[styles.subjGradeText, { color: hex }]}>{s.grade}</Text>
+            {subjects.length === 0 ? (
+              <Text style={styles.chartNote}>No subject breakdown recorded for this exam.</Text>
+            ) : (
+              <>
+                {/* Grouped columns — child vs class per subject (Option C). */}
+                {barData.length > 0 && (
+                  <View style={styles.barCard}>
+                    <GroupedBars data={barData} colors={colors} />
+                    <View style={styles.subLegendRow}>
+                      <View style={styles.subLegendItem}>
+                        <View style={[styles.subLegendSwatch, { backgroundColor: colors.primary }]} />
+                        <Text style={styles.subLegendLbl}>Your child</Text>
                       </View>
-                    )}
-                    <Text style={[styles.subjPct, { color: hex }]}>
-                      {childPct != null ? `${Math.round(childPct)}%` : (s.score ?? '—')}
-                    </Text>
-                  </View>
-
-                  {/* Row 2: bullet bar — child's fill with the class average as a
-                      target marker. One row instead of two, so more subjects fit. */}
-                  {childPct != null ? (
-                    <>
-                      <View style={styles.bulletTrack}>
-                        <View style={styles.bulletFillWrap}>
-                          <LinearGradient
-                            colors={[colors.primary, colors.primaryDeep]}
-                            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                            style={[styles.bulletFill, { width: pctW(childPct) }]}
-                          />
-                        </View>
-                        {classPct != null && (
-                          <View style={[styles.classMarker, { left: pctW(classPct) }]} />
-                        )}
+                      <View style={styles.subLegendItem}>
+                        <View style={[styles.subLegendSwatch, { backgroundColor: colors.textTertiary }]} />
+                        <Text style={styles.subLegendLbl}>Class average</Text>
                       </View>
-
-                      <View style={styles.verdictRow}>
-                        {diff != null ? (
-                          <View style={[styles.verdictChip, { backgroundColor: vColor + '18' }]}>
-                            {diff !== 0 && <Ionicons name={diff > 0 ? 'arrow-up' : 'arrow-down'} size={10} color={vColor} />}
-                            <Text style={[styles.verdictText, { color: vColor }]}>{vText}</Text>
-                          </View>
-                        ) : <View />}
-                        <View style={styles.verdictMeta}>
-                          {classPct != null && <Text style={styles.classHint}>Class {Math.round(classPct)}%</Text>}
-                          {!!s.position && <Text style={styles.posText}>Pos {s.position}</Text>}
-                        </View>
-                      </View>
-                    </>
-                  ) : (
-                    // No parsable score — show the raw string.
-                    <View style={styles.cmpRow}>
-                      <Text style={styles.cmpRowLabel}>Score</Text>
-                      <Text style={[styles.cmpRowVal, { color: colors.text, marginLeft: 0 }]}>{s.score ?? '—'}</Text>
-                      {!!s.position && <Text style={[styles.posText, { marginLeft: 'auto' }]}>Position {s.position}</Text>}
                     </View>
-                  )}
-                </View>
-              );
-            }) : <Text style={styles.chartNote}>No subject breakdown recorded for this exam.</Text>}
+                  </View>
+                )}
+
+                {/* Compact per-subject detail — grade, score, verdict, position.
+                    The chart above already carries the visual comparison. */}
+                {subjects.map((s, i) => {
+                  const hex = gradeHex(s.grade, colors);
+                  const outOf = outOfNum(s.score);
+                  const childPct = toPct(leadNum(s.score), outOf);
+                  const classPct = toPct(leadNum(s.average), outOf);
+                  const diff = childPct != null && classPct != null ? Math.round(childPct - classPct) : null;
+                  const vColor = diff == null ? colors.textTertiary
+                    : diff > 0 ? colors.success : diff < 0 ? colors.danger : colors.textSecondary;
+                  const vText = diff == null ? ''
+                    : diff === 0 ? 'On the class average'
+                    : `${Math.abs(diff)}% ${diff > 0 ? 'above' : 'below'} class`;
+                  return (
+                    <View key={i} style={[styles.subjCard, i > 0 && { marginTop: 8 }]}>
+                      <View style={styles.subjTop}>
+                        <View style={[styles.subjDot, { backgroundColor: hex }]} />
+                        <Text style={styles.subjName} numberOfLines={1}>{s.subject || '—'}</Text>
+                        {!!s.grade && (
+                          <View style={[styles.subjGrade, { backgroundColor: hex + '1A' }]}>
+                            <Text style={[styles.subjGradeText, { color: hex }]}>{s.grade}</Text>
+                          </View>
+                        )}
+                        <Text style={[styles.subjPct, { color: hex }]}>
+                          {childPct != null ? `${Math.round(childPct)}%` : (s.score ?? '—')}
+                        </Text>
+                      </View>
+
+                      {(diff != null || !!s.position) && (
+                        <View style={styles.verdictRow}>
+                          {diff != null ? (
+                            <View style={[styles.verdictChip, { backgroundColor: vColor + '18' }]}>
+                              {diff !== 0 && <Ionicons name={diff > 0 ? 'arrow-up' : 'arrow-down'} size={10} color={vColor} />}
+                              <Text style={[styles.verdictText, { color: vColor }]}>{vText}</Text>
+                            </View>
+                          ) : <View />}
+                          {!!s.position && <Text style={styles.posText}>Position {s.position}</Text>}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </>
+            )}
           </ScrollView>
 
           <TouchableOpacity activeOpacity={0.85} onPress={onPrint} disabled={downloading}>
@@ -707,6 +692,62 @@ const LineChart: React.FC<{ data: { label: string; mean: number }[]; color: stri
   );
 };
 
+// Grouped columns — child vs class per subject, "report-card" style. Two bars
+// per subject on a shared 0–100 axis; scrolls horizontally when there are many
+// subjects so nothing is squeezed or clipped on a phone.
+type BarDatum = { label: string; child: number; cls: number | null };
+const GroupedBars: React.FC<{ data: BarDatum[]; colors: ColorPalette }> = ({ data, colors }) => {
+  const classColor = colors.textTertiary;
+  const avail = Dimensions.get('window').width - 32 - 36; // screen − modal padding − axis gutter
+  const slot = 60;
+  const plotW = Math.max(avail, data.length * slot);
+  const padL = 26, padR = 10;
+  const W = plotW + padL + padR;
+  const H = 200;
+  const padT = 22, padB = 46;
+  const base = H - padB;
+  const plotH = base - padT;
+  const y = (v: number) => base - plotH * Math.max(0, Math.min(100, v)) / 100;
+  const bw = 15, gap = 4;
+  const step = plotW / data.length;
+
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} nestedScrollEnabled
+      contentContainerStyle={{ paddingVertical: 2 }}>
+      <Svg width={W} height={H}>
+        {[0, 25, 50, 75, 100].map((g) => {
+          const yy = y(g);
+          return (
+            <React.Fragment key={g}>
+              <SvgLine x1={padL} y1={yy} x2={W - padR} y2={yy} stroke={colors.border} strokeWidth={1} />
+              <SvgText x={padL - 6} y={yy + 3} fontSize={8.5} fill={colors.textTertiary} textAnchor="end">{g}</SvgText>
+            </React.Fragment>
+          );
+        })}
+        {data.map((d, i) => {
+          const c0 = padL + step * i + step / 2;
+          const yc = y(d.child);
+          const cells = [
+            <Rect key={`c${i}`} x={c0 - bw - gap / 2} y={yc} width={bw} height={base - yc} rx={3} fill={colors.primary} />,
+            <SvgText key={`cv${i}`} x={c0 - bw / 2 - gap / 2} y={yc - 4} fontSize={8.5} fontWeight="700" fill={colors.textSecondary} textAnchor="middle">{Math.round(d.child)}</SvgText>,
+          ];
+          if (d.cls != null) {
+            const yk = y(d.cls);
+            cells.push(<Rect key={`k${i}`} x={c0 + gap / 2} y={yk} width={bw} height={base - yk} rx={3} fill={classColor} />);
+            cells.push(<SvgText key={`kv${i}`} x={c0 + bw / 2 + gap / 2} y={yk - 4} fontSize={8.5} fill={colors.textTertiary} textAnchor="middle">{Math.round(d.cls)}</SvgText>);
+          }
+          cells.push(
+            <SvgText key={`l${i}`} x={c0} y={H - 8} fontSize={9.5} fontWeight="600" fill={colors.textSecondary} textAnchor="middle">
+              {d.label.length > 9 ? d.label.slice(0, 8) + '…' : d.label}
+            </SvgText>,
+          );
+          return <React.Fragment key={i}>{cells}</React.Fragment>;
+        })}
+      </Svg>
+    </ScrollView>
+  );
+};
+
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     root: { flex: 1, backgroundColor: c.background },
@@ -812,8 +853,9 @@ function makeStyles(c: ColorPalette) {
     breakdownHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
     cmpHint: { fontSize: 11, fontFamily: fonts.semibold, color: c.textTertiary },
 
-    // Legend for the subject bullet bars (shown once above them).
-    subLegendRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: -2, marginBottom: 12 },
+    // Grouped-column chart card + its legend.
+    barCard: { backgroundColor: c.backgroundAlt, borderRadius: 14, padding: 12, marginBottom: 10 },
+    subLegendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 18, marginTop: 8 },
     subLegendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     subLegendSwatch: { width: 16, height: 8, borderRadius: 3 },
     subLegendTick: { width: 3, height: 13, borderRadius: 2, backgroundColor: c.text },
