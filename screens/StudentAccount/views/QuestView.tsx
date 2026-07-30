@@ -59,6 +59,12 @@ function subjectTint(name: string): string {
   return FALLBACK_TINTS[h % FALLBACK_TINTS.length];
 }
 
+// One subject's quests with roll-up progress, for the compact subject tiles.
+type SubjGroup = {
+  name: string; quests: QuestSummary[];
+  total: number; done: number; pct: number; actionable: boolean;
+};
+
 // Default node positions for the 0..100 SVG coordinate space (kid-design.html)
 const DEFAULT_POSITIONS = [
   { x: 18, y: 88 },
@@ -214,6 +220,24 @@ export const QuestView: React.FC = () => {
   // Spotlight the quest to continue: the one in progress, else the next available.
   const resumeQuest = shown.find((q) => q.status === 'IN_PROGRESS') || shown.find((q) => q.status === 'AVAILABLE');
 
+  // Per-subject roll-up (within the chosen class) for the compact tiles.
+  const subjectGroups: SubjGroup[] = subjects.map(([name]) => {
+    const list = byGrade.filter((q) => (q.subject || 'General').trim() === name);
+    const total = list.reduce((s, q) => s + (q.totalStages || 0), 0);
+    const done = list.reduce((s, q) => s + (q.completedStages || 0), 0);
+    return {
+      name, quests: list, total, done,
+      pct: total > 0 ? Math.round((done / total) * 100) : 0,
+      actionable: list.some((q) => q.status === 'AVAILABLE' || q.status === 'IN_PROGRESS'),
+    };
+  });
+  // Recommended = subjects with something to do, least-finished first (most room
+  // to grow) — the student-side echo of the parent's weakest-first picks.
+  const recommended = subjectGroups
+    .filter((g) => g.actionable && g.pct < 100)
+    .sort((a, b) => a.pct - b.pct)
+    .slice(0, 4);
+
   return (
     <View style={[styles.safe, { backgroundColor: tokens.bgColor }]}>
       <TopBar />
@@ -261,52 +285,8 @@ export const QuestView: React.FC = () => {
           </ScrollView>
         )}
 
-        {/* Subject filter — deliberately NOT the neutral segmented track used
-            on the parent side: each subject keeps its own colour and glyph, so
-            the row reads as a set of subjects rather than a generic control.
-            Only shown when there's more than one subject to choose between. */}
-        {subjects.length > 1 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.subjStrip}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => setSubjectSel('ALL')}
-              style={[styles.subjChip, activeSubject === 'ALL' && {
-                backgroundColor: tokens.accent1, borderColor: tokens.accent1,
-              }]}
-            >
-              <Text style={styles.subjEmoji}>✨</Text>
-              <Text style={[styles.subjText, activeSubject === 'ALL' && { color: '#fff' }]}>All</Text>
-              <View style={[styles.subjCount, activeSubject === 'ALL' && { backgroundColor: 'rgba(255,255,255,0.28)' }]}>
-                <Text style={[styles.subjCountText, activeSubject === 'ALL' && { color: '#fff' }]}>{byGrade.length}</Text>
-              </View>
-            </TouchableOpacity>
-
-            {subjects.map(([name, n]) => {
-              const on = activeSubject === name;
-              const tint = subjectTint(name);
-              return (
-                <TouchableOpacity
-                  key={name}
-                  activeOpacity={0.85}
-                  onPress={() => setSubjectSel(on ? 'ALL' : name)}
-                  style={[
-                    styles.subjChip,
-                    { borderColor: on ? tint : tint + '55', backgroundColor: on ? tint : tint + '12' },
-                  ]}
-                >
-                  <Text style={styles.subjEmoji}>{subjectEmoji(name)}</Text>
-                  <Text style={[styles.subjText, { color: on ? '#fff' : tint }]} numberOfLines={1}>{name}</Text>
-                  <View style={[styles.subjCount, { backgroundColor: on ? 'rgba(255,255,255,0.28)' : tint + '22' }]}>
-                    <Text style={[styles.subjCountText, { color: on ? '#fff' : tint }]}>{n}</Text>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        )}
-
-        {/* Continue spotlight */}
-        {resumeQuest && (
+        {/* Continue spotlight — only on the all-subjects overview. */}
+        {resumeQuest && activeSubject === 'ALL' && (
           <ContinueCard quest={resumeQuest} tokens={tokens} onPress={() => handleSelectQuest(resumeQuest)} />
         )}
 
@@ -316,55 +296,62 @@ export const QuestView: React.FC = () => {
             <Text style={styles.emptyTitle}>No quests yet</Text>
             <Text style={styles.emptyText}>Your teacher will publish some soon!</Text>
           </View>
-        ) : shown.length === 0 ? (
+        ) : byGrade.length === 0 ? (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🌱</Text>
-            {/* Name the filter that's actually responsible. gradeLabel('ALL')
-                returns "ALL", so the old copy read "Nothing in ALL yet". */}
-            <Text style={styles.emptyTitle}>
-              {activeSubject !== 'ALL'
-                ? `No ${activeSubject} quests here yet`
-                : gradeSel !== 'ALL'
-                  ? `Nothing in ${gradeLabel(gradeSel)} yet`
-                  : 'No quests yet'}
-            </Text>
-            <Text style={styles.emptyText}>
-              {activeSubject !== 'ALL'
-                ? 'Try another subject, or a different class.'
-                : gradeSel !== 'ALL'
-                  ? 'Try another class!'
-                  : 'New quests show up here as your teacher adds them.'}
-            </Text>
-            {(activeSubject !== 'ALL' || gradeSel !== 'ALL') && (
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={() => { setSubjectSel('ALL'); setGradeSel('ALL'); }}
-                style={[styles.clearBtn, { backgroundColor: tokens.accent1 }]}
-              >
-                <Text style={styles.clearBtnText}>Show all quests</Text>
+            <Text style={styles.emptyTitle}>{gradeSel !== 'ALL' ? `Nothing in ${gradeLabel(gradeSel)} yet` : 'No quests yet'}</Text>
+            <Text style={styles.emptyText}>{gradeSel !== 'ALL' ? 'Try another class!' : 'New quests show up here as your teacher adds them.'}</Text>
+            {gradeSel !== 'ALL' && (
+              <TouchableOpacity activeOpacity={0.85} onPress={() => setGradeSel('ALL')} style={[styles.clearBtn, { backgroundColor: tokens.accent1 }]}>
+                <Text style={styles.clearBtnText}>Show all classes</Text>
               </TouchableOpacity>
             )}
           </View>
-        ) : (
+        ) : activeSubject !== 'ALL' ? (
+          // ── One subject: its quests as full cards, with a way back ──
           <>
+            <TouchableOpacity style={styles.backAll} activeOpacity={0.7} onPress={() => setSubjectSel('ALL')}>
+              <Ionicons name="chevron-back" size={16} color={C.ink} />
+              <Text style={styles.backAllText}>All subjects</Text>
+            </TouchableOpacity>
+            <View style={styles.secH}>
+              <Text style={styles.secHTitle}>{subjectEmoji(activeSubject)}  {activeSubject}</Text>
+              <View style={styles.secHLine} />
+            </View>
             {resumeQuest && (
-              <View style={[styles.secH, { marginTop: 4 }]}>
-                <Text style={styles.allQuestsTitle}>{activeSubject === 'ALL' ? 'Quests by subject' : 'All quests'}</Text>
-                <View style={styles.secHLine} />
-              </View>
+              <ContinueCard quest={resumeQuest} tokens={tokens} onPress={() => handleSelectQuest(resumeQuest)} />
             )}
-            {/* Grouped by subject when no single subject is picked — each subject
-                is its own band with a colourful header and a horizontal row of
-                its quests, so it never becomes one endless downward scroll. */}
-            {activeSubject === 'ALL'
-              ? subjects.map(([name]) => {
-                  const list = byGrade.filter((q) => (q.subject || 'General').trim() === name);
-                  if (list.length === 0) return null;
-                  return <SubjectSection key={name} name={name} quests={list} onSelect={handleSelectQuest} />;
-                })
-              : shown.map((q) => (
-                  <QuestCard key={q.id} quest={q} onPress={() => handleSelectQuest(q)} />
-                ))}
+            {shown.map((q) => (
+              <QuestCard key={q.id} quest={q} onPress={() => handleSelectQuest(q)} />
+            ))}
+          </>
+        ) : (
+          // ── All subjects: compact tiles (progress + count) + Recommended ──
+          <>
+            {recommended.length > 0 && (
+              <>
+                <View style={[styles.secH, { marginTop: 4 }]}>
+                  <Text style={styles.allQuestsTitle}>⭐ Recommended</Text>
+                  <View style={styles.secHLine} />
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                  style={styles.recRowWrap} contentContainerStyle={styles.recRow}>
+                  {recommended.map((g) => (
+                    <SubjectTile key={`rec-${g.name}`} group={g} style={styles.subjTileRec} onOpen={() => setSubjectSel(g.name)} />
+                  ))}
+                </ScrollView>
+              </>
+            )}
+
+            <View style={[styles.secH, { marginTop: 4 }]}>
+              <Text style={styles.allQuestsTitle}>All subjects</Text>
+              <View style={styles.secHLine} />
+            </View>
+            <View style={styles.subjGrid}>
+              {subjectGroups.map((g) => (
+                <SubjectTile key={g.name} group={g} style={styles.subjTileGrid} onOpen={() => setSubjectSel(g.name)} />
+              ))}
+            </View>
           </>
         )}
 
@@ -515,37 +502,27 @@ const StatusBadge: React.FC<{ status: QuestSummary['status'] }> = ({ status }) =
 };
 
 // =================================================================
-// Subject section — one subject's quests in a horizontal row under a
-// colour-coded header (emoji + name + count). Keeps each subject a
-// self-contained band instead of one long list.
+// Subject tile — a compact card: emoji, subject name, quest count and a
+// progress bar. Tapping opens that subject's quests. Wears the subject's
+// own colour so the grid reads as a set of subjects, not a wall of cards.
 // =================================================================
-const SubjectSection: React.FC<{
-  name: string; quests: QuestSummary[]; onSelect: (q: QuestSummary) => void;
-}> = ({ name, quests, onSelect }) => {
-  const tint = subjectTint(name);
+const SubjectTile: React.FC<{ group: SubjGroup; onOpen: () => void; style?: any }> = ({ group, onOpen, style }) => {
+  const tint = subjectTint(group.name);
+  const done = group.pct >= 100;
   return (
-    <View style={styles.subjSection}>
-      <View style={styles.subjSectionHead}>
-        <View style={[styles.subjSectionEmojiWrap, { backgroundColor: tint + '1A' }]}>
-          <Text style={styles.subjSectionEmoji}>{subjectEmoji(name)}</Text>
+    <TouchableOpacity style={[styles.subjTile, { borderColor: tint + '33' }, style]} activeOpacity={0.85} onPress={onOpen}>
+      <View style={styles.subjTileTop}>
+        <View style={[styles.subjTileEmojiWrap, { backgroundColor: tint + '1A' }]}>
+          <Text style={styles.subjTileEmoji}>{subjectEmoji(group.name)}</Text>
         </View>
-        <Text style={styles.subjSectionName} numberOfLines={1}>{name}</Text>
-        <View style={[styles.subjSectionCount, { backgroundColor: tint + '1A' }]}>
-          <Text style={[styles.subjSectionCountText, { color: tint }]}>{quests.length}</Text>
-        </View>
+        <Text style={[styles.subjTilePct, { color: done ? '#15c98c' : tint }]}>{done ? '✓ Done' : `${group.pct}%`}</Text>
       </View>
-      <ScrollView
-        horizontal showsHorizontalScrollIndicator={false}
-        style={styles.subjSectionRowWrap} contentContainerStyle={styles.subjSectionRow}
-        snapToInterval={302} decelerationRate="fast"
-      >
-        {quests.map((q) => (
-          <View key={q.id} style={styles.subjSectionCardWrap}>
-            <QuestCard quest={q} onPress={() => onSelect(q)} />
-          </View>
-        ))}
-      </ScrollView>
-    </View>
+      <Text style={styles.subjTileName} numberOfLines={2}>{group.name}</Text>
+      <Text style={styles.subjTileCount}>{group.quests.length} {group.quests.length === 1 ? 'quest' : 'quests'}</Text>
+      <View style={styles.subjTileTrack}>
+        <View style={[styles.subjTileFill, { width: `${group.pct}%`, backgroundColor: tint }]} />
+      </View>
+    </TouchableOpacity>
   );
 };
 
@@ -806,17 +783,33 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: '800', color: S.ink },
   emptyText: { fontSize: 13, color: S.inkSoft, fontWeight: '600', marginTop: 6, textAlign: 'center' },
 
-  // Subject section (grouped-by-subject rows)
-  subjSection: { marginBottom: 18 },
-  subjSectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  subjSectionEmojiWrap: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  subjSectionEmoji: { fontSize: 16 },
-  subjSectionName: { flex: 1, fontSize: 15, fontWeight: '800', color: S.ink },
-  subjSectionCount: { minWidth: 22, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, alignItems: 'center' },
-  subjSectionCountText: { fontSize: 11, fontWeight: '800' },
-  subjSectionRowWrap: { marginHorizontal: -16 },
-  subjSectionRow: { paddingHorizontal: 16, gap: 12, paddingBottom: 2 },
-  subjSectionCardWrap: { width: 290 },
+  // Back to all-subjects (single-subject view)
+  backAll: {
+    flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start',
+    backgroundColor: S.card, borderRadius: 999, paddingLeft: 8, paddingRight: 12, paddingVertical: 7,
+    marginBottom: 12,
+    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 2,
+  },
+  backAllText: { fontSize: 13, fontWeight: '800', color: S.ink },
+
+  // Compact subject tiles (grouped overview + recommended)
+  recRowWrap: { marginHorizontal: -16, marginBottom: 6 },
+  recRow: { paddingHorizontal: 16, gap: 12, paddingBottom: 6, paddingTop: 2 },
+  subjGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 8 },
+  subjTile: {
+    backgroundColor: S.card, borderRadius: 18, borderWidth: 2, padding: 14,
+    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3,
+  },
+  subjTileRec: { width: 156 },
+  subjTileGrid: { flexBasis: '47%', flexGrow: 1 },
+  subjTileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  subjTileEmojiWrap: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  subjTileEmoji: { fontSize: 20 },
+  subjTilePct: { fontSize: 13, fontWeight: '900' },
+  subjTileName: { fontSize: 14.5, fontWeight: '800', color: S.ink, lineHeight: 18, minHeight: 36 },
+  subjTileCount: { fontSize: 11.5, fontWeight: '700', color: S.inkSoft, marginTop: 2, marginBottom: 10 },
+  subjTileTrack: { height: 7, borderRadius: 99, backgroundColor: S.line, overflow: 'hidden' },
+  subjTileFill: { height: '100%', borderRadius: 99 },
 
   // Quest card
   questCard: {
