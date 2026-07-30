@@ -534,7 +534,7 @@ const SubjectTile: React.FC<{ group: SubjGroup; onOpen: () => void; style?: any 
 // =================================================================
 // Quest map view - the actual map of stages once a quest is selected
 // =================================================================
-const QuestMapView: React.FC<{
+export const QuestMapView: React.FC<{
   questDetail: QuestDetail;
   tier: any;
   tokens: any;
