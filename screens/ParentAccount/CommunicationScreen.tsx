@@ -125,9 +125,20 @@ export const CommunicationScreen: React.FC = () => {
     getAnnouncementReadIds(accessToken).then((ids) => setReadIds(new Set(ids ?? []))).catch(() => {});
   }, [accessToken]);
 
-  const annList = useMemo(() =>
-    [...announcements].map((a) => ({ ...a, isNew: !!a.isNew && !(a.id && readIds.has(a.id)) })),
-    [announcements, readIds]);
+  // School updates: show only current & upcoming items — anything dated before
+  // today is a past update and is dropped. Undated items are kept (can't be
+  // classified). The clock is read here in the memo, refreshed on refetch.
+  const annList = useMemo(() => {
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    const cutoff = startOfToday.getTime();
+    return [...announcements]
+      .filter((a) => {
+        if (!a.date) return true;
+        const t = new Date(a.date).getTime();
+        return isNaN(t) ? true : t >= cutoff;
+      })
+      .map((a) => ({ ...a, isNew: !!a.isNew && !(a.id && readIds.has(a.id)) }));
+  }, [announcements, readIds]);
   const newCount = annList.filter((a) => a.isNew).length;
 
   // Opening Updates marks visible-new read (mirrors the web page). Runs from the
@@ -394,8 +405,8 @@ const UpdatesTab: React.FC<{ styles: any; colors: ColorPalette; loading: boolean
     return (
       <View style={styles.emptyCard}>
         <MaterialCommunityIcons name="bullhorn-outline" size={30} color={colors.textTertiary} />
-        <Text style={styles.emptyTitle}>No announcements yet</Text>
-        <Text style={styles.emptyText}>When the school posts a notice or newsletter, it’ll appear here.</Text>
+        <Text style={styles.emptyTitle}>No upcoming updates</Text>
+        <Text style={styles.emptyText}>Current and future notices, newsletters and events from the school will appear here.</Text>
       </View>
     );
   }
