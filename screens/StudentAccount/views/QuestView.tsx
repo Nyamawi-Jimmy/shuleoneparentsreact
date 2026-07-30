@@ -2,7 +2,6 @@ import React, { useCallback, useState } from 'react';
 import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator,
-  Image,
 } from 'react-native';
 
 import Svg, { Path, Circle } from 'react-native-svg';
@@ -445,92 +444,35 @@ const RingProgress: React.FC<{ pct: number }> = ({ pct }) => {
 // =================================================================
 // Quest card - shown in the list
 // =================================================================
+// Compact quest row: a small progress ring, title + stage/XP meta and an action
+// pill — a fraction of the old cover-card's height, so a subject with several
+// strands and many quests stays tight instead of a wall of big cards.
 const QuestCard: React.FC<{ quest: QuestSummary; onPress: () => void }> = ({ quest, onPress }) => {
-  const accent = quest.accentColor || '#7c5cff';
-  const progressPct = quest.totalXp > 0 ? (quest.earnedXp / quest.totalXp) * 100 : 0;
-  const isLocked = quest.status === 'LOCKED';
-
+  const tint = quest.accentColor || subjectTint(quest.subject || '');
+  const pct = quest.totalStages ? Math.round((quest.completedStages / quest.totalStages) * 100) : 0;
+  const locked = quest.status === 'LOCKED';
+  const done = quest.status === 'COMPLETED';
+  const actionColor = done ? '#15c98c' : tint;
+  const action = locked ? 'Locked' : done ? 'Replay' : quest.status === 'IN_PROGRESS' ? 'Continue' : 'Start';
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress} disabled={isLocked}>
-      <View style={[styles.questCard, { borderColor: accent + '40' }]}>
-        {/* Cover image / accent gradient header */}
-        <View style={styles.questCover}>
-          {quest.coverImageUrl ? (
-            <Image
-              source={{ uri: quest.coverImageUrl }}
-              style={StyleSheet.absoluteFill}
-              resizeMode="cover"
-            />
-          ) : null}
-          <LinearGradient
-            colors={[accent + 'CC', accent + '88']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={styles.questCoverInner}>
-            <View style={styles.themePill}>
-              <Text style={styles.themePillText}>{quest.subject}</Text>
-            </View>
-            <StatusBadge status={quest.status} />
-          </View>
-        </View>
-
-        {/* Body — compact: title, one-line description, stats, then
-            progress + action on a single row. */}
-        <View style={styles.questBody}>
-          <Text style={styles.questTitle} numberOfLines={1}>{quest.title}</Text>
-          <Text style={styles.questDesc} numberOfLines={1}>{quest.description}</Text>
-
-          <View style={styles.statsRow}>
-            <View style={styles.statChip}>
-              <Ionicons name="flag" size={11} color={accent} />
-              <Text style={[styles.statChipText, { color: accent }]}>
-                {quest.completedStages}/{quest.totalStages} stages
-              </Text>
-            </View>
-            <View style={styles.statChip}>
-              <Ionicons name="flash" size={11} color="#f4a716" />
-              <Text style={[styles.statChipText, { color: '#f4a716' }]}>
-                {quest.earnedXp}/{quest.totalXp} XP
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.progressActionRow}>
-            <View style={styles.progressBar}>
-              <LinearGradient
-                colors={[accent, accent + 'AA']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.progressFill, { width: `${progressPct}%` }]}
-              />
-            </View>
-            <Text style={[styles.actionLabel, { color: accent }]}>
-              {isLocked ? '🔒 Locked' :
-                quest.status === 'COMPLETED' ? '✓ Completed' :
-                quest.status === 'IN_PROGRESS' ? 'Continue →' :
-                'Start →'}
-            </Text>
-          </View>
+    <TouchableOpacity style={[styles.cqCard, { borderColor: tint + '2E' }]} activeOpacity={0.85} onPress={onPress} disabled={locked}>
+      {locked
+        ? <View style={styles.cqLock}><Text style={styles.cqLockText}>🔒</Text></View>
+        : <MiniRing pct={pct} tint={tint} size={42} />}
+      <View style={styles.cqBody}>
+        <Text style={styles.cqTitle} numberOfLines={1}>{quest.title}</Text>
+        <View style={styles.cqMetaRow}>
+          <Text style={styles.cqMeta}>{quest.completedStages}/{quest.totalStages} stages</Text>
+          {quest.totalXp > 0 && <Text style={styles.cqXp}>⚡ {quest.earnedXp}/{quest.totalXp}</Text>}
         </View>
       </View>
+      {!locked && (
+        <View style={[styles.cqAction, { backgroundColor: actionColor + '18' }]}>
+          <Text style={[styles.cqActionText, { color: actionColor }]}>{action}</Text>
+          <Ionicons name="chevron-forward" size={13} color={actionColor} />
+        </View>
+      )}
     </TouchableOpacity>
-  );
-};
-
-const StatusBadge: React.FC<{ status: QuestSummary['status'] }> = ({ status }) => {
-  const meta = {
-    LOCKED:      { bg: 'rgba(0,0,0,0.4)',    text: '🔒 Locked' },
-    AVAILABLE:   { bg: 'rgba(255,255,255,0.95)', text: 'New' },
-    IN_PROGRESS: { bg: 'rgba(255,255,255,0.95)', text: 'In progress' },
-    COMPLETED:   { bg: 'rgba(21, 201, 140, 0.95)', text: '✓ Done' },
-  }[status];
-  const color = status === 'COMPLETED' || status === 'LOCKED' ? '#fff' : '#2c2550';
-  return (
-    <View style={[styles.statusBadge, { backgroundColor: meta.bg }]}>
-      <Text style={[styles.statusBadgeText, { color }]}>{meta.text}</Text>
-    </View>
   );
 };
 
@@ -881,6 +823,22 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, marginTop: 8,
   },
   subjTileCountText: { fontSize: 11.5, fontWeight: '800' },
+
+  // Compact quest row (inside a subject / strand)
+  cqCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: S.card, borderRadius: 16, borderWidth: 1.5, padding: 12, marginBottom: 10,
+    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
+  },
+  cqLock: { width: 42, height: 42, borderRadius: 21, backgroundColor: S.soft, alignItems: 'center', justifyContent: 'center' },
+  cqLockText: { fontSize: 18 },
+  cqBody: { flex: 1, minWidth: 0 },
+  cqTitle: { fontSize: 14.5, fontWeight: '800', color: S.ink },
+  cqMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 3 },
+  cqMeta: { fontSize: 11.5, fontWeight: '700', color: S.inkSoft },
+  cqXp: { fontSize: 11.5, fontWeight: '700', color: '#f4a716' },
+  cqAction: { flexDirection: 'row', alignItems: 'center', gap: 2, borderRadius: 999, paddingLeft: 11, paddingRight: 7, paddingVertical: 6 },
+  cqActionText: { fontSize: 12, fontWeight: '800' },
 
   // Quest card
   questCard: {
