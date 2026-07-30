@@ -32,6 +32,8 @@ export interface QuestSummary {
   earnedXp: number;
   status: ProgressStatus;
   grade?: string | null;            // class code (PLAYGROUP/PP1/GRADE1/FORM1…)
+  learningArea?: string | null;     // subject with the class suffix stripped ("CRE GRADE2" -> "CRE")
+  strand?: string | null;           // curriculum strand/topic, resolved via the quest's lessons; null when unplaced
   lastActivityAt?: string | null;
 }
 

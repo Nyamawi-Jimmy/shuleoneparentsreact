@@ -65,6 +65,22 @@ type SubjGroup = {
   total: number; done: number; pct: number; actionable: boolean;
 };
 
+// Within a subject, split quests by curriculum strand (first-appearance order —
+// quests already arrive in curriculum order). Unplaced quests fall into a
+// trailing "More" bucket rather than being hidden.
+type StrandGroup = { key: string; title: string; placed: boolean; quests: QuestSummary[] };
+function groupByStrand(quests: QuestSummary[]): StrandGroup[] {
+  const groups = new Map<string, StrandGroup>();
+  for (const q of quests) {
+    const strand = (q.strand || '').trim();
+    const key = strand || '__more__';
+    if (!groups.has(key)) groups.set(key, { key, title: strand || 'More', placed: !!strand, quests: [] });
+    groups.get(key)!.quests.push(q);
+  }
+  const all = [...groups.values()];
+  return [...all.filter((g) => g.placed), ...all.filter((g) => !g.placed)];
+}
+
 // Default node positions for the 0..100 SVG coordinate space (kid-design.html)
 const DEFAULT_POSITIONS = [
   { x: 18, y: 88 },
@@ -321,9 +337,26 @@ export const QuestView: React.FC = () => {
             {resumeQuest && (
               <ContinueCard quest={resumeQuest} tokens={tokens} onPress={() => handleSelectQuest(resumeQuest)} />
             )}
-            {shown.map((q) => (
-              <QuestCard key={q.id} quest={q} onPress={() => handleSelectQuest(q)} />
-            ))}
+            {/* Sub-grouped by curriculum strand when the subject spans more than
+                one; a single-strand subject just lists its quests. */}
+            {(() => {
+              const sg = groupByStrand(shown);
+              const showStrands = sg.length > 1;
+              return sg.map((g) => (
+                <View key={g.key}>
+                  {showStrands && (
+                    <View style={styles.strandHead}>
+                      <View style={[styles.strandDot, { backgroundColor: subjectTint(activeSubject) }]} />
+                      <Text style={styles.strandTitle} numberOfLines={2}>{g.title}</Text>
+                      <View style={styles.strandCount}><Text style={styles.strandCountText}>{g.quests.length}</Text></View>
+                    </View>
+                  )}
+                  {g.quests.map((q) => (
+                    <QuestCard key={q.id} quest={q} onPress={() => handleSelectQuest(q)} />
+                  ))}
+                </View>
+              ));
+            })()}
           </>
         ) : (
           // ── All subjects: compact tiles (progress + count) + Recommended ──
@@ -501,26 +534,56 @@ const StatusBadge: React.FC<{ status: QuestSummary['status'] }> = ({ status }) =
   );
 };
 
+// A small circular progress ring — reads far more premium than a flat bar +
+// bare "62%". Track is a faint tint, the arc is the subject colour, and the
+// centre shows % (or a tick when the subject is done).
+const MiniRing: React.FC<{ pct: number; tint: string; size?: number }> = ({ pct, tint, size = 46 }) => {
+  const stroke = 5;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(100, pct));
+  const done = p >= 100;
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Svg width={size} height={size} style={{ position: 'absolute' }}>
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={tint + '26'} strokeWidth={stroke} fill="none" />
+        <Circle
+          cx={size / 2} cy={size / 2} r={r} stroke={done ? '#15c98c' : tint} strokeWidth={stroke} fill="none"
+          strokeDasharray={c} strokeDashoffset={c * (1 - p / 100)} strokeLinecap="round"
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </Svg>
+      {done
+        ? <Ionicons name="checkmark" size={20} color="#15c98c" />
+        : <Text style={{ fontSize: 12, fontWeight: '900', color: tint }}>{p}%</Text>}
+    </View>
+  );
+};
+
 // =================================================================
-// Subject tile — a compact card: emoji, subject name, quest count and a
-// progress bar. Tapping opens that subject's quests. Wears the subject's
-// own colour so the grid reads as a set of subjects, not a wall of cards.
+// Subject tile — a compact, modern card: a soft colour wash, the subject's
+// emoji, a circular progress ring and a quest-count pill. Tapping opens that
+// subject's quests. Each tile wears its subject's own colour identity.
 // =================================================================
 const SubjectTile: React.FC<{ group: SubjGroup; onOpen: () => void; style?: any }> = ({ group, onOpen, style }) => {
   const tint = subjectTint(group.name);
-  const done = group.pct >= 100;
   return (
-    <TouchableOpacity style={[styles.subjTile, { borderColor: tint + '33' }, style]} activeOpacity={0.85} onPress={onOpen}>
+    <TouchableOpacity style={[styles.subjTile, { borderColor: tint + '30' }, style]} activeOpacity={0.85} onPress={onOpen}>
+      {/* Soft top-down colour wash for depth (rounded to match the card). */}
+      <LinearGradient
+        colors={[tint + '1F', tint + '00']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+        style={[StyleSheet.absoluteFill, { borderRadius: 20 }]} pointerEvents="none"
+      />
       <View style={styles.subjTileTop}>
-        <View style={[styles.subjTileEmojiWrap, { backgroundColor: tint + '1A' }]}>
+        <View style={[styles.subjTileEmojiWrap, { backgroundColor: tint + '24' }]}>
           <Text style={styles.subjTileEmoji}>{subjectEmoji(group.name)}</Text>
         </View>
-        <Text style={[styles.subjTilePct, { color: done ? '#15c98c' : tint }]}>{done ? '✓ Done' : `${group.pct}%`}</Text>
+        <MiniRing pct={group.pct} tint={tint} />
       </View>
       <Text style={styles.subjTileName} numberOfLines={2}>{group.name}</Text>
-      <Text style={styles.subjTileCount}>{group.quests.length} {group.quests.length === 1 ? 'quest' : 'quests'}</Text>
-      <View style={styles.subjTileTrack}>
-        <View style={[styles.subjTileFill, { width: `${group.pct}%`, backgroundColor: tint }]} />
+      <View style={[styles.subjTileCountPill, { backgroundColor: tint + '18' }]}>
+        <Ionicons name="flag" size={11} color={tint} />
+        <Text style={[styles.subjTileCountText, { color: tint }]}>{group.quests.length} {group.quests.length === 1 ? 'quest' : 'quests'}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -792,24 +855,32 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   },
   backAllText: { fontSize: 13, fontWeight: '800', color: S.ink },
 
+  // Strand sub-group header (inside a subject)
+  strandHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 10 },
+  strandDot: { width: 8, height: 8, borderRadius: 4 },
+  strandTitle: { flex: 1, fontSize: 13.5, fontWeight: '800', color: S.inkSoft },
+  strandCount: { minWidth: 22, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: S.soft, alignItems: 'center' },
+  strandCountText: { fontSize: 11, fontWeight: '800', color: S.inkSoft },
+
   // Compact subject tiles (grouped overview + recommended)
   recRowWrap: { marginHorizontal: -16, marginBottom: 6 },
-  recRow: { paddingHorizontal: 16, gap: 12, paddingBottom: 6, paddingTop: 2 },
+  recRow: { paddingHorizontal: 16, gap: 12, paddingBottom: 8, paddingTop: 2 },
   subjGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 8 },
   subjTile: {
-    backgroundColor: S.card, borderRadius: 18, borderWidth: 2, padding: 14,
-    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3,
+    backgroundColor: S.card, borderRadius: 20, borderWidth: 1.5, padding: 14,
+    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.13, shadowRadius: 14, elevation: 4,
   },
-  subjTileRec: { width: 156 },
+  subjTileRec: { width: 158 },
   subjTileGrid: { flexBasis: '47%', flexGrow: 1 },
   subjTileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  subjTileEmojiWrap: { width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
-  subjTileEmoji: { fontSize: 20 },
-  subjTilePct: { fontSize: 13, fontWeight: '900' },
+  subjTileEmojiWrap: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  subjTileEmoji: { fontSize: 22 },
   subjTileName: { fontSize: 14.5, fontWeight: '800', color: S.ink, lineHeight: 18, minHeight: 36 },
-  subjTileCount: { fontSize: 11.5, fontWeight: '700', color: S.inkSoft, marginTop: 2, marginBottom: 10 },
-  subjTileTrack: { height: 7, borderRadius: 99, backgroundColor: S.line, overflow: 'hidden' },
-  subjTileFill: { height: '100%', borderRadius: 99 },
+  subjTileCountPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start',
+    borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, marginTop: 8,
+  },
+  subjTileCountText: { fontSize: 11.5, fontWeight: '800' },
 
   // Quest card
   questCard: {
