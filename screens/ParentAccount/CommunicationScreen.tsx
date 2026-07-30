@@ -41,6 +41,12 @@ const shortDate = (iso?: string | null): string => {
   const d = new Date(iso);
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 };
+// Date with the year, for school-update cards — "5 Aug 2026".
+const dateWithYear = (iso?: string | null): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+};
 // FULL date for assignment deadlines — "Mon, 30 Mar 2026", plus the time when
 // the deadline carries one. A day-and-month stamp alone is ambiguous across terms.
 const fullDate = (iso?: string | null): string => {
@@ -443,7 +449,7 @@ const UpdatesTab: React.FC<{ styles: any; colors: ColorPalette; loading: boolean
                 )
               )}
               <View style={styles.annFooter}>
-                <Text style={styles.annMeta}>{a.from || ''}</Text>
+                <Text style={styles.annMeta}>{[a.from, dateWithYear(a.date)].filter(Boolean).join(' · ')}</Text>
                 <View style={[styles.typeChip, { backgroundColor: t.color + '14' }]}><Text style={[styles.typeChipText, { color: t.color }]}>{t.label}</Text></View>
               </View>
             </View>
