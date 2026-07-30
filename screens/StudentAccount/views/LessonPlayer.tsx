@@ -13,7 +13,17 @@ import { LearningHeader } from '../components/LearningHeader';
 import { useAuth } from '../../../context/AuthContext';
 import { getStageLesson, completeStage, StageAnswer } from '../../../api/quests';
 import { Lesson, LessonActivity, StageCompletionResult } from '../../../api/quest.types';
-import { ApiError } from '../../../config/api';
+import { ApiError, API_BASE_URL } from '../../../config/api';
+
+// Activity media often arrives as a server-relative path ("/uploads/x.png").
+// React Native's <Image> needs an absolute URL, so resolve it against the API
+// origin — otherwise the image silently fails to load and the tile looks blank.
+const mediaUrl = (u?: string | null): string | undefined => {
+  const s = String(u ?? '').trim();
+  if (!s) return undefined;
+  if (/^(https?:|data:|file:)/i.test(s)) return s;
+  return `${API_BASE_URL}${s.startsWith('/') ? '' : '/'}${s}`;
+};
 
 // =================================================================
 // Lesson screen. Opened as /student/lesson?questId=X&stageId=Y — the
@@ -429,6 +439,10 @@ const ChoiceTile: React.FC<{
     state === 'right' ? '#15c98c' : state === 'wrong' ? '#ef4444' : '#ece8fb';
   const bg =
     state === 'right' ? '#eafef3' : state === 'wrong' ? '#fee2e2' : '#fff';
+  // Fall back to the label if the image URL is broken, so the tile is never blank.
+  const [imgFailed, setImgFailed] = useState(false);
+  const src = mediaUrl(choice.image);
+  const showImg = !!src && !imgFailed;
   if (textMode) {
     return (
       <TouchableOpacity
@@ -441,13 +455,14 @@ const ChoiceTile: React.FC<{
       </TouchableOpacity>
     );
   }
+  const hasVisual = showImg || !!choice.emoji || !!choice.color;
   return (
     <TouchableOpacity
       activeOpacity={0.85} onPress={onPress} disabled={disabled}
       style={[styles.tile, { borderColor: border, backgroundColor: bg }, state === 'dim' && styles.dim]}
     >
-      {choice.image ? (
-        <Image source={{ uri: choice.image }} style={styles.tileImg} resizeMode="contain" />
+      {showImg ? (
+        <Image source={{ uri: src }} style={styles.tileImg} resizeMode="contain" onError={() => setImgFailed(true)} />
       ) : choice.emoji ? (
         <Text style={styles.tileEmoji}>{choice.emoji}</Text>
       ) : choice.color ? (
@@ -456,10 +471,33 @@ const ChoiceTile: React.FC<{
         <Text style={styles.tileWord} numberOfLines={3}>{choice.label ?? choice.text ?? '❓'}</Text>
       )}
       {/* Show the label under a visual; when the tile IS the word, don't repeat it. */}
-      {!!choice.label && (choice.image || choice.emoji || choice.color) && (
+      {!!choice.label && hasVisual && (
         <Text style={styles.tileLabel} numberOfLines={2}>{choice.label}</Text>
       )}
     </TouchableOpacity>
+  );
+};
+
+/** Image/emoji/colour/word visual with a broken-image fallback to the label —
+ *  shared by the sort-bucket items. */
+const ItemVisual: React.FC<{ item: { emoji?: string; color?: string; label?: string; image?: string } }> = ({ item }) => {
+  const [failed, setFailed] = useState(false);
+  const src = mediaUrl(item.image);
+  const showImg = !!src && !failed;
+  const hasVisual = showImg || !!item.emoji || !!item.color;
+  return (
+    <>
+      {showImg ? (
+        <Image source={{ uri: src }} style={styles.tileImg} resizeMode="contain" onError={() => setFailed(true)} />
+      ) : item.emoji ? (
+        <Text style={styles.tileEmoji}>{item.emoji}</Text>
+      ) : item.color ? (
+        <View style={[styles.tileSwatch, { backgroundColor: item.color }]} />
+      ) : (
+        <Text style={styles.tileWord} numberOfLines={3}>{item.label ?? '❓'}</Text>
+      )}
+      {!!item.label && hasVisual && <Text style={styles.tileLabel} numberOfLines={2}>{item.label}</Text>}
+    </>
   );
 };
 
@@ -625,7 +663,7 @@ const AudioMatchPlayer: React.FC<PlayerProps> = (props) => {
 const SortBucketPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
   const cfg = (activity.config ?? {}) as Record<string, any>;
   const buckets: { id: string; label: string; color?: string }[] = Array.isArray(cfg.buckets) ? cfg.buckets : [];
-  const items: { emoji?: string; color?: string; label?: string; bucket: string }[] = Array.isArray(cfg.items) ? cfg.items : [];
+  const items: { emoji?: string; color?: string; label?: string; image?: string; bucket: string }[] = Array.isArray(cfg.items) ? cfg.items : [];
   const [placed, setPlaced] = useState<Record<number, string>>({});
   const [sel, setSel] = useState<number | null>(null);
   const [wrongBucket, setWrongBucket] = useState<string | null>(null);
@@ -670,14 +708,7 @@ const SortBucketPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
             key={i} activeOpacity={0.85} onPress={() => tapItem(i)} disabled={done}
             style={[styles.tile, sel === i && { borderColor: '#7c5cff', backgroundColor: C.ring }]}
           >
-            {it.emoji ? (
-              <Text style={styles.tileEmoji}>{it.emoji}</Text>
-            ) : it.color ? (
-              <View style={[styles.tileSwatch, { backgroundColor: it.color }]} />
-            ) : (
-              <Text style={styles.tileWord} numberOfLines={3}>{it.label ?? '❓'}</Text>
-            )}
-            {!!it.label && (it.emoji || it.color) && <Text style={styles.tileLabel} numberOfLines={2}>{it.label}</Text>}
+            <ItemVisual item={it} />
           </TouchableOpacity>
         ))}
       </View>
