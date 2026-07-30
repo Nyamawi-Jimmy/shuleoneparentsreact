@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StudentColors, STUDENT_LIGHT, STUDENT_DARK, themedSheets, C, useSchemeTick } from '../studentTheme';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert,
-  TextInput, Linking,
+  TextInput, Linking, Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,6 +40,24 @@ const SCENE_KINDS = [
   'INTERACTIVE_VIDEO', 'SPEAK', 'DRAW', 'TRACE', 'TRACE_GUIDED', 'COLOUR_IN', 'LABEL_DIAGRAM',
 ];
 const isScene = (kind: string) => SCENE_KINDS.includes(String(kind).toUpperCase());
+
+// Only these kinds require an answer before Next. Everything else — content,
+// scenes AND any unrecognised kind — is non-blocking and auto-completes, so a
+// quest never dead-ends on an activity type (the web behaves the same: its
+// default renderer just shows the content).
+const INTERACTIVE_KINDS = new Set([
+  'TAP_SELECT', 'QUIZ', 'MULTIPLE_CHOICE', 'MULTI_SELECT', 'COUNT', 'AUDIO_MATCH',
+  'SORT_BUCKET', 'TRUE_FALSE', 'FILL_BLANK', 'LISTEN_TYPE', 'DRAG_MATCH',
+  'SEQUENCE_ORDER', 'COMPARE', 'MEMORY_PAIRS', 'HOTSPOT', 'NUMBER_LINE',
+]);
+const needsAnswerKind = (kind: string) => INTERACTIVE_KINDS.has(String(kind).toUpperCase());
+
+// Kinds whose player draws the question/statement itself — the lesson's own
+// prompt row is hidden for these so the text never shows twice.
+const SELF_PROMPT_KINDS = new Set([
+  'FILL_BLANK', 'READ', 'WATCH', 'VIDEO', 'PRACTICAL', 'INTERACTIVE_VIDEO', 'SPEAK',
+  'DRAW', 'TRACE', 'TRACE_GUIDED', 'COLOUR_IN', 'LABEL_DIAGRAM', 'STORY_SCENE', 'CELEBRATE',
+]);
 
 export const LessonPlayer: React.FC = () => {
   const { questId, stageId } = useLocalSearchParams<{
@@ -135,7 +153,7 @@ export const LessonPlayer: React.FC = () => {
     !isIntro ? lesson.activities[activityIndex] : undefined;
   const isLast = step === totalSlides - 1;
 
-  const needsAnswer = (a: LessonActivity | undefined) => !!a && !isScene(a.kind);
+  const needsAnswer = (a: LessonActivity | undefined) => !!a && needsAnswerKind(a.kind);
   const currentBlocked = needsAnswer(currentActivity) && answers[activityIndex] === undefined;
   const allAnswered = lesson.activities.every((a, i) => !needsAnswer(a) || answers[i] !== undefined);
 
@@ -188,7 +206,8 @@ export const LessonPlayer: React.FC = () => {
       const recorded = lesson.activities
         .map((a, i): StageAnswer | null => {
           if (answers[i] !== undefined) return { activityId: a.id, kind: a.kind, answer: answers[i] };
-          if (isScene(a.kind)) return { activityId: a.id, kind: a.kind, answer: { completed: true } };
+          // Non-interactive (content/scene/unknown) — count as passed-through.
+          if (!needsAnswerKind(a.kind)) return { activityId: a.id, kind: a.kind, answer: { completed: true } };
           return null;
         })
         .filter((x): x is StageAnswer => x !== null);
@@ -258,8 +277,10 @@ export const LessonPlayer: React.FC = () => {
           </LinearGradient>
         ) : currentActivity ? (
           <View>
-            {/* Prompt row — question + small listen button, no banner */}
-            {!!promptText && (
+            {/* Prompt row — question + small listen button, no banner. Hidden for
+                kinds whose own player already draws the prompt (FILL_BLANK, READ,
+                video, etc.) so the question never appears twice. */}
+            {!!promptText && !SELF_PROMPT_KINDS.has(String(currentActivity.kind).toUpperCase()) && (
               <View style={styles.promptRow}>
                 <Text style={styles.promptText}>{promptText}</Text>
                 <TouchableOpacity activeOpacity={0.8} onPress={speakCurrent} style={styles.listenRound} hitSlop={6}>
@@ -376,8 +397,10 @@ const ActivityPlayer: React.FC<PlayerProps> = (props) => {
     case 'COLOUR_IN':
     case 'LABEL_DIAGRAM':
       return <ContentPlayer {...props} />;
+    // Any unrecognised kind renders as readable content (mirrors the web's
+    // default renderer) instead of dead-ending on "not on mobile yet".
     default:
-      return <UnknownPlayer {...props} />;
+      return <ContentPlayer {...props} />;
   }
 };
 
@@ -423,14 +446,19 @@ const ChoiceTile: React.FC<{
       activeOpacity={0.85} onPress={onPress} disabled={disabled}
       style={[styles.tile, { borderColor: border, backgroundColor: bg }, state === 'dim' && styles.dim]}
     >
-      {choice.emoji ? (
+      {choice.image ? (
+        <Image source={{ uri: choice.image }} style={styles.tileImg} resizeMode="contain" />
+      ) : choice.emoji ? (
         <Text style={styles.tileEmoji}>{choice.emoji}</Text>
       ) : choice.color ? (
         <View style={[styles.tileSwatch, { backgroundColor: choice.color }]} />
       ) : (
-        <Text style={styles.tileEmoji}>❓</Text>
+        <Text style={styles.tileWord} numberOfLines={3}>{choice.label ?? choice.text ?? '❓'}</Text>
       )}
-      {!!choice.label && <Text style={styles.tileLabel} numberOfLines={1}>{choice.label}</Text>}
+      {/* Show the label under a visual; when the tile IS the word, don't repeat it. */}
+      {!!choice.label && (choice.image || choice.emoji || choice.color) && (
+        <Text style={styles.tileLabel} numberOfLines={2}>{choice.label}</Text>
+      )}
     </TouchableOpacity>
   );
 };
@@ -438,7 +466,7 @@ const ChoiceTile: React.FC<{
 /** Tap the ONE correct choice. Wrong → brief red flash; right → green + solve. */
 const TapSelectPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
   const choices = readChoices(activity);
-  const textMode = choices.some((c) => c.text && !c.emoji && !c.color && !c.image);
+  const textMode = choices.length > 0 && choices.every((c) => !c.emoji && !c.color && !c.image);
   const [rightIdx, setRightIdx] = useState<number | null>(null);
   const [wrongIdx, setWrongIdx] = useState<number | null>(null);
 
@@ -474,7 +502,7 @@ const TapSelectPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }
 /** Find ALL the correct choices. */
 const MultiSelectPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
   const choices = readChoices(activity);
-  const textMode = choices.some((c) => c.text && !c.emoji && !c.color && !c.image);
+  const textMode = choices.length > 0 && choices.every((c) => !c.emoji && !c.color && !c.image);
   const totalCorrect = choices.filter((c) => c.correct).length;
   const [picked, setPicked] = useState<number[]>([]);
   const [wrongIdx, setWrongIdx] = useState<number | null>(null);
@@ -642,8 +670,14 @@ const SortBucketPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
             key={i} activeOpacity={0.85} onPress={() => tapItem(i)} disabled={done}
             style={[styles.tile, sel === i && { borderColor: '#7c5cff', backgroundColor: C.ring }]}
           >
-            <Text style={styles.tileEmoji}>{it.emoji ?? '❓'}</Text>
-            {!!it.label && <Text style={styles.tileLabel} numberOfLines={1}>{it.label}</Text>}
+            {it.emoji ? (
+              <Text style={styles.tileEmoji}>{it.emoji}</Text>
+            ) : it.color ? (
+              <View style={[styles.tileSwatch, { backgroundColor: it.color }]} />
+            ) : (
+              <Text style={styles.tileWord} numberOfLines={3}>{it.label ?? '❓'}</Text>
+            )}
+            {!!it.label && (it.emoji || it.color) && <Text style={styles.tileLabel} numberOfLines={2}>{it.label}</Text>}
           </TouchableOpacity>
         ))}
       </View>
@@ -698,10 +732,10 @@ function shuffle<T>(arr: T[]): T[] {
 const cfgOf = (a: LessonActivity) => (a.config ?? {}) as Record<string, any>;
 const glyph = (o: any): string => o?.emoji ?? o?.label ?? o?.text ?? '❓';
 
-/** True / False. config { promptText, correct:Boolean }. Answer { value:Boolean }. */
+/** True / False. config { promptText, correct:Boolean }. Answer { value:Boolean }.
+ *  The statement is shown by the lesson's prompt row above — not repeated here. */
 const TrueFalsePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
   const cfg = cfgOf(activity);
-  const stmt = cfg.promptText || activity.prompt || 'True or false?';
   const correct = cfg.correct === true || String(cfg.correct).toLowerCase() === 'true';
   const [picked, setPicked] = useState<boolean | null>(null);
   const tap = (v: boolean) => {
@@ -713,7 +747,6 @@ const TrueFalsePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }
   };
   return (
     <View>
-      <Text style={styles.tfStmt}>{stmt}</Text>
       <View style={styles.tfRow}>
         {[{ v: true, l: 'True', e: '✅' }, { v: false, l: 'False', e: '❌' }].map((o) => {
           const state = picked === o.v ? (o.v === correct ? 'right' : 'wrong')
@@ -731,27 +764,25 @@ const TrueFalsePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }
   );
 };
 
-/** A short text answer + Check button. config { promptText, answers[] }. Answer { text }. */
-const TextAnswerPlayer: React.FC<PlayerProps & { onListen?: () => void }> = ({ activity, answered, onSolved, onListen }) => {
+/** LISTEN_TYPE — the prompt is shown by the lesson above; here just a Play
+ *  button + a text box + Check. Answer { text }. */
+const ListenTypePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
   const cfg = cfgOf(activity);
-  const prompt = (cfg.promptText || activity.prompt || 'Type your answer.') as string;
   const [value, setValue] = useState('');
   const [sent, setSent] = useState(false);
   const submit = () => { const t = value.trim(); if (!t || sent || answered) return; setSent(true); onSolved({ text: t }); };
+  const listen = () => { Speech.stop(); if (cfg.text) Speech.speak(String(cfg.text), { language: 'en-US', rate: 0.85 }); };
   return (
     <View>
-      {!!onListen && (
-        <TouchableOpacity activeOpacity={0.85} onPress={onListen}>
-          <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bigListen}>
-            <Ionicons name="volume-high" size={22} color="#fff" />
-            <Text style={styles.bigListenText}>Play</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      )}
-      <Text style={styles.fbPrompt}>{prompt.replace(/_{2,}/g, ' ____ ')}</Text>
+      <TouchableOpacity activeOpacity={0.85} onPress={listen}>
+        <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bigListen}>
+          <Ionicons name="volume-high" size={22} color="#fff" />
+          <Text style={styles.bigListenText}>Play</Text>
+        </LinearGradient>
+      </TouchableOpacity>
       <TextInput
         style={styles.input} value={value} onChangeText={setValue}
-        placeholder="Type your answer" placeholderTextColor="#9b93c4"
+        placeholder="Type what you hear" placeholderTextColor="#9b93c4"
         editable={!answered && !sent} onSubmitEditing={submit} returnKeyType="done"
       />
       {!answered && !sent && (
@@ -762,11 +793,52 @@ const TextAnswerPlayer: React.FC<PlayerProps & { onListen?: () => void }> = ({ a
     </View>
   );
 };
-const FillBlankPlayer: React.FC<PlayerProps> = (props) => <TextAnswerPlayer {...props} />;
-const ListenTypePlayer: React.FC<PlayerProps> = (props) => {
-  const cfg = cfgOf(props.activity);
-  const listen = () => { Speech.stop(); if (cfg.text) Speech.speak(String(cfg.text), { language: 'en-US', rate: 0.85 }); };
-  return <TextAnswerPlayer {...props} onListen={listen} />;
+
+/** FILL_BLANK — the sentence is shown HERE with the answer typed inline in the
+ *  blank (the lesson suppresses its own prompt row for this kind). config
+ *  { promptText (with ___), answers[] }. Answer { text }. */
+const FillBlankPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
+  const cfg = cfgOf(activity);
+  const prompt = String(cfg.promptText || activity.prompt || '');
+  // A blank can be written as ___ (2+ underscores), [blank]/[…] or {…}.
+  const segs = prompt.split(/_{2,}|\[[^\]]*\]|\{[^}]*\}/);
+  const hasBlank = segs.length > 1;
+  const before = segs[0] ?? '';
+  const after = segs.slice(1).join(' ');
+  const [value, setValue] = useState('');
+  const [sent, setSent] = useState(false);
+  const locked = answered || sent;
+  const submit = () => { const t = value.trim(); if (!t || locked) return; setSent(true); onSolved({ text: t }); };
+  return (
+    <View>
+      {hasBlank ? (
+        <View style={styles.fbInlineWrap}>
+          {!!before.trim() && <Text style={styles.fbInlineText}>{before.trim()} </Text>}
+          <TextInput
+            style={[styles.fbInlineInput, locked && styles.fbInlineInputDone]}
+            value={value} onChangeText={setValue} editable={!locked}
+            placeholder="?" placeholderTextColor="#b9b2d8"
+            onSubmitEditing={submit} returnKeyType="done" autoCapitalize="none"
+          />
+          {!!after.trim() && <Text style={styles.fbInlineText}> {after.trim()}</Text>}
+        </View>
+      ) : (
+        <>
+          <Text style={styles.fbPrompt}>{prompt || 'Fill in the blank.'}</Text>
+          <TextInput
+            style={styles.input} value={value} onChangeText={setValue} editable={!locked}
+            placeholder="Type your answer" placeholderTextColor="#9b93c4"
+            onSubmitEditing={submit} returnKeyType="done"
+          />
+        </>
+      )}
+      {!locked && (
+        <TouchableOpacity onPress={submit} disabled={!value.trim()} style={[styles.checkBtn, !value.trim() && styles.dim]}>
+          <Text style={styles.checkBtnText}>Check</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
 };
 
 /** Tap a left tile, then its match on the right. config { pairs:[{left,right}] }. */
@@ -1210,7 +1282,19 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   },
   tileEmoji: { fontSize: 44 },
   tileSwatch: { width: 44, height: 44, borderRadius: 22 },
-  tileLabel: { fontSize: 11.5, fontWeight: '700', color: S.inkSoft },
+  tileImg: { width: 60, height: 60, borderRadius: 10 },
+  tileWord: { fontSize: 15, fontWeight: '800', color: S.ink, textAlign: 'center' },
+  tileLabel: { fontSize: 11.5, fontWeight: '700', color: S.inkSoft, marginTop: 4, textAlign: 'center' },
+
+  // FILL_BLANK — sentence with the answer typed inline in the blank
+  fbInlineWrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 4 },
+  fbInlineText: { fontSize: 16, fontWeight: '700', color: S.ink, lineHeight: 34 },
+  fbInlineInput: {
+    minWidth: 90, borderBottomWidth: 2, borderBottomColor: '#7c5cff',
+    fontSize: 16, fontWeight: '800', color: '#7c5cff', textAlign: 'center',
+    paddingHorizontal: 8, paddingVertical: 2,
+  },
+  fbInlineInputDone: { borderBottomColor: '#15c98c', color: '#15c98c' },
   dim: { opacity: 0.45 },
 
   // Text-mode choices
