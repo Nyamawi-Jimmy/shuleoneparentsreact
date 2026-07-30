@@ -25,6 +25,22 @@ const mediaUrl = (u?: string | null): string | undefined => {
   return `${API_BASE_URL}${s.startsWith('/') ? '' : '/'}${s}`;
 };
 
+// Activity config may arrive as a parsed JSON OBJECT (backend Map) OR a JSON
+// STRING (content-admin stores raw JSON text). This mirrors the web's
+// readConfig contract — always parse defensively. Reading it as an object only
+// (the old bug) meant string-configured activities lost their choices/items and
+// rendered just one legacy option.
+function readConfig(activity?: LessonActivity | null): Record<string, any> {
+  const c = activity?.config as unknown;
+  if (c == null) return {};
+  if (typeof c === 'string') {
+    const s = c.trim();
+    if (!s) return {};
+    try { const p = JSON.parse(s); return p && typeof p === 'object' ? p : {}; } catch { return {}; }
+  }
+  return typeof c === 'object' ? (c as Record<string, any>) : {};
+}
+
 // =================================================================
 // Lesson screen. Opened as /student/lesson?questId=X&stageId=Y — the
 // lesson is fetched THROUGH its stage (the backend authorises stage
@@ -170,7 +186,7 @@ export const LessonPlayer: React.FC = () => {
   // ── Listen (TTS) ──────────────────────────────────────
   const speakCurrent = () => {
     Speech.stop();
-    const cfg = (currentActivity?.config ?? {}) as Record<string, unknown>;
+    const cfg = readConfig(currentActivity);
     const text = isIntro
       ? lesson.intro || stripHtml(lesson.contentHtml)
       : (currentActivity?.narration
@@ -241,7 +257,7 @@ export const LessonPlayer: React.FC = () => {
   }
 
   // ── Render ────────────────────────────────────────────
-  const cfg = (currentActivity?.config ?? {}) as Record<string, any>;
+  const cfg = readConfig(currentActivity);
   const promptText: string = isIntro
     ? ''
     : String(cfg.promptText ?? currentActivity?.prompt ?? '');
@@ -420,7 +436,7 @@ interface Choice {
 }
 
 function readChoices(activity: LessonActivity): Choice[] {
-  const cfg = (activity.config ?? {}) as Record<string, any>;
+  const cfg = readConfig(activity);
   if (Array.isArray(cfg.choices)) return cfg.choices as Choice[];
   // Legacy quizzes: plain string options on the DTO.
   if (Array.isArray(activity.options)) {
@@ -585,7 +601,7 @@ const MultiSelectPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved
 
 /** How many? Emoji group + numeric chips. */
 const CountPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
-  const cfg = (activity.config ?? {}) as Record<string, any>;
+  const cfg = readConfig(activity);
   const emoji: string = String(cfg.emoji ?? '⭐');
   const count: number = Number(cfg.count ?? 0);
   const options: number[] = Array.isArray(cfg.choices) ? cfg.choices.map(Number) : [];
@@ -638,7 +654,7 @@ const CountPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) =>
 
 /** Listen, then tap what you hear. */
 const AudioMatchPlayer: React.FC<PlayerProps> = (props) => {
-  const cfg = (props.activity.config ?? {}) as Record<string, any>;
+  const cfg = readConfig(props.activity);
   const soundText: string = String(cfg.soundText ?? '');
 
   const playSound = () => {
@@ -661,7 +677,7 @@ const AudioMatchPlayer: React.FC<PlayerProps> = (props) => {
 
 /** Tap an item, then tap its basket. */
 const SortBucketPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
-  const cfg = (activity.config ?? {}) as Record<string, any>;
+  const cfg = readConfig(activity);
   const buckets: { id: string; label: string; color?: string }[] = Array.isArray(cfg.buckets) ? cfg.buckets : [];
   const items: { emoji?: string; color?: string; label?: string; image?: string; bucket: string }[] = Array.isArray(cfg.items) ? cfg.items : [];
   const [placed, setPlaced] = useState<Record<number, string>>({});
@@ -742,7 +758,7 @@ const SortBucketPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
 
 /** STORY_SCENE / CELEBRATE — read the lines, then Next. */
 const ScenePlayer: React.FC<PlayerProps> = ({ activity }) => {
-  const cfg = (activity.config ?? {}) as Record<string, any>;
+  const cfg = readConfig(activity);
   const lines: string[] = Array.isArray(cfg.lines) ? cfg.lines.map(String) : [];
   const bg: string = typeof cfg.bg === 'string' ? cfg.bg : '#efeaff';
   return (
@@ -760,7 +776,7 @@ function shuffle<T>(arr: T[]): T[] {
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
 }
-const cfgOf = (a: LessonActivity) => (a.config ?? {}) as Record<string, any>;
+const cfgOf = (a: LessonActivity) => readConfig(a);
 const glyph = (o: any): string => o?.emoji ?? o?.label ?? o?.text ?? '❓';
 
 /** True / False. config { promptText, correct:Boolean }. Answer { value:Boolean }.
