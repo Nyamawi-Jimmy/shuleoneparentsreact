@@ -349,13 +349,22 @@ export const QuestView: React.FC = () => {
           <>
             {resumeQuest && (
               <View style={[styles.secH, { marginTop: 4 }]}>
-                <Text style={styles.allQuestsTitle}>All quests</Text>
+                <Text style={styles.allQuestsTitle}>{activeSubject === 'ALL' ? 'Quests by subject' : 'All quests'}</Text>
                 <View style={styles.secHLine} />
               </View>
             )}
-            {shown.map((q) => (
-              <QuestCard key={q.id} quest={q} onPress={() => handleSelectQuest(q)} />
-            ))}
+            {/* Grouped by subject when no single subject is picked — each subject
+                is its own band with a colourful header and a horizontal row of
+                its quests, so it never becomes one endless downward scroll. */}
+            {activeSubject === 'ALL'
+              ? subjects.map(([name]) => {
+                  const list = byGrade.filter((q) => (q.subject || 'General').trim() === name);
+                  if (list.length === 0) return null;
+                  return <SubjectSection key={name} name={name} quests={list} onSelect={handleSelectQuest} />;
+                })
+              : shown.map((q) => (
+                  <QuestCard key={q.id} quest={q} onPress={() => handleSelectQuest(q)} />
+                ))}
           </>
         )}
 
@@ -501,6 +510,41 @@ const StatusBadge: React.FC<{ status: QuestSummary['status'] }> = ({ status }) =
   return (
     <View style={[styles.statusBadge, { backgroundColor: meta.bg }]}>
       <Text style={[styles.statusBadgeText, { color }]}>{meta.text}</Text>
+    </View>
+  );
+};
+
+// =================================================================
+// Subject section — one subject's quests in a horizontal row under a
+// colour-coded header (emoji + name + count). Keeps each subject a
+// self-contained band instead of one long list.
+// =================================================================
+const SubjectSection: React.FC<{
+  name: string; quests: QuestSummary[]; onSelect: (q: QuestSummary) => void;
+}> = ({ name, quests, onSelect }) => {
+  const tint = subjectTint(name);
+  return (
+    <View style={styles.subjSection}>
+      <View style={styles.subjSectionHead}>
+        <View style={[styles.subjSectionEmojiWrap, { backgroundColor: tint + '1A' }]}>
+          <Text style={styles.subjSectionEmoji}>{subjectEmoji(name)}</Text>
+        </View>
+        <Text style={styles.subjSectionName} numberOfLines={1}>{name}</Text>
+        <View style={[styles.subjSectionCount, { backgroundColor: tint + '1A' }]}>
+          <Text style={[styles.subjSectionCountText, { color: tint }]}>{quests.length}</Text>
+        </View>
+      </View>
+      <ScrollView
+        horizontal showsHorizontalScrollIndicator={false}
+        style={styles.subjSectionRowWrap} contentContainerStyle={styles.subjSectionRow}
+        snapToInterval={302} decelerationRate="fast"
+      >
+        {quests.map((q) => (
+          <View key={q.id} style={styles.subjSectionCardWrap}>
+            <QuestCard quest={q} onPress={() => onSelect(q)} />
+          </View>
+        ))}
+      </ScrollView>
     </View>
   );
 };
@@ -761,6 +805,18 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   emptyIcon: { fontSize: 60, marginBottom: 12 },
   emptyTitle: { fontSize: 18, fontWeight: '800', color: S.ink },
   emptyText: { fontSize: 13, color: S.inkSoft, fontWeight: '600', marginTop: 6, textAlign: 'center' },
+
+  // Subject section (grouped-by-subject rows)
+  subjSection: { marginBottom: 18 },
+  subjSectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  subjSectionEmojiWrap: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  subjSectionEmoji: { fontSize: 16 },
+  subjSectionName: { flex: 1, fontSize: 15, fontWeight: '800', color: S.ink },
+  subjSectionCount: { minWidth: 22, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, alignItems: 'center' },
+  subjSectionCountText: { fontSize: 11, fontWeight: '800' },
+  subjSectionRowWrap: { marginHorizontal: -16 },
+  subjSectionRow: { paddingHorizontal: 16, gap: 12, paddingBottom: 2 },
+  subjSectionCardWrap: { width: 290 },
 
   // Quest card
   questCard: {
