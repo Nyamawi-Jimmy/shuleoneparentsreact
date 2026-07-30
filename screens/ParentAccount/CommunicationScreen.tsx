@@ -438,7 +438,7 @@ const UpdatesTab: React.FC<{ styles: any; colors: ColorPalette; loading: boolean
                 )
               )}
               <View style={styles.annFooter}>
-                <Text style={styles.annMeta}>{[a.from, relTime(a.date)].filter(Boolean).join(' · ')}</Text>
+                <Text style={styles.annMeta}>{a.from || ''}</Text>
                 <View style={[styles.typeChip, { backgroundColor: t.color + '14' }]}><Text style={[styles.typeChipText, { color: t.color }]}>{t.label}</Text></View>
               </View>
             </View>
