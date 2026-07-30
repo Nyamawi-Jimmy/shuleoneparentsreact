@@ -1051,35 +1051,65 @@ const MemoryPairsPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved
 
 /** Tap the target objects on a scene. config { bg, objects:[{x,y,emoji,target,label,size}] }. */
 const HotspotPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) => {
-  const cfg = cfgOf(activity);
-  const objects: any[] = Array.isArray(cfg.objects) ? cfg.objects : [];
-  const targets = objects.map((o, i) => ({ o, i })).filter(({ o }) => o.target);
+  const cfg = readConfig(activity);
+  const objects: any[] = Array.isArray(cfg.objects) ? cfg.objects
+    : Array.isArray(cfg.choices) ? cfg.choices : [];
+  const isTarget = (o: any) => o?.target === true || o?.correct === true;
+  const targetCount = objects.filter(isTarget).length;
+  // Only lay objects onto the scene when they actually carry coordinates. Most
+  // content has none — those render as a tappable grid so they're all visible
+  // (the old code defaulted every object to 0,0 and they stacked in one corner).
+  const hasCoords = objects.length > 0 && objects.every((o) => o.x != null && o.y != null);
   const [found, setFound] = useState<Set<number>>(new Set());
   const [miss, setMiss] = useState<number | null>(null);
-  const done = answered || (targets.length > 0 && found.size >= targets.length);
+  const done = answered || (targetCount > 0 && found.size >= targetCount);
 
   const tap = (i: number) => {
-    if (done) return;
-    if (objects[i].target) {
+    if (done || found.has(i)) return;
+    if (isTarget(objects[i])) {
       const n = new Set(found); n.add(i); setFound(n);
       Speech.stop(); Speech.speak('Found it!', { language: 'en-US', pitch: 1.1 });
-      if (n.size >= targets.length) onSolved({ selected: [...n] });
-    } else { setMiss(i); Speech.stop(); Speech.speak('Keep looking!', { language: 'en-US', pitch: 1.05 }); setTimeout(() => setMiss(null), 400); }
+      if (n.size >= targetCount) onSolved({ selected: [...n] });
+    } else {
+      setMiss(i); Speech.stop(); Speech.speak('Keep looking!', { language: 'en-US', pitch: 1.05 });
+      setTimeout(() => setMiss(null), 400);
+    }
   };
+
   return (
     <View>
-      <Text style={styles.hint}>Find {targets.length} — {found.size} found</Text>
-      <View style={[styles.hotspotScene, { backgroundColor: cfg.bg || '#EAF6FF' }]}>
-        {objects.map((o, i) => (
-          <TouchableOpacity key={i} activeOpacity={0.85} disabled={done} onPress={() => tap(i)}
-            style={[styles.hotspotObj, {
-              left: `${Math.max(0, Math.min(90, Number(o.x) || 0))}%`,
-              top: `${Math.max(0, Math.min(85, Number(o.y) || 0))}%`,
-            }, found.has(i) && styles.hotspotFound, miss === i && styles.hotspotMiss]}>
-            <Text style={styles.hotspotEmoji}>{o.emoji ?? '⭐'}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <Text style={styles.hint}>Find {targetCount} — {found.size} found</Text>
+      {hasCoords ? (
+        <View style={[styles.hotspotScene, { backgroundColor: cfg.bg || '#EAF6FF' }]}>
+          {objects.map((o, i) => (
+            <TouchableOpacity key={i} activeOpacity={0.85} disabled={done} onPress={() => tap(i)}
+              style={[styles.hotspotObj, {
+                left: `${Math.max(0, Math.min(90, Number(o.x)))}%`,
+                top: `${Math.max(0, Math.min(85, Number(o.y)))}%`,
+              }, found.has(i) && styles.hotspotFound, miss === i && styles.hotspotMiss]}>
+              <Text style={styles.hotspotEmoji}>{o.emoji ?? '⭐'}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : (
+        <View style={styles.tileGrid}>
+          {objects.map((o, i) => (
+            <TouchableOpacity
+              key={i} activeOpacity={0.85} disabled={done || found.has(i)} onPress={() => tap(i)}
+              style={[
+                styles.tile,
+                {
+                  borderColor: found.has(i) ? '#15c98c' : miss === i ? '#ef4444' : '#ece8fb',
+                  backgroundColor: found.has(i) ? '#eafef3' : miss === i ? '#fee2e2' : '#fff',
+                },
+                done && !found.has(i) && styles.dim,
+              ]}
+            >
+              <ItemVisual item={o} />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </View>
   );
 };
