@@ -2,7 +2,7 @@
   "expo": {
     "name": "ShuleOne Connect",
     "slug": "shuleoneparents",
-    "version": "3.1.0",
+    "version": "7.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "shuleoneparents",
@@ -10,6 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.walgotech.shuleoneparents",
+      "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
