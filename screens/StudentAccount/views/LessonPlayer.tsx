@@ -76,18 +76,13 @@ function playClip(url: string, speed = 1) {
 // the intent is clear and it's a one-line switch to bring cheers back.
 function cheer(_text: string, _opts?: any) { /* tap-feedback speech intentionally muted */ }
 
-/** Prefer the recorded clip; otherwise speak the text in the lesson's language.
+/** Play the recorded/AI narration clip. When the activity ships NO audio we stay
+ *  silent on purpose — the device (robotic) TTS is deliberately not used, so a
+ *  lesson without recorded audio behaves exactly as it did before (no voice).
  *  `speed` is a 1.0-relative multiplier (0.75 slow · 1 normal · 1.25 fast). */
-function say(audioUrl: string | null | undefined, text: string, opts?: { pitch?: number; speed?: number }) {
-  const speed = opts?.speed ?? activeSpeed;
-  if (audioUrl) { playClip(audioUrl, speed); return; }
-  if (!text) return;
-  try {
-    Speech.stop();
-    // Base kid-friendly rate is 0.92; the speed control scales it.
-    const rate = Math.max(0.5, Math.min(1.4, 0.92 * speed));
-    Speech.speak(text, { language: activeTtsLang, pitch: opts?.pitch ?? 1.05, rate });
-  } catch { /* ignore */ }
+function say(audioUrl: string | null | undefined, _text?: string, opts?: { pitch?: number; speed?: number }) {
+  if (!audioUrl) return;
+  playClip(audioUrl, opts?.speed ?? activeSpeed);
 }
 
 // Activity config may arrive as a parsed JSON OBJECT (backend Map) OR a JSON
@@ -229,7 +224,7 @@ export const LessonPlayer: React.FC = () => {
     const text = introSlide
       ? (lesson.intro || stripHtml(lesson.contentHtml))
       : (act?.narration ?? (typeof cfg.promptText === 'string' ? cfg.promptText : undefined) ?? act?.prompt ?? '');
-    if (!audioUrl && !text) return undefined;
+    if (!audioUrl) return undefined; // no recorded clip → no auto-narration (no device voice)
     const t = setTimeout(() => say(audioUrl, text, { speed: speedRef.current }), 350); // let the slide settle first
     return () => clearTimeout(t);
   }, [lesson, step]);
@@ -383,34 +378,47 @@ export const LessonPlayer: React.FC = () => {
             <Text style={styles.introBody}>
               {lesson.intro ? lesson.intro : stripHtml(lesson.contentHtml)}
             </Text>
-            <View style={styles.audioRow}>
-              <TouchableOpacity activeOpacity={0.8} onPress={speakCurrent} style={styles.listenChip}>
-                <Ionicons name="volume-high" size={14} color="#7c5cff" />
-                <Text style={styles.listenChipText}>Listen</Text>
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.8} onPress={cycleSpeed} style={styles.speedChip}>
-                <Ionicons name="speedometer-outline" size={13} color="#7c5cff" />
-                <Text style={styles.speedChipText}>{speed}x</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Only when the intro ships a recorded clip — no clip, no controls
+                (we never fall back to the device voice). */}
+            {!!lesson.audioIntroUrl && (
+              <View style={styles.audioRow}>
+                <TouchableOpacity activeOpacity={0.8} onPress={speakCurrent} style={styles.listenChip}>
+                  <Ionicons name="volume-high" size={14} color="#7c5cff" />
+                  <Text style={styles.listenChipText}>Listen</Text>
+                </TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.8} onPress={cycleSpeed} style={styles.speedChip}>
+                  <Ionicons name="speedometer-outline" size={13} color="#7c5cff" />
+                  <Text style={styles.speedChipText}>{speed}x</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </LinearGradient>
         ) : currentActivity ? (
           <View>
-            {/* Prompt + audio controls. The prompt TEXT is hidden for kinds whose
-                own player already draws it (FILL_BLANK, READ, video…) so it never
-                shows twice — but the Listen (replay) + Speed controls ALWAYS show,
-                so every activity can replay its narration and change speed. */}
-            <View style={styles.promptRow}>
-              {!!promptText && !SELF_PROMPT_KINDS.has(String(currentActivity.kind).toUpperCase())
-                ? <Text style={styles.promptText}>{promptText}</Text>
-                : <View style={{ flex: 1 }} />}
-              <TouchableOpacity activeOpacity={0.8} onPress={speakCurrent} style={styles.listenRound} hitSlop={6}>
-                <Ionicons name="volume-high" size={16} color="#7c5cff" />
-              </TouchableOpacity>
-              <TouchableOpacity activeOpacity={0.8} onPress={cycleSpeed} style={styles.speedRound} hitSlop={6}>
-                <Text style={styles.speedRoundText}>{speed}x</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Prompt text (hidden for kinds whose own player draws it) + audio
+                controls. The Listen (replay) + Speed controls appear ONLY when the
+                activity ships a recorded clip — no clip means no controls and no
+                device-voice fallback. */}
+            {(() => {
+              const showPrompt = !!promptText && !SELF_PROMPT_KINDS.has(String(currentActivity.kind).toUpperCase());
+              const hasAudio = !!currentActivity.audioUrl;
+              if (!showPrompt && !hasAudio) return null;
+              return (
+                <View style={styles.promptRow}>
+                  {showPrompt ? <Text style={styles.promptText}>{promptText}</Text> : <View style={{ flex: 1 }} />}
+                  {hasAudio && (
+                    <>
+                      <TouchableOpacity activeOpacity={0.8} onPress={speakCurrent} style={styles.listenRound} hitSlop={6}>
+                        <Ionicons name="volume-high" size={16} color="#7c5cff" />
+                      </TouchableOpacity>
+                      <TouchableOpacity activeOpacity={0.8} onPress={cycleSpeed} style={styles.speedRound} hitSlop={6}>
+                        <Text style={styles.speedRoundText}>{speed}x</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              );
+            })()}
             <ActivityPlayer
               key={currentActivity.id}
               activity={currentActivity}
@@ -760,12 +768,14 @@ const AudioMatchPlayer: React.FC<PlayerProps> = (props) => {
 
   return (
     <View>
-      <TouchableOpacity activeOpacity={0.85} onPress={playSound}>
-        <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bigListen}>
-          <Ionicons name="volume-high" size={22} color="#fff" />
-          <Text style={styles.bigListenText}>Play sound</Text>
-        </LinearGradient>
-      </TouchableOpacity>
+      {!!props.activity.audioUrl && (
+        <TouchableOpacity activeOpacity={0.85} onPress={playSound}>
+          <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bigListen}>
+            <Ionicons name="volume-high" size={22} color="#fff" />
+            <Text style={styles.bigListenText}>Play sound</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
       <TapSelectPlayer {...props} />
     </View>
   );
@@ -917,12 +927,14 @@ const ListenTypePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
   const listen = () => { if (cfg.text || activity.audioUrl) say(activity.audioUrl, String(cfg.text ?? '')); };
   return (
     <View>
-      <TouchableOpacity activeOpacity={0.85} onPress={listen}>
-        <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bigListen}>
-          <Ionicons name="volume-high" size={22} color="#fff" />
-          <Text style={styles.bigListenText}>Play</Text>
-        </LinearGradient>
-      </TouchableOpacity>
+      {!!activity.audioUrl && (
+        <TouchableOpacity activeOpacity={0.85} onPress={listen}>
+          <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bigListen}>
+            <Ionicons name="volume-high" size={22} color="#fff" />
+            <Text style={styles.bigListenText}>Play</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
       <TextInput
         style={styles.input} value={value} onChangeText={setValue}
         placeholder="Type what you hear" placeholderTextColor="#9b93c4"
@@ -1288,7 +1300,7 @@ const ContentPlayer: React.FC<PlayerProps> = ({ activity }) => {
           </LinearGradient>
         </TouchableOpacity>
       )}
-      {(kind === 'READ' || kind === 'SPEAK') && !!body && (
+      {(kind === 'READ' || kind === 'SPEAK') && !!activity.audioUrl && (
         <TouchableOpacity activeOpacity={0.85} onPress={speak}>
           <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.watchBtn}>
             <Ionicons name="volume-high" size={18} color="#fff" />
