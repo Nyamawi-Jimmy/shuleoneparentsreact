@@ -57,6 +57,19 @@ const MAPS_KEY = process.env.EXPO_PUBLIC_ANDROID_MAPS_API_KEY ?? '';
 // Bump this for every Play upload.
 const ANDROID_VERSION_CODE = 94;
 
+// iOS CFBundleVersion. Apple only requires uniqueness *within* a given
+// CFBundleShortVersionString (expo.version), so this restarts at 1 each time the
+// marketing version moves — 3.1.0 is a fresh train, hence '1'.
+//
+// It lives here for the same reason as the Android counter: eas.json sets
+// appVersionSource "local", so EAS keeps no counter of its own, and app.json had
+// no ios.buildNumber at all — every build would have shipped CFBundleVersion 1
+// and the second upload would be rejected with "The bundle version must be
+// higher than the previously uploaded version".
+//
+// Bump this for every TestFlight/App Store upload that reuses expo.version.
+const IOS_BUILD_NUMBER = '1';
+
 /** android.config without its googleMaps entry. */
 function withoutGoogleMaps(config) {
   if (!config) return {};
@@ -77,7 +90,7 @@ module.exports = () => {
   const iosGoogleServices =
     process.env.GOOGLE_SERVICES_INFO_PLIST ?? fileIfExists(expo.ios?.googleServicesFile);
 
-  const ios = { ...expo.ios };
+  const ios = { ...expo.ios, buildNumber: IOS_BUILD_NUMBER };
   if (iosGoogleServices) ios.googleServicesFile = iosGoogleServices;
   else delete ios.googleServicesFile;
 
