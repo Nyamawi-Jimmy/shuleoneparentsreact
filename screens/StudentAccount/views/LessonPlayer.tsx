@@ -33,6 +33,7 @@ const mediaUrl = (u?: string | null): string | undefined => {
 // a time). `L(en, sw)` returns the right spoken feedback for that language, so a
 // Kiswahili lesson gets Kiswahili encouragement too.
 let activeTtsLang = 'en-US';
+let activeSpeed = 1; // current narration speed multiplier; kept in sync by the player
 function ttsLangForSubject(subject?: string | null): string {
   const s = String(subject || '').toLowerCase();
   return /kiswahili|lugha|fasihi|insha/.test(s) ? 'sw-KE' : 'en-US';
@@ -78,7 +79,7 @@ function cheer(_text: string, _opts?: any) { /* tap-feedback speech intentionall
 /** Prefer the recorded clip; otherwise speak the text in the lesson's language.
  *  `speed` is a 1.0-relative multiplier (0.75 slow · 1 normal · 1.25 fast). */
 function say(audioUrl: string | null | undefined, text: string, opts?: { pitch?: number; speed?: number }) {
-  const speed = opts?.speed ?? 1;
+  const speed = opts?.speed ?? activeSpeed;
   if (audioUrl) { playClip(audioUrl, speed); return; }
   if (!text) return;
   try {
@@ -168,7 +169,7 @@ export const LessonPlayer: React.FC = () => {
   // auto-play effect reads the latest without re-firing when speed changes.
   const [speed, setSpeed] = useState(1);
   const speedRef = useRef(1);
-  useEffect(() => { speedRef.current = speed; }, [speed]);
+  useEffect(() => { speedRef.current = speed; activeSpeed = speed; }, [speed]);
   const cycleSpeed = () => setSpeed((s) => (s === 1 ? 1.25 : s === 1.25 ? 0.75 : 1));
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [completionResult, setCompletionResult] = useState<StageCompletionResult | null>(null);
@@ -395,20 +396,21 @@ export const LessonPlayer: React.FC = () => {
           </LinearGradient>
         ) : currentActivity ? (
           <View>
-            {/* Prompt row — question + small listen button, no banner. Hidden for
-                kinds whose own player already draws the prompt (FILL_BLANK, READ,
-                video, etc.) so the question never appears twice. */}
-            {!!promptText && !SELF_PROMPT_KINDS.has(String(currentActivity.kind).toUpperCase()) && (
-              <View style={styles.promptRow}>
-                <Text style={styles.promptText}>{promptText}</Text>
-                <TouchableOpacity activeOpacity={0.8} onPress={speakCurrent} style={styles.listenRound} hitSlop={6}>
-                  <Ionicons name="volume-high" size={16} color="#7c5cff" />
-                </TouchableOpacity>
-                <TouchableOpacity activeOpacity={0.8} onPress={cycleSpeed} style={styles.speedRound} hitSlop={6}>
-                  <Text style={styles.speedRoundText}>{speed}x</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            {/* Prompt + audio controls. The prompt TEXT is hidden for kinds whose
+                own player already draws it (FILL_BLANK, READ, video…) so it never
+                shows twice — but the Listen (replay) + Speed controls ALWAYS show,
+                so every activity can replay its narration and change speed. */}
+            <View style={styles.promptRow}>
+              {!!promptText && !SELF_PROMPT_KINDS.has(String(currentActivity.kind).toUpperCase())
+                ? <Text style={styles.promptText}>{promptText}</Text>
+                : <View style={{ flex: 1 }} />}
+              <TouchableOpacity activeOpacity={0.8} onPress={speakCurrent} style={styles.listenRound} hitSlop={6}>
+                <Ionicons name="volume-high" size={16} color="#7c5cff" />
+              </TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.8} onPress={cycleSpeed} style={styles.speedRound} hitSlop={6}>
+                <Text style={styles.speedRoundText}>{speed}x</Text>
+              </TouchableOpacity>
+            </View>
             <ActivityPlayer
               key={currentActivity.id}
               activity={currentActivity}
@@ -753,8 +755,7 @@ const AudioMatchPlayer: React.FC<PlayerProps> = (props) => {
   const soundText: string = String(cfg.soundText ?? '');
 
   const playSound = () => {
-    Speech.stop();
-    if (soundText) Speech.speak(soundText, { language: activeTtsLang, pitch: 1.05, rate: 0.85 });
+    if (soundText || props.activity.audioUrl) say(props.activity.audioUrl, soundText);
   };
 
   return (
@@ -913,7 +914,7 @@ const ListenTypePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
   const [value, setValue] = useState('');
   const [sent, setSent] = useState(false);
   const submit = () => { const t = value.trim(); if (!t || sent || answered) return; setSent(true); onSolved({ text: t }); };
-  const listen = () => { Speech.stop(); if (cfg.text) Speech.speak(String(cfg.text), { language: activeTtsLang, rate: 0.85 }); };
+  const listen = () => { if (cfg.text || activity.audioUrl) say(activity.audioUrl, String(cfg.text ?? '')); };
   return (
     <View>
       <TouchableOpacity activeOpacity={0.85} onPress={listen}>
@@ -1273,7 +1274,7 @@ const ContentPlayer: React.FC<PlayerProps> = ({ activity }) => {
   const icon = isVideo ? '🎬' : kind === 'SPEAK' ? '🎤' : kind === 'READ' ? '📖'
     : kind === 'DRAW' || kind === 'COLOUR_IN' ? '🎨' : kind === 'TRACE' || kind === 'TRACE_GUIDED' ? '✏️'
     : kind === 'LABEL_DIAGRAM' ? '🏷️' : kind === 'PRACTICAL' ? '🧪' : '✨';
-  const speak = () => { Speech.stop(); if (body) Speech.speak(String(body), { language: activeTtsLang, rate: 0.9 }); };
+  const speak = () => { if (body || activity.audioUrl) say(activity.audioUrl, String(body)); };
   return (
     <View style={styles.contentCard}>
       <Text style={styles.contentIcon}>{icon}</Text>
