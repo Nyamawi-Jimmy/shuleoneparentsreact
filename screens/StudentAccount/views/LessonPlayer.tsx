@@ -53,7 +53,7 @@ export function stopNarration() {
   stopClip();
   try { Speech.stop(); } catch { /* ignore */ }
 }
-function playClip(url: string) {
+function playClip(url: string, speed = 1) {
   try {
     stopNarration();
     if (!_audioModeSet) {
@@ -62,16 +62,30 @@ function playClip(url: string) {
       setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
     }
     _clip = createAudioPlayer({ uri: url });
+    if (speed && speed !== 1) {
+      try { _clip.shouldCorrectPitch = true; _clip.playbackRate = speed; } catch { /* rate unsupported */ }
+    }
     _clip.play();
   } catch { /* audio is a nice-to-have; never break the lesson */ }
 }
-/** Prefer the recorded clip; otherwise speak the text in the lesson's language. */
-function say(audioUrl: string | null | undefined, text: string, opts?: { pitch?: number; rate?: number }) {
-  if (audioUrl) { playClip(audioUrl); return; }
+// Tap feedback ("Vizuri!", "Correct!", "Try again!") used to be spoken by the
+// device TTS, which clashed with the natural recorded narration — the "two
+// voices". Muted: the visual feedback (colours, ticks, shakes) carries it, and
+// the recorded/AI narration stays the single voice. Kept as a named no-op so
+// the intent is clear and it's a one-line switch to bring cheers back.
+function cheer(_text: string, _opts?: any) { /* tap-feedback speech intentionally muted */ }
+
+/** Prefer the recorded clip; otherwise speak the text in the lesson's language.
+ *  `speed` is a 1.0-relative multiplier (0.75 slow · 1 normal · 1.25 fast). */
+function say(audioUrl: string | null | undefined, text: string, opts?: { pitch?: number; speed?: number }) {
+  const speed = opts?.speed ?? 1;
+  if (audioUrl) { playClip(audioUrl, speed); return; }
   if (!text) return;
   try {
     Speech.stop();
-    Speech.speak(text, { language: activeTtsLang, pitch: opts?.pitch ?? 1.05, rate: opts?.rate ?? 0.92 });
+    // Base kid-friendly rate is 0.92; the speed control scales it.
+    const rate = Math.max(0.5, Math.min(1.4, 0.92 * speed));
+    Speech.speak(text, { language: activeTtsLang, pitch: opts?.pitch ?? 1.05, rate });
   } catch { /* ignore */ }
 }
 
@@ -150,6 +164,12 @@ export const LessonPlayer: React.FC = () => {
 
   // Slide state - 0 = intro, 1..N = activities
   const [step, setStep] = useState(0);
+  // Narration speed (0.75 slow · 1 normal · 1.25 fast). A ref mirrors it so the
+  // auto-play effect reads the latest without re-firing when speed changes.
+  const [speed, setSpeed] = useState(1);
+  const speedRef = useRef(1);
+  useEffect(() => { speedRef.current = speed; }, [speed]);
+  const cycleSpeed = () => setSpeed((s) => (s === 1 ? 1.25 : s === 1.25 ? 0.75 : 1));
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [completionResult, setCompletionResult] = useState<StageCompletionResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -209,7 +229,7 @@ export const LessonPlayer: React.FC = () => {
       ? (lesson.intro || stripHtml(lesson.contentHtml))
       : (act?.narration ?? (typeof cfg.promptText === 'string' ? cfg.promptText : undefined) ?? act?.prompt ?? '');
     if (!audioUrl && !text) return undefined;
-    const t = setTimeout(() => say(audioUrl, text), 350); // let the slide settle first
+    const t = setTimeout(() => say(audioUrl, text, { speed: speedRef.current }), 350); // let the slide settle first
     return () => clearTimeout(t);
   }, [lesson, step]);
 
@@ -262,7 +282,7 @@ export const LessonPlayer: React.FC = () => {
       : (currentActivity?.narration
         ?? (typeof cfg.promptText === 'string' ? cfg.promptText : undefined)
         ?? currentActivity?.prompt ?? '');
-    say(audioUrl, text);
+    say(audioUrl, text, { speed });
   };
 
   // ── Solve → record answer, small pause, advance ──────
@@ -362,10 +382,16 @@ export const LessonPlayer: React.FC = () => {
             <Text style={styles.introBody}>
               {lesson.intro ? lesson.intro : stripHtml(lesson.contentHtml)}
             </Text>
-            <TouchableOpacity activeOpacity={0.8} onPress={speakCurrent} style={styles.listenChip}>
-              <Ionicons name="volume-high" size={14} color="#7c5cff" />
-              <Text style={styles.listenChipText}>Listen</Text>
-            </TouchableOpacity>
+            <View style={styles.audioRow}>
+              <TouchableOpacity activeOpacity={0.8} onPress={speakCurrent} style={styles.listenChip}>
+                <Ionicons name="volume-high" size={14} color="#7c5cff" />
+                <Text style={styles.listenChipText}>Listen</Text>
+              </TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.8} onPress={cycleSpeed} style={styles.speedChip}>
+                <Ionicons name="speedometer-outline" size={13} color="#7c5cff" />
+                <Text style={styles.speedChipText}>{speed}x</Text>
+              </TouchableOpacity>
+            </View>
           </LinearGradient>
         ) : currentActivity ? (
           <View>
@@ -377,6 +403,9 @@ export const LessonPlayer: React.FC = () => {
                 <Text style={styles.promptText}>{promptText}</Text>
                 <TouchableOpacity activeOpacity={0.8} onPress={speakCurrent} style={styles.listenRound} hitSlop={6}>
                   <Ionicons name="volume-high" size={16} color="#7c5cff" />
+                </TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.8} onPress={cycleSpeed} style={styles.speedRound} hitSlop={6}>
+                  <Text style={styles.speedRoundText}>{speed}x</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -596,12 +625,12 @@ const TapSelectPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }
     if (c.correct) {
       setRightIdx(i);
       Speech.stop();
-      Speech.speak(`${L('Yes', 'Vizuri')}! ${c.label ?? L('Correct', 'Sahihi')}!`, { language: activeTtsLang, pitch: 1.1 });
+      cheer(`${L('Yes', 'Vizuri')}! ${c.label ?? L('Correct', 'Sahihi')}!`, { language: activeTtsLang, pitch: 1.1 });
       onSolved({ choiceIndex: i });
     } else {
       setWrongIdx(i);
       Speech.stop();
-      Speech.speak(L('Not that one — try again!', 'Si hiyo — jaribu tena!'), { language: activeTtsLang, pitch: 1.05 });
+      cheer(L('Not that one — try again!', 'Si hiyo — jaribu tena!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setWrongIdx(null), 500);
     }
   };
@@ -636,15 +665,15 @@ const MultiSelectPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved
       setPicked(next);
       Speech.stop();
       if (next.length >= totalCorrect) {
-        Speech.speak(L('Great job! You found them all!', 'Hongera! Umezipata zote!'), { language: activeTtsLang, pitch: 1.1 });
+        cheer(L('Great job! You found them all!', 'Hongera! Umezipata zote!'), { language: activeTtsLang, pitch: 1.1 });
         onSolved({ selected: next });
       } else {
-        Speech.speak(L('Yes!', 'Vizuri!'), { language: activeTtsLang, pitch: 1.1 });
+        cheer(L('Yes!', 'Vizuri!'), { language: activeTtsLang, pitch: 1.1 });
       }
     } else {
       setWrongIdx(i);
       Speech.stop();
-      Speech.speak(L('Not that one!', 'Si hiyo!'), { language: activeTtsLang, pitch: 1.05 });
+      cheer(L('Not that one!', 'Si hiyo!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setWrongIdx(null), 500);
     }
   };
@@ -679,12 +708,12 @@ const CountPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) =>
     if (n === count) {
       setRightPick(n);
       Speech.stop();
-      Speech.speak(`${L('Yes', 'Vizuri')}! ${n}!`, { language: activeTtsLang, pitch: 1.1 });
+      cheer(`${L('Yes', 'Vizuri')}! ${n}!`, { language: activeTtsLang, pitch: 1.1 });
       onSolved({ value: n });
     } else {
       setWrongPick(n);
       Speech.stop();
-      Speech.speak(L('Count again!', 'Hesabu tena!'), { language: activeTtsLang, pitch: 1.05 });
+      cheer(L('Count again!', 'Hesabu tena!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setWrongPick(null), 500);
     }
   };
@@ -764,15 +793,15 @@ const SortBucketPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
       setSel(null);
       Speech.stop();
       if (Object.keys(next).length >= items.length) {
-        Speech.speak(L('You sorted them all! Amazing!', 'Umepanga zote! Vizuri sana!'), { language: activeTtsLang, pitch: 1.1 });
+        cheer(L('You sorted them all! Amazing!', 'Umepanga zote! Vizuri sana!'), { language: activeTtsLang, pitch: 1.1 });
         onSolved({ placements: next });
       } else {
-        Speech.speak(L('Yes!', 'Vizuri!'), { language: activeTtsLang, pitch: 1.1 });
+        cheer(L('Yes!', 'Vizuri!'), { language: activeTtsLang, pitch: 1.1 });
       }
     } else {
       setWrongBucket(bucketId);
       Speech.stop();
-      Speech.speak(L('Try another basket!', 'Jaribu kikapu kingine!'), { language: activeTtsLang, pitch: 1.05 });
+      cheer(L('Try another basket!', 'Jaribu kikapu kingine!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setWrongBucket(null), 500);
     }
   };
@@ -855,7 +884,7 @@ const TrueFalsePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }
     if (answered || picked != null) return;
     setPicked(v);
     Speech.stop();
-    Speech.speak(v === correct ? L('Correct!', 'Sahihi!') : L('Not quite!', 'Sio sahihi!'), { language: activeTtsLang, pitch: 1.1 });
+    cheer(v === correct ? L('Correct!', 'Sahihi!') : L('Not quite!', 'Sio sahihi!'), { language: activeTtsLang, pitch: 1.1 });
     onSolved({ value: v });
   };
   return (
@@ -968,9 +997,9 @@ const DragMatchPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }
     if (done || sel == null || matched.has(pi)) return;
     if (pi === sel) {
       const next = new Set(matched); next.add(pi); setMatched(next); setSel(null);
-      Speech.stop(); Speech.speak(L('Match!', 'Yamelingana!'), { language: activeTtsLang, pitch: 1.1 });
+      Speech.stop(); cheer(L('Match!', 'Yamelingana!'), { language: activeTtsLang, pitch: 1.1 });
       if (next.size >= pairs.length) onSolved({ matches: Object.fromEntries(pairs.map((_, i) => [i, i])) });
-    } else { setWrong(pi); Speech.stop(); Speech.speak(L('Try again!', 'Jaribu tena!'), { language: activeTtsLang, pitch: 1.05 }); setTimeout(() => setWrong(null), 500); }
+    } else { setWrong(pi); Speech.stop(); cheer(L('Try again!', 'Jaribu tena!'), { language: activeTtsLang, pitch: 1.05 }); setTimeout(() => setWrong(null), 500); }
   };
 
   return (
@@ -1015,9 +1044,9 @@ const SequenceOrderPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolv
     if (done || picked.has(oi)) return;
     if (oi === next) {
       const p = new Set(picked); p.add(oi); setPicked(p); setNext(next + 1);
-      Speech.stop(); Speech.speak(String(next + 1), { language: activeTtsLang, pitch: 1.1 });
+      Speech.stop(); cheer(String(next + 1), { language: activeTtsLang, pitch: 1.1 });
       if (p.size >= items.length) onSolved({ order: items.map((_, i) => i) });
-    } else { setWrong(oi); Speech.stop(); Speech.speak(L('Start from the beginning!', 'Anza tena mwanzo!'), { language: activeTtsLang, pitch: 1.05 }); setTimeout(() => { setWrong(null); setPicked(new Set()); setNext(0); }, 700); }
+    } else { setWrong(oi); Speech.stop(); cheer(L('Start from the beginning!', 'Anza tena mwanzo!'), { language: activeTtsLang, pitch: 1.05 }); setTimeout(() => { setWrong(null); setPicked(new Set()); setNext(0); }, 700); }
   };
 
   return (
@@ -1049,7 +1078,7 @@ const ComparePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) 
     if (answered || pick != null) return;
     setPick(i);
     const ok = counts[i] === target;
-    Speech.stop(); Speech.speak(ok ? L('Yes!', 'Vizuri!') : L('Look again!', 'Angalia tena!'), { language: activeTtsLang, pitch: 1.1 });
+    Speech.stop(); cheer(ok ? L('Yes!', 'Vizuri!') : L('Look again!', 'Angalia tena!'), { language: activeTtsLang, pitch: 1.1 });
     if (ok) onSolved({ groupIndex: i });
     else setTimeout(() => setPick(null), 600);
   };
@@ -1093,7 +1122,7 @@ const MemoryPairsPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved
       const [a, b] = next;
       if (cards[a].pi === cards[b].pi) {
         const m = new Set(matched); m.add(cards[a].pi); setMatched(m); setUp([]); setLock(false);
-        Speech.stop(); Speech.speak(L('Match!', 'Yamelingana!'), { language: activeTtsLang, pitch: 1.1 });
+        Speech.stop(); cheer(L('Match!', 'Yamelingana!'), { language: activeTtsLang, pitch: 1.1 });
         if (m.size >= pairs.length) onSolved({ completed: true });
       } else {
         setTimeout(() => { setUp([]); setLock(false); }, 800);
@@ -1134,10 +1163,10 @@ const HotspotPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) 
     if (done || found.has(i)) return;
     if (isTarget(objects[i])) {
       const n = new Set(found); n.add(i); setFound(n);
-      Speech.stop(); Speech.speak(L('Found it!', 'Umeipata!'), { language: activeTtsLang, pitch: 1.1 });
+      Speech.stop(); cheer(L('Found it!', 'Umeipata!'), { language: activeTtsLang, pitch: 1.1 });
       if (n.size >= targetCount) onSolved({ selected: [...n] });
     } else {
-      setMiss(i); Speech.stop(); Speech.speak(L('Keep looking!', 'Endelea kutafuta!'), { language: activeTtsLang, pitch: 1.05 });
+      setMiss(i); Speech.stop(); cheer(L('Keep looking!', 'Endelea kutafuta!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setMiss(null), 400);
     }
   };
@@ -1197,7 +1226,7 @@ const NumberLinePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
     if (answered || pick != null) return;
     const ok = target == null || Math.abs(n - target) <= tol;
     setPick(n);
-    Speech.stop(); Speech.speak(ok ? `${L('Yes', 'Vizuri')}! ${n}` : L('Try again!', 'Jaribu tena!'), { language: activeTtsLang, pitch: 1.1 });
+    Speech.stop(); cheer(ok ? `${L('Yes', 'Vizuri')}! ${n}` : L('Try again!', 'Jaribu tena!'), { language: activeTtsLang, pitch: 1.1 });
     if (ok) onSolved({ value: n }); else setTimeout(() => setPick(null), 600);
   };
 
@@ -1403,6 +1432,13 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     borderWidth: 1.5, borderColor: '#a78bfa',
   },
   listenChipText: { color: '#7c5cff', fontWeight: '800', fontSize: 12 },
+  audioRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  speedChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: S.card, paddingHorizontal: 11, paddingVertical: 7,
+    borderRadius: 99, marginTop: 12, borderWidth: 1.5, borderColor: '#a78bfa',
+  },
+  speedChipText: { color: '#7c5cff', fontWeight: '800', fontSize: 12 },
 
   // Prompt row
   promptRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
@@ -1412,6 +1448,12 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     backgroundColor: S.ring, borderWidth: 1.5, borderColor: '#a78bfa',
     alignItems: 'center', justifyContent: 'center',
   },
+  speedRound: {
+    minWidth: 34, height: 34, borderRadius: 17, paddingHorizontal: 8,
+    backgroundColor: S.ring, borderWidth: 1.5, borderColor: '#a78bfa',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  speedRoundText: { color: '#7c5cff', fontWeight: '800', fontSize: 11 },
   hint: { fontSize: 12, color: S.inkSoft, fontWeight: '700', marginBottom: 10 },
 
   // Choice tiles (emoji/colour grid)

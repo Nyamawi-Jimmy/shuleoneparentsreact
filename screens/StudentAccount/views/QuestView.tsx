@@ -384,55 +384,11 @@ export const QuestView: React.FC = () => {
               <Text style={styles.allQuestsTitle}>All subjects</Text>
               <View style={styles.secHLine} />
             </View>
-            {/* Expandable / minimizable subject accordion: tap a subject to open
-                its quests inline (grouped by strand when it spans several), tap
-                again to collapse. */}
-            {subjectGroups.map((g) => {
-              const open = expanded.has(g.name);
-              const tint = subjectTint(g.name);
-              return (
-                <View key={g.name} style={[styles.accItem, { borderColor: tint + '30' }]}>
-                  <TouchableOpacity style={styles.accHead} activeOpacity={0.8}
-                    onPress={() => setExpanded((prev) => {
-                      const n = new Set(prev);
-                      n.has(g.name) ? n.delete(g.name) : n.add(g.name);
-                      return n;
-                    })}>
-                    <View style={[styles.accEmoji, { backgroundColor: tint + '1F' }]}>
-                      <Text style={styles.accEmojiText}>{subjectEmoji(g.name)}</Text>
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.accName} numberOfLines={1}>{g.name}</Text>
-                      <Text style={styles.accMeta}>{g.quests.length} {g.quests.length === 1 ? 'quest' : 'quests'} · {g.pct}%</Text>
-                    </View>
-                    <MiniRing pct={g.pct} tint={tint} size={38} />
-                    <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={20} color={C.inkSoft} style={{ marginLeft: 6 }} />
-                  </TouchableOpacity>
-                  {open && (
-                    <View style={styles.accBody}>
-                      {(() => {
-                        const sg = groupByStrand(g.quests);
-                        const showStrands = sg.length > 1;
-                        return sg.map((s) => (
-                          <View key={s.key}>
-                            {showStrands && (
-                              <View style={styles.strandHead}>
-                                <View style={[styles.strandDot, { backgroundColor: tint }]} />
-                                <Text style={styles.strandTitle} numberOfLines={2}>{s.title}</Text>
-                                <View style={styles.strandCount}><Text style={styles.strandCountText}>{s.quests.length}</Text></View>
-                              </View>
-                            )}
-                            {s.quests.map((q) => (
-                              <QuestCard key={q.id} quest={q} onPress={() => handleSelectQuest(q)} />
-                            ))}
-                          </View>
-                        ));
-                      })()}
-                    </View>
-                  )}
-                </View>
-              );
-            })}
+            <View style={styles.subjGrid}>
+              {subjectGroups.map((g) => (
+                <SubjectTile key={g.name} group={g} style={styles.subjTileGrid} onOpen={() => setSubjectSel(g.name)} />
+              ))}
+            </View>
           </>
         )}
 
