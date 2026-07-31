@@ -47,6 +47,10 @@ const L = (en: string, sw: string): string => (activeTtsLang.startsWith('sw') ? 
 let _clip: AudioPlayer | null = null;
 let _audioModeSet = false;
 function stopClip() {
+  // pause() first — remove()/release alone doesn't reliably halt audio that is
+  // already sounding, which caused a second tap (or leaving the screen) to layer
+  // a new clip over the old one ("two voices" / sound kept playing after Back).
+  try { _clip?.pause(); } catch { /* ignore */ }
   try { _clip?.remove(); } catch { /* ignore */ }
   _clip = null;
 }
@@ -211,6 +215,10 @@ export const LessonPlayer: React.FC = () => {
   useEffect(() => {
     return () => { stopNarration(); };
   }, [step]);
+
+  // Belt-and-braces: always kill audio when the lesson screen goes away (Back,
+  // Done, or navigating into a Playground), so nothing keeps playing after exit.
+  useEffect(() => () => { stopNarration(); }, []);
 
   // Auto-play the slide's narration when it appears — the same "the audio comes
   // with it" behaviour as the web: play the recorded/AI clip (audioUrl /
