@@ -22,7 +22,8 @@
       "ios": {},
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://portal.shuleone.co.ke",
-        "EXPO_PUBLIC_ANDROID_MAPS_API_KEY": "AIzaSyA_yllOHMLscHDfZIjeHZHy-vRwYJwZ3E8"
+        "EXPO_PUBLIC_ANDROID_MAPS_API_KEY": "AIzaSyA_yllOHMLscHDfZIjeHZHy-vRwYJwZ3E8",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "509920554608-mseepu17mjh75k59199fr3aiu4qq33vi.apps.googleusercontent.com"
       }
     },
     "production": {
@@ -31,7 +32,8 @@
       },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://portal.shuleone.co.ke",
-        "EXPO_PUBLIC_ANDROID_MAPS_API_KEY": "AIzaSyA_yllOHMLscHDfZIjeHZHy-vRwYJwZ3E8"
+        "EXPO_PUBLIC_ANDROID_MAPS_API_KEY": "AIzaSyA_yllOHMLscHDfZIjeHZHy-vRwYJwZ3E8",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "509920554608-mseepu17mjh75k59199fr3aiu4qq33vi.apps.googleusercontent.com"
       }
     }
   },

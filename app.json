@@ -68,7 +68,12 @@
       "expo-notifications",
       "@react-native-firebase/app",
       "@react-native-firebase/messaging",
-      "@react-native-google-signin/google-signin",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.509920554608-mseepu17mjh75k59199fr3aiu4qq33vi"
+        }
+      ],
       [
         "expo-build-properties",
         {
