@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "shuleoneparents",
+    "name": "ShuleOne Connect",
     "slug": "shuleoneparents",
-    "version": "1.0.0",
+    "version": "3.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "shuleoneparents",
@@ -17,7 +17,10 @@
         ],
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
-        }
+        },
+        "NSCameraUsageDescription": "ShuleOne Connect uses the camera so you can photograph a document or receipt and attach it to a message to your child's teacher.",
+        "NSPhotoLibraryUsageDescription": "ShuleOne Connect needs access to your photos so you can attach an existing image to a message to your child's teacher.",
+        "NSMicrophoneUsageDescription": "ShuleOne Connect needs the microphone only if you record a video to attach to a message to your child's teacher."
       },
       "googleServicesFile": "./GoogleService-Info.plist",
       "entitlements": {
