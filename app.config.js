@@ -58,8 +58,15 @@ const MAPS_KEY = process.env.EXPO_PUBLIC_ANDROID_MAPS_API_KEY ?? '';
 const ANDROID_VERSION_CODE = 94;
 
 // iOS CFBundleVersion. Apple only requires uniqueness *within* a given
-// CFBundleShortVersionString (expo.version), so this restarts at 1 each time the
-// marketing version moves — 3.1.0 is a fresh train, hence '1'.
+// CFBundleShortVersionString (expo.version), so resetting to 1 on a new marketing
+// version is legal — but this counter deliberately does NOT reset. The last store
+// upload was 83, and continuing from there keeps the sequence monotonic, exactly
+// like ANDROID_VERSION_CODE above.
+//
+// The reason is legibility, not validity: App Store Connect, TestFlight and every
+// crash report label a build by this number alone. Restarting at 1 after 83 makes
+// "7.0.0 (1)" look older than builds that shipped months earlier, and reuses
+// numbers that already appear against the 3.x train.
 //
 // It lives here for the same reason as the Android counter: eas.json sets
 // appVersionSource "local", so EAS keeps no counter of its own, and app.json had
@@ -67,8 +74,8 @@ const ANDROID_VERSION_CODE = 94;
 // and the second upload would be rejected with "The bundle version must be
 // higher than the previously uploaded version".
 //
-// Bump this for every TestFlight/App Store upload that reuses expo.version.
-const IOS_BUILD_NUMBER = '1';
+// Bump this for every TestFlight/App Store upload.
+const IOS_BUILD_NUMBER = '84';
 
 /** android.config without its googleMaps entry. */
 function withoutGoogleMaps(config) {
