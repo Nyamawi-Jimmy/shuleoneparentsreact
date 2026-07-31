@@ -25,6 +25,19 @@ const mediaUrl = (u?: string | null): string | undefined => {
   return `${API_BASE_URL}${s.startsWith('/') ? '' : '/'}${s}`;
 };
 
+// ── Text-to-speech language ───────────────────────────────────────────────
+// Kiswahili quests were read with an English voice, so the words came out
+// mispronounced. The lesson's subject decides the TTS language; a module-level
+// value keeps every player's Speech.speak() in sync (only one lesson is open at
+// a time). `L(en, sw)` returns the right spoken feedback for that language, so a
+// Kiswahili lesson gets Kiswahili encouragement too.
+let activeTtsLang = 'en-US';
+function ttsLangForSubject(subject?: string | null): string {
+  const s = String(subject || '').toLowerCase();
+  return /kiswahili|lugha|fasihi|insha/.test(s) ? 'sw-KE' : 'en-US';
+}
+const L = (en: string, sw: string): string => (activeTtsLang.startsWith('sw') ? sw : en);
+
 // Activity config may arrive as a parsed JSON OBJECT (backend Map) OR a JSON
 // STRING (content-admin stores raw JSON text). This mirrors the web's
 // readConfig contract — always parse defensively. Reading it as an object only
@@ -126,7 +139,10 @@ export const LessonPlayer: React.FC = () => {
       }
       try {
         const data = await getStageLesson(accessToken, Number(questId), Number(stageId));
-        if (!cancelled) setLesson(data);
+        if (!cancelled) {
+          activeTtsLang = ttsLangForSubject(data?.subject); // Kiswahili lessons read in Swahili
+          setLesson(data);
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof ApiError ? e.message : 'Could not load lesson.');
@@ -194,7 +210,7 @@ export const LessonPlayer: React.FC = () => {
         ?? currentActivity?.prompt ?? '');
     if (!text) return;
     Speech.speak(text, {
-      language: 'en-US', pitch: 1.05, rate: 0.92,
+      language: activeTtsLang, pitch: 1.05, rate: 0.92,
       onError: () => Alert.alert('Sorry', 'Audio is not available on this device.'),
     });
   };
@@ -530,12 +546,12 @@ const TapSelectPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }
     if (c.correct) {
       setRightIdx(i);
       Speech.stop();
-      Speech.speak(`Yes! ${c.label ?? 'Correct'}!`, { language: 'en-US', pitch: 1.1 });
+      Speech.speak(`${L('Yes', 'Vizuri')}! ${c.label ?? L('Correct', 'Sahihi')}!`, { language: activeTtsLang, pitch: 1.1 });
       onSolved({ choiceIndex: i });
     } else {
       setWrongIdx(i);
       Speech.stop();
-      Speech.speak('Not that one — try again!', { language: 'en-US', pitch: 1.05 });
+      Speech.speak(L('Not that one — try again!', 'Si hiyo — jaribu tena!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setWrongIdx(null), 500);
     }
   };
@@ -570,15 +586,15 @@ const MultiSelectPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved
       setPicked(next);
       Speech.stop();
       if (next.length >= totalCorrect) {
-        Speech.speak('Great job! You found them all!', { language: 'en-US', pitch: 1.1 });
+        Speech.speak(L('Great job! You found them all!', 'Hongera! Umezipata zote!'), { language: activeTtsLang, pitch: 1.1 });
         onSolved({ selected: next });
       } else {
-        Speech.speak('Yes!', { language: 'en-US', pitch: 1.1 });
+        Speech.speak(L('Yes!', 'Vizuri!'), { language: activeTtsLang, pitch: 1.1 });
       }
     } else {
       setWrongIdx(i);
       Speech.stop();
-      Speech.speak('Not that one!', { language: 'en-US', pitch: 1.05 });
+      Speech.speak(L('Not that one!', 'Si hiyo!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setWrongIdx(null), 500);
     }
   };
@@ -613,12 +629,12 @@ const CountPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) =>
     if (n === count) {
       setRightPick(n);
       Speech.stop();
-      Speech.speak(`Yes! ${n}!`, { language: 'en-US', pitch: 1.1 });
+      Speech.speak(`${L('Yes', 'Vizuri')}! ${n}!`, { language: activeTtsLang, pitch: 1.1 });
       onSolved({ value: n });
     } else {
       setWrongPick(n);
       Speech.stop();
-      Speech.speak('Count again!', { language: 'en-US', pitch: 1.05 });
+      Speech.speak(L('Count again!', 'Hesabu tena!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setWrongPick(null), 500);
     }
   };
@@ -659,7 +675,7 @@ const AudioMatchPlayer: React.FC<PlayerProps> = (props) => {
 
   const playSound = () => {
     Speech.stop();
-    if (soundText) Speech.speak(soundText, { language: 'en-US', pitch: 1.05, rate: 0.85 });
+    if (soundText) Speech.speak(soundText, { language: activeTtsLang, pitch: 1.05, rate: 0.85 });
   };
 
   return (
@@ -698,15 +714,15 @@ const SortBucketPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
       setSel(null);
       Speech.stop();
       if (Object.keys(next).length >= items.length) {
-        Speech.speak('You sorted them all! Amazing!', { language: 'en-US', pitch: 1.1 });
+        Speech.speak(L('You sorted them all! Amazing!', 'Umepanga zote! Vizuri sana!'), { language: activeTtsLang, pitch: 1.1 });
         onSolved({ placements: next });
       } else {
-        Speech.speak('Yes!', { language: 'en-US', pitch: 1.1 });
+        Speech.speak(L('Yes!', 'Vizuri!'), { language: activeTtsLang, pitch: 1.1 });
       }
     } else {
       setWrongBucket(bucketId);
       Speech.stop();
-      Speech.speak('Try another basket!', { language: 'en-US', pitch: 1.05 });
+      Speech.speak(L('Try another basket!', 'Jaribu kikapu kingine!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setWrongBucket(null), 500);
     }
   };
@@ -789,7 +805,7 @@ const TrueFalsePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }
     if (answered || picked != null) return;
     setPicked(v);
     Speech.stop();
-    Speech.speak(v === correct ? 'Correct!' : 'Not quite!', { language: 'en-US', pitch: 1.1 });
+    Speech.speak(v === correct ? L('Correct!', 'Sahihi!') : L('Not quite!', 'Sio sahihi!'), { language: activeTtsLang, pitch: 1.1 });
     onSolved({ value: v });
   };
   return (
@@ -818,7 +834,7 @@ const ListenTypePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
   const [value, setValue] = useState('');
   const [sent, setSent] = useState(false);
   const submit = () => { const t = value.trim(); if (!t || sent || answered) return; setSent(true); onSolved({ text: t }); };
-  const listen = () => { Speech.stop(); if (cfg.text) Speech.speak(String(cfg.text), { language: 'en-US', rate: 0.85 }); };
+  const listen = () => { Speech.stop(); if (cfg.text) Speech.speak(String(cfg.text), { language: activeTtsLang, rate: 0.85 }); };
   return (
     <View>
       <TouchableOpacity activeOpacity={0.85} onPress={listen}>
@@ -902,9 +918,9 @@ const DragMatchPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }
     if (done || sel == null || matched.has(pi)) return;
     if (pi === sel) {
       const next = new Set(matched); next.add(pi); setMatched(next); setSel(null);
-      Speech.stop(); Speech.speak('Match!', { language: 'en-US', pitch: 1.1 });
+      Speech.stop(); Speech.speak(L('Match!', 'Yamelingana!'), { language: activeTtsLang, pitch: 1.1 });
       if (next.size >= pairs.length) onSolved({ matches: Object.fromEntries(pairs.map((_, i) => [i, i])) });
-    } else { setWrong(pi); Speech.stop(); Speech.speak('Try again!', { language: 'en-US', pitch: 1.05 }); setTimeout(() => setWrong(null), 500); }
+    } else { setWrong(pi); Speech.stop(); Speech.speak(L('Try again!', 'Jaribu tena!'), { language: activeTtsLang, pitch: 1.05 }); setTimeout(() => setWrong(null), 500); }
   };
 
   return (
@@ -949,9 +965,9 @@ const SequenceOrderPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolv
     if (done || picked.has(oi)) return;
     if (oi === next) {
       const p = new Set(picked); p.add(oi); setPicked(p); setNext(next + 1);
-      Speech.stop(); Speech.speak(String(next + 1), { language: 'en-US', pitch: 1.1 });
+      Speech.stop(); Speech.speak(String(next + 1), { language: activeTtsLang, pitch: 1.1 });
       if (p.size >= items.length) onSolved({ order: items.map((_, i) => i) });
-    } else { setWrong(oi); Speech.stop(); Speech.speak('Start from the beginning!', { language: 'en-US', pitch: 1.05 }); setTimeout(() => { setWrong(null); setPicked(new Set()); setNext(0); }, 700); }
+    } else { setWrong(oi); Speech.stop(); Speech.speak(L('Start from the beginning!', 'Anza tena mwanzo!'), { language: activeTtsLang, pitch: 1.05 }); setTimeout(() => { setWrong(null); setPicked(new Set()); setNext(0); }, 700); }
   };
 
   return (
@@ -983,7 +999,7 @@ const ComparePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) 
     if (answered || pick != null) return;
     setPick(i);
     const ok = counts[i] === target;
-    Speech.stop(); Speech.speak(ok ? 'Yes!' : 'Look again!', { language: 'en-US', pitch: 1.1 });
+    Speech.stop(); Speech.speak(ok ? L('Yes!', 'Vizuri!') : L('Look again!', 'Angalia tena!'), { language: activeTtsLang, pitch: 1.1 });
     if (ok) onSolved({ groupIndex: i });
     else setTimeout(() => setPick(null), 600);
   };
@@ -1027,7 +1043,7 @@ const MemoryPairsPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved
       const [a, b] = next;
       if (cards[a].pi === cards[b].pi) {
         const m = new Set(matched); m.add(cards[a].pi); setMatched(m); setUp([]); setLock(false);
-        Speech.stop(); Speech.speak('Match!', { language: 'en-US', pitch: 1.1 });
+        Speech.stop(); Speech.speak(L('Match!', 'Yamelingana!'), { language: activeTtsLang, pitch: 1.1 });
         if (m.size >= pairs.length) onSolved({ completed: true });
       } else {
         setTimeout(() => { setUp([]); setLock(false); }, 800);
@@ -1068,10 +1084,10 @@ const HotspotPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) 
     if (done || found.has(i)) return;
     if (isTarget(objects[i])) {
       const n = new Set(found); n.add(i); setFound(n);
-      Speech.stop(); Speech.speak('Found it!', { language: 'en-US', pitch: 1.1 });
+      Speech.stop(); Speech.speak(L('Found it!', 'Umeipata!'), { language: activeTtsLang, pitch: 1.1 });
       if (n.size >= targetCount) onSolved({ selected: [...n] });
     } else {
-      setMiss(i); Speech.stop(); Speech.speak('Keep looking!', { language: 'en-US', pitch: 1.05 });
+      setMiss(i); Speech.stop(); Speech.speak(L('Keep looking!', 'Endelea kutafuta!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setMiss(null), 400);
     }
   };
@@ -1131,7 +1147,7 @@ const NumberLinePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
     if (answered || pick != null) return;
     const ok = target == null || Math.abs(n - target) <= tol;
     setPick(n);
-    Speech.stop(); Speech.speak(ok ? `Yes! ${n}` : 'Try again!', { language: 'en-US', pitch: 1.1 });
+    Speech.stop(); Speech.speak(ok ? `${L('Yes', 'Vizuri')}! ${n}` : L('Try again!', 'Jaribu tena!'), { language: activeTtsLang, pitch: 1.1 });
     if (ok) onSolved({ value: n }); else setTimeout(() => setPick(null), 600);
   };
 
@@ -1178,7 +1194,7 @@ const ContentPlayer: React.FC<PlayerProps> = ({ activity }) => {
   const icon = isVideo ? '🎬' : kind === 'SPEAK' ? '🎤' : kind === 'READ' ? '📖'
     : kind === 'DRAW' || kind === 'COLOUR_IN' ? '🎨' : kind === 'TRACE' || kind === 'TRACE_GUIDED' ? '✏️'
     : kind === 'LABEL_DIAGRAM' ? '🏷️' : kind === 'PRACTICAL' ? '🧪' : '✨';
-  const speak = () => { Speech.stop(); if (body) Speech.speak(String(body), { language: 'en-US', rate: 0.9 }); };
+  const speak = () => { Speech.stop(); if (body) Speech.speak(String(body), { language: activeTtsLang, rate: 0.9 }); };
   return (
     <View style={styles.contentCard}>
       <Text style={styles.contentIcon}>{icon}</Text>
