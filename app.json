@@ -64,6 +64,7 @@
       "expo-web-browser",
       "expo-secure-store",
       "expo-notifications",
+      "expo-audio",
       "@react-native-firebase/app",
       "@react-native-firebase/messaging",
       "@react-native-google-signin/google-signin",

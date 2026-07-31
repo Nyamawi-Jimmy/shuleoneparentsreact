@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LearningHeader } from '../components/LearningHeader';
 import { useAuth } from '../../../context/AuthContext';
@@ -37,6 +38,42 @@ function ttsLangForSubject(subject?: string | null): string {
   return /kiswahili|lugha|fasihi|insha/.test(s) ? 'sw-KE' : 'en-US';
 }
 const L = (en: string, sw: string): string => (activeTtsLang.startsWith('sw') ? sw : en);
+
+// Recorded / AI narration playback — mirrors the web's voice.js `say()`:
+// prefer the real audio clip that ships with the activity (audioUrl /
+// audioIntroUrl), fall back to device TTS only when there's no clip. One clip
+// plays at a time; starting a new one (or TTS) stops the previous.
+let _clip: AudioPlayer | null = null;
+let _audioModeSet = false;
+function stopClip() {
+  try { _clip?.remove(); } catch { /* ignore */ }
+  _clip = null;
+}
+export function stopNarration() {
+  stopClip();
+  try { Speech.stop(); } catch { /* ignore */ }
+}
+function playClip(url: string) {
+  try {
+    stopNarration();
+    if (!_audioModeSet) {
+      _audioModeSet = true;
+      // Play even when the phone's silent switch is on — narration must be heard.
+      setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+    }
+    _clip = createAudioPlayer({ uri: url });
+    _clip.play();
+  } catch { /* audio is a nice-to-have; never break the lesson */ }
+}
+/** Prefer the recorded clip; otherwise speak the text in the lesson's language. */
+function say(audioUrl: string | null | undefined, text: string, opts?: { pitch?: number; rate?: number }) {
+  if (audioUrl) { playClip(audioUrl); return; }
+  if (!text) return;
+  try {
+    Speech.stop();
+    Speech.speak(text, { language: activeTtsLang, pitch: opts?.pitch ?? 1.05, rate: opts?.rate ?? 0.92 });
+  } catch { /* ignore */ }
+}
 
 // Activity config may arrive as a parsed JSON OBJECT (backend Map) OR a JSON
 // STRING (content-admin stores raw JSON text). This mirrors the web's
@@ -154,10 +191,27 @@ export const LessonPlayer: React.FC = () => {
     return () => { cancelled = true; };
   }, [questId, stageId, accessToken]);
 
-  // Stop TTS on step change / unmount
+  // Stop any narration (recorded clip or TTS) on step change / unmount.
   useEffect(() => {
-    return () => { Speech.stop(); };
+    return () => { stopNarration(); };
   }, [step]);
+
+  // Auto-play the slide's narration when it appears — the same "the audio comes
+  // with it" behaviour as the web: play the recorded/AI clip (audioUrl /
+  // audioIntroUrl) if present, else speak the narration in the lesson language.
+  useEffect(() => {
+    if (!lesson) return undefined;
+    const introSlide = step === 0;
+    const act = introSlide ? undefined : lesson.activities[step - 1];
+    const cfg = readConfig(act);
+    const audioUrl = introSlide ? lesson.audioIntroUrl : act?.audioUrl;
+    const text = introSlide
+      ? (lesson.intro || stripHtml(lesson.contentHtml))
+      : (act?.narration ?? (typeof cfg.promptText === 'string' ? cfg.promptText : undefined) ?? act?.prompt ?? '');
+    if (!audioUrl && !text) return undefined;
+    const t = setTimeout(() => say(audioUrl, text), 350); // let the slide settle first
+    return () => clearTimeout(t);
+  }, [lesson, step]);
 
   // ── States ────────────────────────────────────────────
   if (loading) {
@@ -199,20 +253,16 @@ export const LessonPlayer: React.FC = () => {
   const currentBlocked = needsAnswer(currentActivity) && answers[activityIndex] === undefined;
   const allAnswered = lesson.activities.every((a, i) => !needsAnswer(a) || answers[i] !== undefined);
 
-  // ── Listen (TTS) ──────────────────────────────────────
+  // ── Listen — play the recorded/AI clip that ships with this slide, else TTS ──
   const speakCurrent = () => {
-    Speech.stop();
     const cfg = readConfig(currentActivity);
+    const audioUrl = isIntro ? lesson.audioIntroUrl : currentActivity?.audioUrl;
     const text = isIntro
       ? lesson.intro || stripHtml(lesson.contentHtml)
       : (currentActivity?.narration
         ?? (typeof cfg.promptText === 'string' ? cfg.promptText : undefined)
         ?? currentActivity?.prompt ?? '');
-    if (!text) return;
-    Speech.speak(text, {
-      language: activeTtsLang, pitch: 1.05, rate: 0.92,
-      onError: () => Alert.alert('Sorry', 'Audio is not available on this device.'),
-    });
+    say(audioUrl, text);
   };
 
   // ── Solve → record answer, small pause, advance ──────
