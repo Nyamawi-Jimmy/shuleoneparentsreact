@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
-import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from 'expo-router/react-navigation';
+// SDK 55 has no `expo-router/react-navigation` re-export (that subpath arrived in
+// SDK 56); these come straight from React Navigation, which expo-router depends on.
+import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
