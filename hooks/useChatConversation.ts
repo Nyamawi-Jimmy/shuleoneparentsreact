@@ -36,6 +36,8 @@ export function useChatConversation({ peerId, peerRole }: UseChatConversationArg
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  /** 0..100 while an attachment is uploading, null when idle. */
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isActiveRef = useRef(true);
@@ -125,10 +127,11 @@ export function useChatConversation({ peerId, peerRole }: UseChatConversationArg
 
   // ── Send with an attachment ───
   const sendAttachment = useCallback(async (
-    file: { uri: string; name: string; type: string },
+    file: { uri: string; name: string; type: string; size?: number },
     caption?: string,
   ) => {
     if (!accessToken || peerId == null || !peerRole) return;
+    setUploadProgress(0);
 
     const optimistic: ChatMessage = {
       id: -Date.now(),
@@ -144,7 +147,11 @@ export function useChatConversation({ peerId, peerRole }: UseChatConversationArg
     setMessages((prev) => [...prev, optimistic]);
     setSending(true);
     try {
-      const upload: UploadResult = await uploadChatAttachment(accessToken, file);
+      const upload: UploadResult = await uploadChatAttachment(
+        accessToken,
+        file,
+        setUploadProgress,
+      );
       const body: SendChatBody = {
         peerId, peerRole,
         content: caption ?? null,
@@ -159,8 +166,12 @@ export function useChatConversation({ peerId, peerRole }: UseChatConversationArg
       setMessages((prev) => prev.map((m) =>
         m.id === optimistic.id ? { ...m, status: 'FAILED' as const } : m,
       ));
+      // Surface the reason - the server explains the size cap on a 413, and
+      // swallowing it leaves a failed bubble with no explanation.
+      setError(e instanceof Error ? e.message : 'Could not send that file.');
     } finally {
       setSending(false);
+      setUploadProgress(null);
     }
   }, [accessToken, peerId, peerRole]);
 
@@ -187,7 +198,9 @@ export function useChatConversation({ peerId, peerRole }: UseChatConversationArg
     loading,
     refreshing,
     sending,
+    uploadProgress,
     error,
+    clearError: () => setError(null),
     refresh: () => load(true),
     sendText,
     sendAttachment,
