@@ -31,9 +31,11 @@ const ALL: Tier[] = ['sprout', 'explorer', 'voyager', 'scholar', 'campus'];
 
 const NAV: NavItem[] = [
   {
+    // User-chosen (2026-08-07): every tier says "Dashboard" — the web keeps
+    // "Me" for younger tiers, but the app standardises on the grown-up label.
     name: 'index', tint: '#7C5CFF',
     icon: (a) => (a ? 'home' : 'home-outline'),
-    labels: { base: 'Me', scholar: 'Dashboard' },
+    labels: { base: 'Dashboard' },
   },
   {
     // Voyager+ fold Games into Learn; the play tiers keep Quests separate.
@@ -65,6 +67,13 @@ const NAV: NavItem[] = [
     name: 'exams', tiers: ['voyager', 'scholar', 'campus'], school: true, tint: '#059669',
     icon: (a) => (a ? 'school' : 'school-outline'),
     labels: { base: 'Exams', campus: 'School exams' },
+  },
+  {
+    // "How far am I?" — the learner's own record of finished work (web
+    // MyProgressView). Every tier gets it, like the web.
+    name: 'progress', tint: '#7C3AED',
+    icon: (a) => (a ? 'stats-chart' : 'stats-chart-outline'),
+    labels: { base: 'My progress', sprout: "How I'm doing" },
   },
   {
     name: 'events', tint: '#F4A716',
