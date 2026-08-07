@@ -18,14 +18,17 @@ import { TopBar } from '../components/TopBar';
 import { Mascot } from '../components/Mascot';
 import { useStudentMe } from '../../../hooks/useStudentMe';
 import { useAuth } from '../../../context/AuthContext';
-import { getStudentFees } from '../../../api/student';
+import { getStudentFees, getStudentReadiness } from '../../../api/student';
 import { masteryPct } from '../../../api/learner-me';
-import { dueAssignments, liveNowClasses, StudentFeeSummary } from '../../../api/student.types';
+import { dueAssignments, liveNowClasses, StudentFeeSummary, StudentReadiness } from '../../../api/student.types';
 
 const money = (v: number | string | null | undefined): string => {
   const n = Number(String(v ?? '').replace(/[^0-9.\-]/g, ''));
   return Number.isFinite(n) ? n.toLocaleString() : '—';
 };
+// A fee figure may arrive as a formatted string; coerce to a plain number.
+const feeNum = (v: number | string | null | undefined): number =>
+  Number(String(v ?? '').replace(/[^0-9.\-]/g, '')) || 0;
 
 // Per-tier vocabulary — mirrors the web's VOCAB map so the same feature
 // reads age-appropriately everywhere.
@@ -91,6 +94,23 @@ export const MeView: React.FC = () => {
     getStudentFees(accessToken).then((f) => { if (!cancelled) setFees(f); }).catch(() => {});
     return () => { cancelled = true; };
   }, [tier, isForm34, accessToken]);
+  // Web-aligned fee figures: "due" = broughtForward + termBilling (fall back to billed).
+  const feeCurrency = fees?.currency || 'KES';
+  const feeDue = fees ? ((feeNum(fees.broughtForward) + feeNum(fees.termBilling)) || feeNum(fees.billed)) : 0;
+  const feePaid = fees ? (feeNum(fees.paid) || feeNum(fees.termPaid)) : 0;
+  const feeBal = fees ? feeNum(fees.balance) : 0;
+
+  // Exam readiness — scholar (SSS) only. Mirrors the web StudentHome effect:
+  // fetched here, kept only when it actually carries subjects, else stays null.
+  const [ready, setReady] = useState<StudentReadiness | null>(null);
+  useEffect(() => {
+    if (tier !== 'scholar' || !accessToken) { setReady(null); return; }
+    let cancelled = false;
+    getStudentReadiness(accessToken)
+      .then((r) => { if (!cancelled) setReady(Array.isArray(r?.subjects) && r.subjects.length > 0 ? r : null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [tier, accessToken]);
 
   // Roadmap rows: mastered → in progress → locked (web's ranking).
   const roadmap = useMemo(() => {
@@ -168,7 +188,8 @@ export const MeView: React.FC = () => {
             <View style={styles.greetTop}>
               <Text style={styles.greetTitle}>Hi {firstName}! 👋</Text>
               <View style={[styles.lvlChip, { backgroundColor: C.ring }]}>
-                <Text style={[styles.lvlChipText, { color: tokens.accent1 }]}>💎 Lvl {level}</Text>
+                <Text style={styles.lvlChipEmoji}>💎</Text>
+                <Text style={[styles.lvlChipText, { color: tokens.accent1 }]}>Lvl {level}</Text>
               </View>
             </View>
             <Text style={styles.greetSub}>
@@ -215,7 +236,8 @@ export const MeView: React.FC = () => {
               style={[styles.hero, { borderRadius: tokens.radius }]}
             >
               <View style={styles.heroKick}>
-                <Text style={styles.heroKickText}>{v.emoji} {v.focus.toUpperCase()}</Text>
+                <Text style={styles.heroKickEmoji}>{v.emoji}</Text>
+                <Text style={styles.heroKickText}>{v.focus.toUpperCase()}</Text>
               </View>
               <Text style={styles.heroTitle}>{next.title ?? next.subStrandName ?? 'Your next lesson'}</Text>
               {!!next.reason && <Text style={styles.heroBody}>{next.reason}</Text>}
@@ -230,21 +252,26 @@ export const MeView: React.FC = () => {
         {tier === 'campus' && !isForm34 && fees && (
           <View style={[styles.card, { borderRadius: tokens.radius }]}>
             <View style={styles.cardHead}>
-              <Text style={styles.cardTitle}>💳 Fees</Text>
-              {fees.term != null && <Text style={[styles.seeAll, { color: tokens.accent1 }]}>Term {fees.term}{fees.year ? ` · ${fees.year}` : ''}</Text>}
+              <View style={styles.titleWrap}>
+                <Text style={styles.titleEmoji}>💳</Text>
+                <Text style={styles.cardTitle}>Fees</Text>
+              </View>
+              <Text style={[styles.seeAll, { color: tokens.accent1 }]}>
+                {feeCurrency}{fees.term != null ? ` · Term ${fees.term}` : ''}{fees.year ? ` · ${fees.year}` : ''}
+              </Text>
             </View>
             <View style={styles.feesRow}>
               <View style={styles.feesCol}>
-                <Text style={styles.feesVal}>{money(fees.billed ?? fees.termBilling)}</Text>
+                <Text style={styles.feesVal}>{money(feeDue)}</Text>
                 <Text style={styles.feesLbl}>Billed</Text>
               </View>
               <View style={styles.feesCol}>
-                <Text style={styles.feesVal}>{money(fees.paid ?? fees.termPaid)}</Text>
+                <Text style={styles.feesVal}>{money(feePaid)}</Text>
                 <Text style={styles.feesLbl}>Paid</Text>
               </View>
               <View style={styles.feesCol}>
-                <Text style={[styles.feesVal, { color: Number(String(fees.balance ?? '').replace(/[^0-9.\-]/g, '')) > 0 ? '#e11d48' : '#15c98c' }]}>{money(fees.balance)}</Text>
-                <Text style={styles.feesLbl}>Balance</Text>
+                <Text style={[styles.feesVal, { color: feeBal > 0 ? '#e11d48' : '#15c98c' }]}>{money(feeBal)}</Text>
+                <Text style={styles.feesLbl}>{feeBal > 0 ? 'Balance' : 'All paid ✓'}</Text>
               </View>
             </View>
           </View>
@@ -264,10 +291,53 @@ export const MeView: React.FC = () => {
           </TouchableOpacity>
         )}
 
+        {/* ── Exam readiness (scholar / SSS) — GET /api/student/readiness ── */}
+        {tier === 'scholar' && ready && (
+          <View style={[styles.card, { borderRadius: tokens.radius }]}>
+            <View style={styles.cardHead}>
+              <View style={styles.titleWrap}>
+                <Text style={styles.titleEmoji}>🎯</Text>
+                <Text style={styles.cardTitle}>Exam readiness</Text>
+              </View>
+              <TouchableOpacity hitSlop={8} onPress={openQuests}>
+                <Text style={[styles.seeAll, { color: tokens.accent1 }]}>Revise</Text>
+              </TouchableOpacity>
+            </View>
+            {ready.overall != null && (
+              <Text style={styles.readyOverall}>{Math.round(ready.overall)}% overall</Text>
+            )}
+            {ready.subjects.slice(0, 3).map((su, i) => {
+              const s = Math.max(0, Math.min(100, Math.round(su.score)));
+              const col = s < 50 ? '#e5484d' : s < 70 ? '#d97706' : '#059669';
+              const trend = String(su.trend ?? '').toUpperCase();
+              return (
+                <View key={`${su.subject}-${i}`} style={styles.readyRow}>
+                  <Text style={styles.readySubject} numberOfLines={1}>{su.subject}</Text>
+                  <View style={styles.readyBar}>
+                    <View style={[styles.readyFill, { width: `${s}%`, backgroundColor: col }]} />
+                  </View>
+                  <Text style={[styles.readyScore, { color: col }]}>
+                    {s}%{trend === 'UP' ? ' ▲' : trend === 'DOWN' ? ' ▼' : ''}
+                  </Text>
+                </View>
+              );
+            })}
+            {ready.premium === false && (
+              <View style={styles.readyLock}>
+                <Text style={styles.readyLockEmoji}>🔒</Text>
+                <Text style={styles.readyLockText}>Unlock the topic breakdown & revision plan with Premium</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* ── Today's goal + week strip (game candy — not for campus) ── */}
         {gamified && goalTarget != null && goalTarget > 0 && (
           <View style={[styles.card, { borderRadius: tokens.radius }]}>
-            <Text style={styles.cardTitle}>🎯 Today’s goal</Text>
+            <View style={styles.titleWrap}>
+              <Text style={styles.titleEmoji}>🎯</Text>
+              <Text style={styles.cardTitle}>Today’s goal</Text>
+            </View>
             <View style={styles.goalRow}>
               <Text style={styles.goalBig}>{goalDone}<Text style={styles.goalOf}> of {goalTarget}</Text></Text>
               <View style={styles.goalDots}>
@@ -329,7 +399,10 @@ export const MeView: React.FC = () => {
         {roadmap.length > 0 && (
           <View style={[styles.card, { borderRadius: tokens.radius }]}>
             <View style={styles.cardHead}>
-              <Text style={styles.cardTitle}>🗺️ {v.path}</Text>
+              <View style={styles.titleWrap}>
+                <Text style={styles.titleEmoji}>🗺️</Text>
+                <Text style={styles.cardTitle}>{v.path}</Text>
+              </View>
               <TouchableOpacity hitSlop={8} onPress={openQuests}>
                 <Text style={[styles.seeAll, { color: tokens.accent1 }]}>See all</Text>
               </TouchableOpacity>
@@ -373,7 +446,10 @@ export const MeView: React.FC = () => {
         {/* ── My skills (mastery bars) ────────────────────────── */}
         {skillBars.length > 0 && (
           <View style={[styles.card, { borderRadius: tokens.radius }]}>
-            <Text style={styles.cardTitle}>💪 {v.mastery}</Text>
+            <View style={styles.titleWrap}>
+              <Text style={styles.titleEmoji}>💪</Text>
+              <Text style={styles.cardTitle}>{v.mastery}</Text>
+            </View>
             {skillBars.map((m, i) => {
               const p = masteryPct(m.score);
               const color = BAR_COLORS[i % BAR_COLORS.length];
@@ -435,7 +511,8 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   greetTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   greetTitle: { flexShrink: 1, fontSize: 22, fontWeight: '800', color: S.ink, letterSpacing: -0.3 },
   greetSub: { color: S.inkSoft, fontWeight: '600', marginTop: 6, fontSize: 13, lineHeight: 18 },
-  lvlChip: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  lvlChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  lvlChipEmoji: { fontSize: 11.5 },
   lvlChipText: { fontWeight: '800', fontSize: 11.5 },
 
   trialRow: {
@@ -447,9 +524,11 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
 
   hero: { padding: 18, marginBottom: 12, ...SHADOWS.card },
   heroKick: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
     alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.22)',
     borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
   },
+  heroKickEmoji: { fontSize: 10, color: '#fff' },
   heroKickText: { color: '#fff', fontWeight: '800', fontSize: 9.5, letterSpacing: 0.6 },
   heroTitle: { color: '#fff', fontWeight: '800', fontSize: 19, marginTop: 10, letterSpacing: -0.3 },
   heroBody: { color: 'rgba(255,255,255,0.92)', fontSize: 12.5, fontWeight: '500', marginTop: 5, lineHeight: 18 },
@@ -473,12 +552,28 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   card: { backgroundColor: S.card, padding: 16, marginBottom: 12, ...SHADOWS.cardSm },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   cardTitle: { fontSize: 15, fontWeight: '800', color: S.ink, marginBottom: 10 },
+  titleWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  titleEmoji: { fontSize: 14, marginBottom: 10 },
   seeAll: { fontWeight: '800', fontSize: 12.5, marginBottom: 10 },
 
   feesRow: { flexDirection: 'row', alignItems: 'center' },
   feesCol: { flex: 1, alignItems: 'center' },
   feesVal: { fontSize: 17, fontWeight: '800', color: S.ink, letterSpacing: -0.3 },
   feesLbl: { fontSize: 11, fontWeight: '600', color: S.inkSoft, marginTop: 2 },
+
+  // Exam readiness (scholar)
+  readyOverall: { fontSize: 20, fontWeight: '800', color: S.ink, letterSpacing: -0.4, marginBottom: 2 },
+  readyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+  readySubject: { width: 92, fontSize: 12.5, fontWeight: '700', color: S.ink },
+  readyBar: { flex: 1, height: 8, borderRadius: 99, backgroundColor: S.ring, overflow: 'hidden', minWidth: 30 },
+  readyFill: { height: '100%', borderRadius: 99 },
+  readyScore: { width: 54, textAlign: 'right', fontSize: 12, fontWeight: '800' },
+  readyLock: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12,
+    backgroundColor: S.warnSoft, borderRadius: 10, padding: 10,
+  },
+  readyLockEmoji: { fontSize: 13 },
+  readyLockText: { flex: 1, fontSize: 11.5, fontWeight: '600', color: S.warnInk },
 
   goalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   goalBig: { fontSize: 26, fontWeight: '800', color: S.ink, letterSpacing: -0.5 },

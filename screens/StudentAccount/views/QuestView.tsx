@@ -60,6 +60,21 @@ function subjectTint(name: string): string {
   return FALLBACK_TINTS[h % FALLBACK_TINTS.length];
 }
 
+// Stage-type identity — mirrors the web's per-type accent + glyph so a learner
+// reads Lesson / Practice / Challenge / Boss at a glance (matched on a substring
+// so backend variants like "MINI_BOSS" still land on the right look).
+const STAGE_TYPE_LOOK: { key: string; emoji: string; label: string; color: string }[] = [
+  { key: 'BOSS', emoji: '👑', label: 'Boss', color: '#DB2777' },
+  { key: 'CHALLENGE', emoji: '⚡', label: 'Challenge', color: '#F59E0B' },
+  { key: 'PRACTICE', emoji: '✏️', label: 'Practice', color: '#10B981' },
+  { key: 'QUIZ', emoji: '✏️', label: 'Practice', color: '#10B981' },
+  { key: 'LESSON', emoji: '📘', label: 'Lesson', color: '#6366F1' },
+];
+function stageTypeLook(type?: string) {
+  const k = String(type || '').toUpperCase();
+  return STAGE_TYPE_LOOK.find((t) => k.includes(t.key)) ?? STAGE_TYPE_LOOK[STAGE_TYPE_LOOK.length - 1];
+}
+
 // One subject's quests with roll-up progress, for the compact subject tiles.
 type SubjGroup = {
   name: string; quests: QuestSummary[];
@@ -663,6 +678,10 @@ export const QuestMapView: React.FC<{
   const q = questDetail.quest;
   const stages = [...questDetail.stages].sort((a, b) => a.position - b.position);
   const accent = q.accentColor || tokens.accent1;
+  // Older learners (voyager/scholar/campus) get the calm checklist "track"; the
+  // youngest keep the playful winding map — the web's play/serious split.
+  const serious = tier === 'voyager' || tier === 'scholar' || tier === 'campus';
+  const questPct = q.totalStages ? Math.round((q.completedStages / q.totalStages) * 100) : 0;
 
   // Winding path positions. The canvas GROWS with the stage count, and every
   // node's y is normalised into a safe band [TOP..BOT]% so the extreme nodes
@@ -704,9 +723,14 @@ export const QuestMapView: React.FC<{
 
         {/* Quest meta card */}
         <View style={[styles.metaCard, { borderRadius: tokens.radius, borderColor: accent + '30' }]}>
-          <Text style={[styles.metaSubject, { color: accent }]}>{q.subject}</Text>
-          <Text style={styles.metaTitle}>{q.title}</Text>
-          <Text style={styles.metaDesc} numberOfLines={2}>{q.description}</Text>
+          <View style={styles.metaTopRow}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.metaSubject, { color: accent }]}>{q.subject}</Text>
+              <Text style={styles.metaTitle}>{q.title}</Text>
+              <Text style={styles.metaDesc} numberOfLines={2}>{q.description}</Text>
+            </View>
+            <MiniRing pct={questPct} tint={accent} size={54} />
+          </View>
           <View style={styles.xpRow}>
             <View style={styles.xpBar}>
               <LinearGradient
@@ -720,6 +744,12 @@ export const QuestMapView: React.FC<{
           <Text style={styles.metaStages}>{q.completedStages}/{q.totalStages} stages complete</Text>
         </View>
 
+        {serious ? (
+          /* Older learners: a calm checklist track whose rail lights only
+             behind completed steps — the web's .quests--serious path. */
+          <StageTrack stages={stages} accent={accent} loadingDetail={loadingDetail} onStageTap={onStageTap} />
+        ) : (
+        <>
         {/* Legend — the map key sits ABOVE the map */}
         <View style={styles.legend}>
           <LegendItem colors={['#15c98c', '#0fae78']} label={pickByTier(tier, { base: 'Completed', sprout: 'Done' })} />
@@ -768,12 +798,92 @@ export const QuestMapView: React.FC<{
             </View>
           )}
         </LinearGradient>
+        </>
+        )}
 
         <View style={{ height: 90 }} />
       </ScrollView>
     </View>
   );
 };
+
+// =================================================================
+// Stage track — the "serious" (older-learner) quest map. A vertical checklist
+// on a rail that lights green only behind steps you've completed; each row wears
+// its stage-type colour, the current step is highlighted with a Start pill, and
+// the Boss is a rotated "summit gate". Mirrors the web's .quests--serious path.
+// =================================================================
+const StageTrack: React.FC<{
+  stages: Stage[]; accent: string; loadingDetail: boolean; onStageTap: (s: Stage) => void;
+}> = ({ stages, accent, loadingDetail, onStageTap }) => (
+  <View style={styles.track}>
+    {loadingDetail && (
+      <View style={styles.trackLoading}><ActivityIndicator color={accent} /></View>
+    )}
+    {stages.map((stage, i) => {
+      const look = stageTypeLook(stage.type);
+      const isBoss = String(stage.type).toUpperCase().includes('BOSS');
+      const done = stage.status === 'COMPLETED';
+      const locked = stage.status === 'LOCKED';
+      const now = stage.status === 'AVAILABLE' || stage.status === 'IN_PROGRESS';
+      const last = i === stages.length - 1;
+      const knotBg = done ? '#15c98c' : locked ? 'rgba(150,150,170,0.16)' : isBoss ? '#DB2777' : now ? accent : 'transparent';
+      const filled = knotBg !== 'transparent';
+      return (
+        <View key={stage.id} style={styles.trackRow}>
+          {/* Rail gutter: the knot + the connector down to the next step. */}
+          <View style={styles.trackGutter}>
+            <View style={[styles.knot, isBoss && styles.knotBoss, { backgroundColor: knotBg, borderColor: filled ? '#ffffff' : accent }]}>
+              {done ? <Ionicons name="checkmark" size={15} color="#fff" />
+                : locked ? <Ionicons name="lock-closed" size={12} color="#9b93c4" />
+                : isBoss ? <Text style={[styles.knotEmoji, { transform: [{ rotate: '-45deg' }] }]}>👑</Text>
+                : <Text style={[styles.knotNum, { color: filled ? '#fff' : accent }]}>{stage.position}</Text>}
+            </View>
+            {!last && <View style={[styles.connector, { backgroundColor: done ? '#15c98c' : 'rgba(150,150,170,0.22)' }]} />}
+          </View>
+
+          {/* Step card */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            disabled={locked}
+            onPress={() => onStageTap(stage)}
+            style={[
+              styles.trackCard,
+              now && { borderColor: accent, borderWidth: 2, shadowColor: accent, shadowOpacity: 0.22, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
+              locked && { opacity: 0.6 },
+            ]}
+          >
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <View style={styles.trackTypeRow}>
+                <Text style={styles.trackTypeEmoji}>{look.emoji}</Text>
+                <Text style={[styles.trackTypeLabel, { color: look.color }]}>{look.label}</Text>
+                {done && stage.stars > 0 && (
+                  <Text style={styles.trackStars}>{'★'.repeat(Math.min(3, stage.stars))}</Text>
+                )}
+              </View>
+              <Text style={styles.trackTitle} numberOfLines={2}>{stage.title}</Text>
+              {stage.xpReward > 0 && (
+                <View style={styles.trackMetaRow}>
+                  <Text style={styles.trackXp}>⚡ {stage.xpReward} XP</Text>
+                </View>
+              )}
+            </View>
+            {locked ? (
+              <View style={styles.trackLock}><Ionicons name="lock-closed" size={16} color="#9b93c4" /></View>
+            ) : (
+              <View style={[styles.trackCta, now ? { backgroundColor: accent } : { backgroundColor: (done ? '#15c98c' : accent) + '18' }]}>
+                <Text style={[styles.trackCtaText, { color: now ? '#fff' : done ? '#15c98c' : accent }]}>
+                  {done ? 'Replay' : now ? (stage.status === 'IN_PROGRESS' ? 'Continue' : 'Start') : 'Open'}
+                </Text>
+                <Ionicons name="chevron-forward" size={13} color={now ? '#fff' : done ? '#15c98c' : accent} />
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      );
+    })}
+  </View>
+);
 
 // =================================================================
 // Helpers
@@ -1074,6 +1184,40 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   metaTitle: { fontSize: 17, fontWeight: '800', color: S.ink, marginTop: 2 },
   metaDesc: { fontSize: 12, color: S.inkSoft, fontWeight: '500', marginTop: 4, lineHeight: 16 },
   metaStages: { fontSize: 11, fontWeight: '700', color: S.inkSoft, marginTop: 8 },
+  metaTopRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+
+  // Stage track (older-learner checklist map)
+  track: { marginBottom: 14 },
+  trackLoading: { paddingVertical: 20, alignItems: 'center' },
+  trackRow: { flexDirection: 'row', alignItems: 'stretch', gap: 12 },
+  trackGutter: { width: 30, alignItems: 'center' },
+  knot: {
+    width: 30, height: 30, borderRadius: 15, borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  knotBoss: { borderRadius: 9, transform: [{ rotate: '45deg' }] },
+  knotNum: { fontSize: 12.5, fontWeight: '900' },
+  knotEmoji: { fontSize: 13, color: '#fff' },
+  connector: { width: 3, flex: 1, minHeight: 20, borderRadius: 3, marginTop: 3, marginBottom: 3 },
+  trackCard: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: S.card, borderRadius: 14, borderWidth: 1.5, borderColor: S.line,
+    padding: 12, marginBottom: 12,
+    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
+  },
+  trackTypeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 },
+  trackTypeEmoji: { fontSize: 12 },
+  trackTypeLabel: { fontSize: 10.5, fontWeight: '800', letterSpacing: 0.3 },
+  trackStars: { fontSize: 11, color: '#f4a716', marginLeft: 4 },
+  trackTitle: { fontSize: 14, fontWeight: '800', color: S.ink, lineHeight: 18 },
+  trackMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  trackXp: { fontSize: 11, fontWeight: '700', color: '#f4a716' },
+  trackCta: {
+    flexDirection: 'row', alignItems: 'center', gap: 2,
+    borderRadius: 999, paddingLeft: 11, paddingRight: 8, paddingVertical: 6,
+  },
+  trackCtaText: { fontSize: 12, fontWeight: '800' },
+  trackLock: { width: 30, alignItems: 'center', justifyContent: 'center' },
 
   // Compact vertical path (replaces the winding map)
   inlineLoading: { paddingVertical: 24, alignItems: 'center' },

@@ -1,6 +1,6 @@
 import { apiFetch, API_BASE_URL } from '../config/api';
 import {
-  StudentProfile, StudentCalendarItem, StudentFeeSummary,
+  StudentProfile, StudentCalendarItem, StudentFeeSummary, StudentReadiness,
   StudentAssignment, StudentLiveClass,
   AssignmentExam, AssignmentSubmitResult, AssignmentReview,
   StudentPortfolio,
@@ -32,6 +32,11 @@ export async function getStudentProfile(accessToken: string): Promise<StudentPro
 
 export async function getStudentFees(accessToken: string): Promise<StudentFeeSummary> {
   return apiFetch<StudentFeeSummary>('/api/student/fees', { accessToken });
+}
+
+/** GET /api/student/readiness — scholar exam readiness (overall + per-subject scores/trend). */
+export async function getStudentReadiness(accessToken: string): Promise<StudentReadiness> {
+  return apiFetch<StudentReadiness>('/api/student/readiness', { accessToken });
 }
 
 export async function getStudentAssignments(accessToken: string): Promise<StudentAssignment[]> {
