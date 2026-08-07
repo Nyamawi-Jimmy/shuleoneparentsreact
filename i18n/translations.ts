@@ -23,6 +23,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'nav.live': 'Live',
     'nav.calendar': 'Calendar',
     'nav.documents': 'Documents',
+    'nav.lend': 'Lend',
     'nav.settings': 'Settings',
     'nav.help': 'Help & Support',
     // Home
@@ -66,6 +67,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'nav.live': 'Moja kwa moja',
     'nav.calendar': 'Kalenda',
     'nav.documents': 'Nyaraka',
+    'nav.lend': 'Mkopo',
     'nav.settings': 'Mipangilio',
     'nav.help': 'Msaada',
     'home.greetingMorning': 'Habari ya asubuhi, {name}',

@@ -102,6 +102,7 @@ const quickItems = (c: ColorPalette): QuickItem[] => [
   { key: 'nav.eventsLive', route: '/calendar',                  tint: '#0891B2', icon: <Ionicons name="calendar-outline" size={21} color="#0891B2" /> },
   { key: 'nav.bus',        route: '/transport',                 tint: '#2563EB', icon: <MaterialCommunityIcons name="bus-school" size={21} color="#2563EB" /> },
   { key: 'nav.documents',  route: '/documents',                 tint: '#D97706', icon: <Ionicons name="folder-open-outline" size={21} color="#D97706" /> },
+  { key: 'nav.lend',       route: '/lend',                      tint: '#0EA5E9', icon: <MaterialCommunityIcons name="bank-outline" size={21} color="#0EA5E9" /> },
   { key: 'nav.settings',   route: '/settings',                  tint: '#64748B', icon: <Ionicons name="settings-outline" size={21} color="#64748B" /> },
 ];
 
