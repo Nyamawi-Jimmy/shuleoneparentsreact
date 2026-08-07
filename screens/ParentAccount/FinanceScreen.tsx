@@ -15,7 +15,7 @@ import {
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { GradientAppBar } from '../../components/GradientAppBar';
 import { fonts } from '../../constants/theme';
 import { useTheme } from '../../theme/ThemeContext';
@@ -237,6 +237,27 @@ export const FinanceScreen: React.FC = () => {
                 </TouchableOpacity>
               )}
             </View>
+
+            {/* Offered only when there is actually a balance to struggle with —
+                financing has no business being visible to a cleared account. */}
+            {balance > 0 && (
+              <TouchableOpacity
+                style={styles.lendPrompt}
+                activeOpacity={0.8}
+                onPress={() => router.push('/lend' as any)}
+              >
+                <View style={[styles.lendIcon, { backgroundColor: colors.infoSoft }]}>
+                  <MaterialCommunityIcons name="bank-outline" size={19} color={colors.info} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.lendTitle}>Can&apos;t clear this today?</Text>
+                  <Text style={styles.lendText} numberOfLines={2}>
+                    See what partner banks will lend against your payment history
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+              </TouchableOpacity>
+            )}
 
             {/* ── Segmented control — one section at a time (no long scroll) ── */}
             <View style={styles.segment}>
@@ -605,6 +626,15 @@ function makeStyles(c: ColorPalette) {
     },
     rcptBtnAlt: { backgroundColor: c.backgroundAlt, paddingHorizontal: 9 },
     rcptBtnText: { fontSize: 12, fontFamily: fonts.bold, color: c.primary },
+
+    lendPrompt: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+      paddingHorizontal: 14, paddingVertical: 13, marginBottom: 20, marginTop: -6,
+    },
+    lendIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    lendTitle: { fontSize: 13.5, fontFamily: fonts.bold, color: c.text, letterSpacing: -0.2 },
+    lendText: { fontSize: 11.5, fontFamily: fonts.regular, color: c.textTertiary, marginTop: 2, lineHeight: 16 },
 
     // Segmented control — a pill track with the active tab as a filled pill.
     segment: {
