@@ -104,6 +104,22 @@ export const KidLearnScreen: React.FC = () => {
   const openQuest = (qid: number) => { setLoading(true); setSelectedQuestId(qid); loadDetail(qid); };
   const backToList = () => { setDetail(null); setSelectedQuestId(null); setLoading(true); loadList(); };
 
+  // Group the quest list by subject (mirrors the student side) so the "All
+  // quests" list is a set of labelled subject sections, not one flat wall.
+  const questGroups = useMemo(() => {
+    const rank = (s?: string | null) => ({ IN_PROGRESS: 0, AVAILABLE: 1, COMPLETED: 2, LOCKED: 3 } as any)[String(s)] ?? 4;
+    const g = new Map<string, QuestSummary[]>();
+    for (const q of quests) {
+      const key = (q.subject || 'General').trim();
+      const list = g.get(key);
+      if (list) list.push(q); else g.set(key, [q]);
+    }
+    return Array.from(g.entries()).map(([subject, qs]) => ({
+      subject,
+      quests: [...qs].sort((a, b) => rank(a.status) - rank(b.status)),
+    }));
+  }, [quests]);
+
   const onStageTap = (stage: Stage) => {
     if (stage.status === 'LOCKED') {
       Alert.alert('🔒 Locked', 'Finish the step before this one!');
@@ -163,32 +179,42 @@ export const KidLearnScreen: React.FC = () => {
               <Text style={styles.emptyText}>No quests yet — your teacher will publish some soon!</Text>
             </View>
           )}
-          {quests.map((q) => {
-            const accent = q.accentColor || colors.primary;
-            const pct = q.totalXp > 0 ? (q.earnedXp / q.totalXp) * 100 : 0;
-            const locked = q.status === 'LOCKED';
-            return (
-              <TouchableOpacity key={q.id} style={[styles.questCard, { borderColor: accent + '40' }]}
-                activeOpacity={0.85} disabled={locked} onPress={() => openQuest(q.id)}>
-                <View style={styles.questHead}>
-                  <View style={[styles.subjectPill, { backgroundColor: accent + '1F' }]}>
-                    <Text style={[styles.subjectPillText, { color: accent }]}>{q.subject}</Text>
-                  </View>
-                  <Text style={[styles.questAction, { color: accent }]}>
-                    {locked ? '🔒 Locked'
-                      : q.status === 'COMPLETED' ? '✓ Completed'
-                      : q.status === 'IN_PROGRESS' ? 'Continue →' : 'Start →'}
-                  </Text>
+          {questGroups.map((group) => (
+            <View key={group.subject} style={styles.subjSection}>
+              <View style={styles.subjSectionHead}>
+                <Text style={styles.subjSectionTitle} numberOfLines={1}>{group.subject}</Text>
+                <View style={styles.subjSectionCount}>
+                  <Text style={styles.subjSectionCountText}>{group.quests.length}</Text>
                 </View>
-                <Text style={styles.questTitle} numberOfLines={1}>{q.title}</Text>
-                {!!q.description && <Text style={styles.questDesc} numberOfLines={2}>{q.description}</Text>}
-                <View style={[styles.track, { marginTop: 10 }]}>
-                  <View style={[styles.fill, { width: `${pct}%`, backgroundColor: accent }]} />
-                </View>
-                <Text style={styles.questStats}>{q.completedStages}/{q.totalStages} stages · {q.earnedXp}/{q.totalXp} XP</Text>
-              </TouchableOpacity>
-            );
-          })}
+              </View>
+              {group.quests.map((q) => {
+                const accent = q.accentColor || colors.primary;
+                const pct = q.totalXp > 0 ? (q.earnedXp / q.totalXp) * 100 : 0;
+                const locked = q.status === 'LOCKED';
+                return (
+                  <TouchableOpacity key={q.id} style={[styles.questCard, { borderColor: accent + '40' }]}
+                    activeOpacity={0.85} disabled={locked} onPress={() => openQuest(q.id)}>
+                    <View style={styles.questHead}>
+                      <View style={[styles.subjectPill, { backgroundColor: accent + '1F' }]}>
+                        <Text style={[styles.subjectPillText, { color: accent }]}>{q.subject}</Text>
+                      </View>
+                      <Text style={[styles.questAction, { color: accent }]}>
+                        {locked ? '🔒 Locked'
+                          : q.status === 'COMPLETED' ? '✓ Completed'
+                          : q.status === 'IN_PROGRESS' ? 'Continue →' : 'Start →'}
+                      </Text>
+                    </View>
+                    <Text style={styles.questTitle} numberOfLines={1}>{q.title}</Text>
+                    {!!q.description && <Text style={styles.questDesc} numberOfLines={2}>{q.description}</Text>}
+                    <View style={[styles.track, { marginTop: 10 }]}>
+                      <View style={[styles.fill, { width: `${pct}%`, backgroundColor: accent }]} />
+                    </View>
+                    <Text style={styles.questStats}>{q.completedStages}/{q.totalStages} stages · {q.earnedXp}/{q.totalXp} XP</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
@@ -441,6 +467,11 @@ function makeStyles(c: ColorPalette) {
     playPillText: { color: '#FFF', fontSize: 12, fontFamily: fonts.bold },
 
     listHead: { fontSize: 17, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.3, marginBottom: 12 },
+    subjSection: { marginBottom: 14 },
+    subjSectionHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+    subjSectionTitle: { flex: 1, fontSize: 14.5, fontFamily: fonts.extrabold, color: c.text, letterSpacing: -0.2 },
+    subjSectionCount: { minWidth: 22, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, backgroundColor: c.primarySofter, alignItems: 'center' },
+    subjSectionCountText: { fontSize: 11, fontFamily: fonts.bold, color: c.primary },
     questCard: {
       backgroundColor: c.card, borderRadius: 16, borderWidth: 2,
       padding: 14, marginBottom: 12,

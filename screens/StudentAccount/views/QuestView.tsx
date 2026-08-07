@@ -105,6 +105,7 @@ export const QuestView: React.FC = () => {
   const [myGrade, setMyGrade] = useState<string | null>(null);
   const [gradeSel, setGradeSel] = useState<string>('ALL'); // 'ALL' | class code
   const [subjectSel, setSubjectSel] = useState<string>('ALL'); // 'ALL' | subject
+  const [expanded, setExpanded] = useState<Set<string>>(new Set()); // open subject accordions
   const [selectedQuestId, setSelectedQuestId] = useState<number | null>(null);
   const [questDetail, setQuestDetail] = useState<QuestDetail | null>(null);
 
@@ -955,6 +956,18 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
   recRowWrap: { marginHorizontal: -16, marginBottom: 6 },
   recRow: { paddingHorizontal: 16, gap: 12, paddingBottom: 8, paddingTop: 2 },
   subjGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 8 },
+
+  // Expandable subject accordion
+  accItem: {
+    backgroundColor: S.card, borderRadius: 18, borderWidth: 1.5, marginBottom: 10, overflow: 'hidden',
+    shadowColor: '#5038A0', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 2,
+  },
+  accHead: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
+  accEmoji: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  accEmojiText: { fontSize: 21 },
+  accName: { fontSize: 14.5, fontWeight: '800', color: S.ink, letterSpacing: -0.2 },
+  accMeta: { fontSize: 11.5, fontWeight: '700', color: S.inkSoft, marginTop: 2 },
+  accBody: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 2, borderTopWidth: 1, borderTopColor: S.line },
   subjTile: {
     backgroundColor: S.card, borderRadius: 20, borderWidth: 1.5, padding: 14,
     shadowColor: '#5038A0', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.13, shadowRadius: 14, elevation: 4,

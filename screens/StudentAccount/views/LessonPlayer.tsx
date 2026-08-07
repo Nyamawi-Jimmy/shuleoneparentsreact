@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Speech from 'expo-speech';
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LearningHeader } from '../components/LearningHeader';
 import { useAuth } from '../../../context/AuthContext';
@@ -24,6 +25,69 @@ const mediaUrl = (u?: string | null): string | undefined => {
   if (/^(https?:|data:|file:)/i.test(s)) return s;
   return `${API_BASE_URL}${s.startsWith('/') ? '' : '/'}${s}`;
 };
+
+// ── Text-to-speech language ───────────────────────────────────────────────
+// Kiswahili quests were read with an English voice, so the words came out
+// mispronounced. The lesson's subject decides the TTS language; a module-level
+// value keeps every player's Speech.speak() in sync (only one lesson is open at
+// a time). `L(en, sw)` returns the right spoken feedback for that language, so a
+// Kiswahili lesson gets Kiswahili encouragement too.
+let activeTtsLang = 'en-US';
+let activeSpeed = 1; // current narration speed multiplier; kept in sync by the player
+function ttsLangForSubject(subject?: string | null): string {
+  const s = String(subject || '').toLowerCase();
+  return /kiswahili|lugha|fasihi|insha/.test(s) ? 'sw-KE' : 'en-US';
+}
+const L = (en: string, sw: string): string => (activeTtsLang.startsWith('sw') ? sw : en);
+
+// Recorded / AI narration playback — mirrors the web's voice.js `say()`:
+// prefer the real audio clip that ships with the activity (audioUrl /
+// audioIntroUrl), fall back to device TTS only when there's no clip. One clip
+// plays at a time; starting a new one (or TTS) stops the previous.
+let _clip: AudioPlayer | null = null;
+let _audioModeSet = false;
+function stopClip() {
+  // pause() first — remove()/release alone doesn't reliably halt audio that is
+  // already sounding, which caused a second tap (or leaving the screen) to layer
+  // a new clip over the old one ("two voices" / sound kept playing after Back).
+  try { _clip?.pause(); } catch { /* ignore */ }
+  try { _clip?.remove(); } catch { /* ignore */ }
+  _clip = null;
+}
+export function stopNarration() {
+  stopClip();
+  try { Speech.stop(); } catch { /* ignore */ }
+}
+function playClip(url: string, speed = 1) {
+  try {
+    stopNarration();
+    if (!_audioModeSet) {
+      _audioModeSet = true;
+      // Play even when the phone's silent switch is on — narration must be heard.
+      setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+    }
+    _clip = createAudioPlayer({ uri: url });
+    if (speed && speed !== 1) {
+      try { _clip.shouldCorrectPitch = true; _clip.playbackRate = speed; } catch { /* rate unsupported */ }
+    }
+    _clip.play();
+  } catch { /* audio is a nice-to-have; never break the lesson */ }
+}
+// Tap feedback ("Vizuri!", "Correct!", "Try again!") used to be spoken by the
+// device TTS, which clashed with the natural recorded narration — the "two
+// voices". Muted: the visual feedback (colours, ticks, shakes) carries it, and
+// the recorded/AI narration stays the single voice. Kept as a named no-op so
+// the intent is clear and it's a one-line switch to bring cheers back.
+function cheer(_text: string, _opts?: any) { /* tap-feedback speech intentionally muted */ }
+
+/** Play the recorded/AI narration clip. When the activity ships NO audio we stay
+ *  silent on purpose — the device (robotic) TTS is deliberately not used, so a
+ *  lesson without recorded audio behaves exactly as it did before (no voice).
+ *  `speed` is a 1.0-relative multiplier (0.75 slow · 1 normal · 1.25 fast). */
+function say(audioUrl: string | null | undefined, _text?: string, opts?: { pitch?: number; speed?: number }) {
+  if (!audioUrl) return;
+  playClip(audioUrl, opts?.speed ?? activeSpeed);
+}
 
 // Activity config may arrive as a parsed JSON OBJECT (backend Map) OR a JSON
 // STRING (content-admin stores raw JSON text). This mirrors the web's
@@ -100,6 +164,12 @@ export const LessonPlayer: React.FC = () => {
 
   // Slide state - 0 = intro, 1..N = activities
   const [step, setStep] = useState(0);
+  // Narration speed (0.75 slow · 1 normal · 1.25 fast). A ref mirrors it so the
+  // auto-play effect reads the latest without re-firing when speed changes.
+  const [speed, setSpeed] = useState(1);
+  const speedRef = useRef(1);
+  useEffect(() => { speedRef.current = speed; activeSpeed = speed; }, [speed]);
+  const cycleSpeed = () => setSpeed((s) => (s === 1 ? 1.25 : s === 1.25 ? 0.75 : 1));
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [completionResult, setCompletionResult] = useState<StageCompletionResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -126,7 +196,10 @@ export const LessonPlayer: React.FC = () => {
       }
       try {
         const data = await getStageLesson(accessToken, Number(questId), Number(stageId));
-        if (!cancelled) setLesson(data);
+        if (!cancelled) {
+          activeTtsLang = ttsLangForSubject(data?.subject); // Kiswahili lessons read in Swahili
+          setLesson(data);
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof ApiError ? e.message : 'Could not load lesson.');
@@ -138,10 +211,31 @@ export const LessonPlayer: React.FC = () => {
     return () => { cancelled = true; };
   }, [questId, stageId, accessToken]);
 
-  // Stop TTS on step change / unmount
+  // Stop any narration (recorded clip or TTS) on step change / unmount.
   useEffect(() => {
-    return () => { Speech.stop(); };
+    return () => { stopNarration(); };
   }, [step]);
+
+  // Belt-and-braces: always kill audio when the lesson screen goes away (Back,
+  // Done, or navigating into a Playground), so nothing keeps playing after exit.
+  useEffect(() => () => { stopNarration(); }, []);
+
+  // Auto-play the slide's narration when it appears — the same "the audio comes
+  // with it" behaviour as the web: play the recorded/AI clip (audioUrl /
+  // audioIntroUrl) if present, else speak the narration in the lesson language.
+  useEffect(() => {
+    if (!lesson) return undefined;
+    const introSlide = step === 0;
+    const act = introSlide ? undefined : lesson.activities[step - 1];
+    const cfg = readConfig(act);
+    const audioUrl = introSlide ? lesson.audioIntroUrl : act?.audioUrl;
+    const text = introSlide
+      ? (lesson.intro || stripHtml(lesson.contentHtml))
+      : (act?.narration ?? (typeof cfg.promptText === 'string' ? cfg.promptText : undefined) ?? act?.prompt ?? '');
+    if (!audioUrl) return undefined; // no recorded clip → no auto-narration (no device voice)
+    const t = setTimeout(() => say(audioUrl, text, { speed: speedRef.current }), 350); // let the slide settle first
+    return () => clearTimeout(t);
+  }, [lesson, step]);
 
   // ── States ────────────────────────────────────────────
   if (loading) {
@@ -183,20 +277,16 @@ export const LessonPlayer: React.FC = () => {
   const currentBlocked = needsAnswer(currentActivity) && answers[activityIndex] === undefined;
   const allAnswered = lesson.activities.every((a, i) => !needsAnswer(a) || answers[i] !== undefined);
 
-  // ── Listen (TTS) ──────────────────────────────────────
+  // ── Listen — play the recorded/AI clip that ships with this slide, else TTS ──
   const speakCurrent = () => {
-    Speech.stop();
     const cfg = readConfig(currentActivity);
+    const audioUrl = isIntro ? lesson.audioIntroUrl : currentActivity?.audioUrl;
     const text = isIntro
       ? lesson.intro || stripHtml(lesson.contentHtml)
       : (currentActivity?.narration
         ?? (typeof cfg.promptText === 'string' ? cfg.promptText : undefined)
         ?? currentActivity?.prompt ?? '');
-    if (!text) return;
-    Speech.speak(text, {
-      language: 'en-US', pitch: 1.05, rate: 0.92,
-      onError: () => Alert.alert('Sorry', 'Audio is not available on this device.'),
-    });
+    say(audioUrl, text, { speed });
   };
 
   // ── Solve → record answer, small pause, advance ──────
@@ -296,24 +386,47 @@ export const LessonPlayer: React.FC = () => {
             <Text style={styles.introBody}>
               {lesson.intro ? lesson.intro : stripHtml(lesson.contentHtml)}
             </Text>
-            <TouchableOpacity activeOpacity={0.8} onPress={speakCurrent} style={styles.listenChip}>
-              <Ionicons name="volume-high" size={14} color="#7c5cff" />
-              <Text style={styles.listenChipText}>Listen</Text>
-            </TouchableOpacity>
-          </LinearGradient>
-        ) : currentActivity ? (
-          <View>
-            {/* Prompt row — question + small listen button, no banner. Hidden for
-                kinds whose own player already draws the prompt (FILL_BLANK, READ,
-                video, etc.) so the question never appears twice. */}
-            {!!promptText && !SELF_PROMPT_KINDS.has(String(currentActivity.kind).toUpperCase()) && (
-              <View style={styles.promptRow}>
-                <Text style={styles.promptText}>{promptText}</Text>
-                <TouchableOpacity activeOpacity={0.8} onPress={speakCurrent} style={styles.listenRound} hitSlop={6}>
-                  <Ionicons name="volume-high" size={16} color="#7c5cff" />
+            {/* Only when the intro ships a recorded clip — no clip, no controls
+                (we never fall back to the device voice). */}
+            {!!lesson.audioIntroUrl && (
+              <View style={styles.audioRow}>
+                <TouchableOpacity activeOpacity={0.8} onPress={speakCurrent} style={styles.listenChip}>
+                  <Ionicons name="volume-high" size={14} color="#7c5cff" />
+                  <Text style={styles.listenChipText}>Listen</Text>
+                </TouchableOpacity>
+                <TouchableOpacity activeOpacity={0.8} onPress={cycleSpeed} style={styles.speedChip}>
+                  <Ionicons name="speedometer-outline" size={13} color="#7c5cff" />
+                  <Text style={styles.speedChipText}>{speed}x</Text>
                 </TouchableOpacity>
               </View>
             )}
+          </LinearGradient>
+        ) : currentActivity ? (
+          <View>
+            {/* Prompt text (hidden for kinds whose own player draws it) + audio
+                controls. The Listen (replay) + Speed controls appear ONLY when the
+                activity ships a recorded clip — no clip means no controls and no
+                device-voice fallback. */}
+            {(() => {
+              const showPrompt = !!promptText && !SELF_PROMPT_KINDS.has(String(currentActivity.kind).toUpperCase());
+              const hasAudio = !!currentActivity.audioUrl;
+              if (!showPrompt && !hasAudio) return null;
+              return (
+                <View style={styles.promptRow}>
+                  {showPrompt ? <Text style={styles.promptText}>{promptText}</Text> : <View style={{ flex: 1 }} />}
+                  {hasAudio && (
+                    <>
+                      <TouchableOpacity activeOpacity={0.8} onPress={speakCurrent} style={styles.listenRound} hitSlop={6}>
+                        <Ionicons name="volume-high" size={16} color="#7c5cff" />
+                      </TouchableOpacity>
+                      <TouchableOpacity activeOpacity={0.8} onPress={cycleSpeed} style={styles.speedRound} hitSlop={6}>
+                        <Text style={styles.speedRoundText}>{speed}x</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              );
+            })()}
             <ActivityPlayer
               key={currentActivity.id}
               activity={currentActivity}
@@ -530,12 +643,12 @@ const TapSelectPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }
     if (c.correct) {
       setRightIdx(i);
       Speech.stop();
-      Speech.speak(`Yes! ${c.label ?? 'Correct'}!`, { language: 'en-US', pitch: 1.1 });
+      cheer(`${L('Yes', 'Vizuri')}! ${c.label ?? L('Correct', 'Sahihi')}!`, { language: activeTtsLang, pitch: 1.1 });
       onSolved({ choiceIndex: i });
     } else {
       setWrongIdx(i);
       Speech.stop();
-      Speech.speak('Not that one — try again!', { language: 'en-US', pitch: 1.05 });
+      cheer(L('Not that one — try again!', 'Si hiyo — jaribu tena!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setWrongIdx(null), 500);
     }
   };
@@ -570,15 +683,15 @@ const MultiSelectPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved
       setPicked(next);
       Speech.stop();
       if (next.length >= totalCorrect) {
-        Speech.speak('Great job! You found them all!', { language: 'en-US', pitch: 1.1 });
+        cheer(L('Great job! You found them all!', 'Hongera! Umezipata zote!'), { language: activeTtsLang, pitch: 1.1 });
         onSolved({ selected: next });
       } else {
-        Speech.speak('Yes!', { language: 'en-US', pitch: 1.1 });
+        cheer(L('Yes!', 'Vizuri!'), { language: activeTtsLang, pitch: 1.1 });
       }
     } else {
       setWrongIdx(i);
       Speech.stop();
-      Speech.speak('Not that one!', { language: 'en-US', pitch: 1.05 });
+      cheer(L('Not that one!', 'Si hiyo!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setWrongIdx(null), 500);
     }
   };
@@ -613,12 +726,12 @@ const CountPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) =>
     if (n === count) {
       setRightPick(n);
       Speech.stop();
-      Speech.speak(`Yes! ${n}!`, { language: 'en-US', pitch: 1.1 });
+      cheer(`${L('Yes', 'Vizuri')}! ${n}!`, { language: activeTtsLang, pitch: 1.1 });
       onSolved({ value: n });
     } else {
       setWrongPick(n);
       Speech.stop();
-      Speech.speak('Count again!', { language: 'en-US', pitch: 1.05 });
+      cheer(L('Count again!', 'Hesabu tena!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setWrongPick(null), 500);
     }
   };
@@ -658,18 +771,19 @@ const AudioMatchPlayer: React.FC<PlayerProps> = (props) => {
   const soundText: string = String(cfg.soundText ?? '');
 
   const playSound = () => {
-    Speech.stop();
-    if (soundText) Speech.speak(soundText, { language: 'en-US', pitch: 1.05, rate: 0.85 });
+    if (soundText || props.activity.audioUrl) say(props.activity.audioUrl, soundText);
   };
 
   return (
     <View>
-      <TouchableOpacity activeOpacity={0.85} onPress={playSound}>
-        <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bigListen}>
-          <Ionicons name="volume-high" size={22} color="#fff" />
-          <Text style={styles.bigListenText}>Play sound</Text>
-        </LinearGradient>
-      </TouchableOpacity>
+      {!!props.activity.audioUrl && (
+        <TouchableOpacity activeOpacity={0.85} onPress={playSound}>
+          <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bigListen}>
+            <Ionicons name="volume-high" size={22} color="#fff" />
+            <Text style={styles.bigListenText}>Play sound</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
       <TapSelectPlayer {...props} />
     </View>
   );
@@ -698,15 +812,15 @@ const SortBucketPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
       setSel(null);
       Speech.stop();
       if (Object.keys(next).length >= items.length) {
-        Speech.speak('You sorted them all! Amazing!', { language: 'en-US', pitch: 1.1 });
+        cheer(L('You sorted them all! Amazing!', 'Umepanga zote! Vizuri sana!'), { language: activeTtsLang, pitch: 1.1 });
         onSolved({ placements: next });
       } else {
-        Speech.speak('Yes!', { language: 'en-US', pitch: 1.1 });
+        cheer(L('Yes!', 'Vizuri!'), { language: activeTtsLang, pitch: 1.1 });
       }
     } else {
       setWrongBucket(bucketId);
       Speech.stop();
-      Speech.speak('Try another basket!', { language: 'en-US', pitch: 1.05 });
+      cheer(L('Try another basket!', 'Jaribu kikapu kingine!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setWrongBucket(null), 500);
     }
   };
@@ -789,7 +903,7 @@ const TrueFalsePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }
     if (answered || picked != null) return;
     setPicked(v);
     Speech.stop();
-    Speech.speak(v === correct ? 'Correct!' : 'Not quite!', { language: 'en-US', pitch: 1.1 });
+    cheer(v === correct ? L('Correct!', 'Sahihi!') : L('Not quite!', 'Sio sahihi!'), { language: activeTtsLang, pitch: 1.1 });
     onSolved({ value: v });
   };
   return (
@@ -818,15 +932,17 @@ const ListenTypePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
   const [value, setValue] = useState('');
   const [sent, setSent] = useState(false);
   const submit = () => { const t = value.trim(); if (!t || sent || answered) return; setSent(true); onSolved({ text: t }); };
-  const listen = () => { Speech.stop(); if (cfg.text) Speech.speak(String(cfg.text), { language: 'en-US', rate: 0.85 }); };
+  const listen = () => { if (cfg.text || activity.audioUrl) say(activity.audioUrl, String(cfg.text ?? '')); };
   return (
     <View>
-      <TouchableOpacity activeOpacity={0.85} onPress={listen}>
-        <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bigListen}>
-          <Ionicons name="volume-high" size={22} color="#fff" />
-          <Text style={styles.bigListenText}>Play</Text>
-        </LinearGradient>
-      </TouchableOpacity>
+      {!!activity.audioUrl && (
+        <TouchableOpacity activeOpacity={0.85} onPress={listen}>
+          <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.bigListen}>
+            <Ionicons name="volume-high" size={22} color="#fff" />
+            <Text style={styles.bigListenText}>Play</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
       <TextInput
         style={styles.input} value={value} onChangeText={setValue}
         placeholder="Type what you hear" placeholderTextColor="#9b93c4"
@@ -902,9 +1018,9 @@ const DragMatchPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }
     if (done || sel == null || matched.has(pi)) return;
     if (pi === sel) {
       const next = new Set(matched); next.add(pi); setMatched(next); setSel(null);
-      Speech.stop(); Speech.speak('Match!', { language: 'en-US', pitch: 1.1 });
+      Speech.stop(); cheer(L('Match!', 'Yamelingana!'), { language: activeTtsLang, pitch: 1.1 });
       if (next.size >= pairs.length) onSolved({ matches: Object.fromEntries(pairs.map((_, i) => [i, i])) });
-    } else { setWrong(pi); Speech.stop(); Speech.speak('Try again!', { language: 'en-US', pitch: 1.05 }); setTimeout(() => setWrong(null), 500); }
+    } else { setWrong(pi); Speech.stop(); cheer(L('Try again!', 'Jaribu tena!'), { language: activeTtsLang, pitch: 1.05 }); setTimeout(() => setWrong(null), 500); }
   };
 
   return (
@@ -949,9 +1065,9 @@ const SequenceOrderPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolv
     if (done || picked.has(oi)) return;
     if (oi === next) {
       const p = new Set(picked); p.add(oi); setPicked(p); setNext(next + 1);
-      Speech.stop(); Speech.speak(String(next + 1), { language: 'en-US', pitch: 1.1 });
+      Speech.stop(); cheer(String(next + 1), { language: activeTtsLang, pitch: 1.1 });
       if (p.size >= items.length) onSolved({ order: items.map((_, i) => i) });
-    } else { setWrong(oi); Speech.stop(); Speech.speak('Start from the beginning!', { language: 'en-US', pitch: 1.05 }); setTimeout(() => { setWrong(null); setPicked(new Set()); setNext(0); }, 700); }
+    } else { setWrong(oi); Speech.stop(); cheer(L('Start from the beginning!', 'Anza tena mwanzo!'), { language: activeTtsLang, pitch: 1.05 }); setTimeout(() => { setWrong(null); setPicked(new Set()); setNext(0); }, 700); }
   };
 
   return (
@@ -983,7 +1099,7 @@ const ComparePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) 
     if (answered || pick != null) return;
     setPick(i);
     const ok = counts[i] === target;
-    Speech.stop(); Speech.speak(ok ? 'Yes!' : 'Look again!', { language: 'en-US', pitch: 1.1 });
+    Speech.stop(); cheer(ok ? L('Yes!', 'Vizuri!') : L('Look again!', 'Angalia tena!'), { language: activeTtsLang, pitch: 1.1 });
     if (ok) onSolved({ groupIndex: i });
     else setTimeout(() => setPick(null), 600);
   };
@@ -1027,7 +1143,7 @@ const MemoryPairsPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved
       const [a, b] = next;
       if (cards[a].pi === cards[b].pi) {
         const m = new Set(matched); m.add(cards[a].pi); setMatched(m); setUp([]); setLock(false);
-        Speech.stop(); Speech.speak('Match!', { language: 'en-US', pitch: 1.1 });
+        Speech.stop(); cheer(L('Match!', 'Yamelingana!'), { language: activeTtsLang, pitch: 1.1 });
         if (m.size >= pairs.length) onSolved({ completed: true });
       } else {
         setTimeout(() => { setUp([]); setLock(false); }, 800);
@@ -1068,10 +1184,10 @@ const HotspotPlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved }) 
     if (done || found.has(i)) return;
     if (isTarget(objects[i])) {
       const n = new Set(found); n.add(i); setFound(n);
-      Speech.stop(); Speech.speak('Found it!', { language: 'en-US', pitch: 1.1 });
+      Speech.stop(); cheer(L('Found it!', 'Umeipata!'), { language: activeTtsLang, pitch: 1.1 });
       if (n.size >= targetCount) onSolved({ selected: [...n] });
     } else {
-      setMiss(i); Speech.stop(); Speech.speak('Keep looking!', { language: 'en-US', pitch: 1.05 });
+      setMiss(i); Speech.stop(); cheer(L('Keep looking!', 'Endelea kutafuta!'), { language: activeTtsLang, pitch: 1.05 });
       setTimeout(() => setMiss(null), 400);
     }
   };
@@ -1131,7 +1247,7 @@ const NumberLinePlayer: React.FC<PlayerProps> = ({ activity, answered, onSolved 
     if (answered || pick != null) return;
     const ok = target == null || Math.abs(n - target) <= tol;
     setPick(n);
-    Speech.stop(); Speech.speak(ok ? `Yes! ${n}` : 'Try again!', { language: 'en-US', pitch: 1.1 });
+    Speech.stop(); cheer(ok ? `${L('Yes', 'Vizuri')}! ${n}` : L('Try again!', 'Jaribu tena!'), { language: activeTtsLang, pitch: 1.1 });
     if (ok) onSolved({ value: n }); else setTimeout(() => setPick(null), 600);
   };
 
@@ -1178,7 +1294,7 @@ const ContentPlayer: React.FC<PlayerProps> = ({ activity }) => {
   const icon = isVideo ? '🎬' : kind === 'SPEAK' ? '🎤' : kind === 'READ' ? '📖'
     : kind === 'DRAW' || kind === 'COLOUR_IN' ? '🎨' : kind === 'TRACE' || kind === 'TRACE_GUIDED' ? '✏️'
     : kind === 'LABEL_DIAGRAM' ? '🏷️' : kind === 'PRACTICAL' ? '🧪' : '✨';
-  const speak = () => { Speech.stop(); if (body) Speech.speak(String(body), { language: 'en-US', rate: 0.9 }); };
+  const speak = () => { if (body || activity.audioUrl) say(activity.audioUrl, String(body)); };
   return (
     <View style={styles.contentCard}>
       <Text style={styles.contentIcon}>{icon}</Text>
@@ -1192,7 +1308,7 @@ const ContentPlayer: React.FC<PlayerProps> = ({ activity }) => {
           </LinearGradient>
         </TouchableOpacity>
       )}
-      {(kind === 'READ' || kind === 'SPEAK') && !!body && (
+      {(kind === 'READ' || kind === 'SPEAK') && !!activity.audioUrl && (
         <TouchableOpacity activeOpacity={0.85} onPress={speak}>
           <LinearGradient colors={['#3aa0ff', '#7c5cff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.watchBtn}>
             <Ionicons name="volume-high" size={18} color="#fff" />
@@ -1337,6 +1453,13 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     borderWidth: 1.5, borderColor: '#a78bfa',
   },
   listenChipText: { color: '#7c5cff', fontWeight: '800', fontSize: 12 },
+  audioRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  speedChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: S.card, paddingHorizontal: 11, paddingVertical: 7,
+    borderRadius: 99, marginTop: 12, borderWidth: 1.5, borderColor: '#a78bfa',
+  },
+  speedChipText: { color: '#7c5cff', fontWeight: '800', fontSize: 12 },
 
   // Prompt row
   promptRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
@@ -1346,6 +1469,12 @@ const makeSheet = (S: StudentColors) => StyleSheet.create({
     backgroundColor: S.ring, borderWidth: 1.5, borderColor: '#a78bfa',
     alignItems: 'center', justifyContent: 'center',
   },
+  speedRound: {
+    minWidth: 34, height: 34, borderRadius: 17, paddingHorizontal: 8,
+    backgroundColor: S.ring, borderWidth: 1.5, borderColor: '#a78bfa',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  speedRoundText: { color: '#7c5cff', fontWeight: '800', fontSize: 11 },
   hint: { fontSize: 12, color: S.inkSoft, fontWeight: '700', marginBottom: 10 },
 
   // Choice tiles (emoji/colour grid)
