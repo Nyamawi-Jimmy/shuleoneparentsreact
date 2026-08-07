@@ -55,7 +55,7 @@ const MAPS_KEY = process.env.EXPO_PUBLIC_ANDROID_MAPS_API_KEY ?? '';
 // reviewable in git instead of hidden in EAS state.
 //
 // Bump this for every Play upload.
-const ANDROID_VERSION_CODE = 97;
+const ANDROID_VERSION_CODE = 98;
 
 // iOS CFBundleVersion. Apple only requires uniqueness *within* a given
 // CFBundleShortVersionString (expo.version), so resetting to 1 on a new marketing

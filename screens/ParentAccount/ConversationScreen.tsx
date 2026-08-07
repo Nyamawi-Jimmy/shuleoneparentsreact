@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, Image,
   TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Keyboard,
+  Modal, Pressable, Linking,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -14,6 +15,20 @@ import { ColorPalette } from '../../theme/palettes';
 import { useChatConversation } from '../../hooks/useChatConversation';
 import { isCallingSupported } from '../../hooks/useCallManager';
 import { ChatMessage, ChatRole } from '../../api/chat.types';
+import { MAX_FILE_BYTES, MAX_FILE_LABEL } from '../../api/chat';
+
+// =================================================================
+// Conversation - one thread with a teacher or admin.
+//
+// The header gradient used to be two hardcoded rose hex values. They
+// happen to match the light palette, but they are fixed: in dark mode the
+// brand lifts to a lighter rose and the header stayed dark, so it no
+// longer matched anything else on screen. It reads from the palette now.
+//
+// Attachments used to open Alert.alert with four buttons, which is an OS
+// dialog with no styling and no icons. It is a proper sheet now, and the
+// upload reports real progress rather than freezing the send button.
+// =================================================================
 
 export const ConversationScreen: React.FC = () => {
   const { colors } = useTheme();
@@ -37,13 +52,41 @@ export const ConversationScreen: React.FC = () => {
     return () => { show.remove(); hide.remove(); };
   }, []);
 
-  const params = useLocalSearchParams<{ contactId?: string; name?: string; avatar?: string; role?: string }>();
+  const params = useLocalSearchParams<{
+    contactId?: string; name?: string; avatar?: string; role?: string;
+    subtitle?: string; online?: string; lastSeen?: string;
+  }>();
   const contactId = params.contactId ? Number(params.contactId) : null;
   const contactName = (params.name as string) || 'Contact';
   const contactAvatar = (params.avatar as string) || '';
   const peerRole = ((params.role as string) || 'TEACHER') as ChatRole;
+  const subtitle = (params.subtitle as string) || '';
+  const isOnline = !!params.online;
+  const lastSeen = (params.lastSeen as string) || '';
 
-  const { messages, loading, sendText, sendAttachment, retry } = useChatConversation({ peerId: contactId, peerRole });
+  const {
+    messages, loading, uploadProgress, error, clearError,
+    sendText, sendAttachment, retry,
+  } = useChatConversation({ peerId: contactId, peerRole });
+
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const flatRef = useRef<FlatList<ChatMessage>>(null);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 50);
+    }
+  }, [messages.length]);
+
+  // Upload failures now carry the server's wording (it explains the size cap
+  // on a 413); show it once, then clear so it cannot re-fire.
+  useEffect(() => {
+    if (!error) return;
+    Alert.alert('Could not send', error);
+    clearError();
+  }, [error, clearError]);
 
   const startCall = () => {
     if (contactId == null) return;
@@ -52,16 +95,6 @@ export const ConversationScreen: React.FC = () => {
       params: { mode: 'outgoing', peerId: String(contactId), peerRole: String(peerRole), peerName: contactName },
     } as any);
   };
-
-  const [input, setInput] = useState('');
-  const [sending, setSending] = useState(false);
-  const flatRef = useRef<FlatList<ChatMessage>>(null);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(() => flatRef.current?.scrollToEnd({ animated: true }), 50);
-    }
-  }, [messages.length]);
 
   const handleSend = async () => {
     const text = input.trim();
@@ -73,6 +106,17 @@ export const ConversationScreen: React.FC = () => {
     finally { setSending(false); }
   };
 
+  const guardSize = (size?: number | null): boolean => {
+    if (size != null && size > MAX_FILE_BYTES) {
+      Alert.alert(
+        'File too large',
+        `That file is ${formatBytes(size)}. The limit is ${MAX_FILE_LABEL}.`,
+      );
+      return false;
+    }
+    return true;
+  };
+
   const pickDocument = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -82,11 +126,13 @@ export const ConversationScreen: React.FC = () => {
       if (result.canceled) return;
       const file = result.assets?.[0];
       if (!file) return;
+      if (!guardSize(file.size)) return;
       setSending(true);
       await sendAttachment({
         uri: file.uri,
         name: file.name,
         type: file.mimeType ?? 'application/octet-stream',
+        size: file.size ?? undefined,
       });
     } catch (e: any) { Alert.alert('Upload failed', e?.message ?? 'Try again.'); }
     finally { setSending(false); }
@@ -110,53 +156,62 @@ export const ConversationScreen: React.FC = () => {
       if (result.canceled) return;
       const img = result.assets?.[0];
       if (!img) return;
+      if (!guardSize(img.fileSize)) return;
       setSending(true);
       await sendAttachment({
         uri: img.uri,
         name: img.fileName ?? `photo-${Date.now()}.jpg`,
         type: img.mimeType ?? 'image/jpeg',
+        size: img.fileSize ?? undefined,
       });
     } catch (e: any) { Alert.alert('Upload failed', e?.message ?? 'Try again.'); }
     finally { setSending(false); }
   };
 
-  // Paperclip → choose a source. A single picker meant a parent photographing
-  // homework had to save it to files first.
-  const handleAttach = () => {
-    Alert.alert('Send an attachment', 'What would you like to send?', [
-      { text: 'Take a photo', onPress: () => pickPhoto(true) },
-      { text: 'Choose a photo', onPress: () => pickPhoto(false) },
-      { text: 'Choose a file', onPress: pickDocument },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
+  const runAttach = (fn: () => void) => { setAttachOpen(false); setTimeout(fn, 220); };
 
-  const initials = contactName.split(/\s+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('');
+  const initials = contactName.split(/\s+/).filter(Boolean).slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() ?? '').join('');
+
+  const presence = isOnline
+    ? 'Online now'
+    : lastSeen
+      ? `Last seen ${formatRelative(lastSeen)}`
+      : subtitle || 'School staff';
+
+  const uploading = uploadProgress != null;
 
   return (
     <View style={styles.safe}>
       <LinearGradient
-        colors={['#FB7185', '#E11D48']}
+        // Palette-driven, so the header follows light/dark like everything else.
+        colors={[colors.primaryLight, colors.primary]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={[styles.header, { paddingTop: insets.top + 12 }]}
       >
         <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
           <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <View style={styles.headerAvatar}>
-          {contactAvatar ? (
-            <Image source={{ uri: contactAvatar }} style={{ width: 38, height: 38, borderRadius: 19 }} />
-          ) : (
-            <Text style={styles.headerInitials}>{initials || '?'}</Text>
-          )}
+
+        <View style={styles.headerAvatarWrap}>
+          <View style={styles.headerAvatar}>
+            {contactAvatar ? (
+              <Image source={{ uri: contactAvatar }} style={styles.headerAvatarImg} />
+            ) : (
+              <Text style={styles.headerInitials}>{initials || '?'}</Text>
+            )}
+          </View>
+          {isOnline && <View style={styles.headerOnlineDot} />}
         </View>
+
         <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.headerName} numberOfLines={1}>{contactName}</Text>
-          <Text style={styles.headerStatus}>School staff</Text>
+          <Text style={styles.headerStatus} numberOfLines={1}>{presence}</Text>
         </View>
+
         {isCallingSupported() && contactId != null && (
           <TouchableOpacity onPress={startCall} style={styles.callBtn} activeOpacity={0.85} hitSlop={8}>
-            <Ionicons name="call" size={19} color="#FFFFFF" />
+            <Ionicons name="call" size={18} color="#FFFFFF" />
           </TouchableOpacity>
         )}
       </LinearGradient>
@@ -203,39 +258,113 @@ export const ConversationScreen: React.FC = () => {
           />
         )}
 
-        <View style={[styles.composer, { paddingBottom: (kbUp ? 0 : insets.bottom) + 10 }]}>
-          <TouchableOpacity activeOpacity={0.7} onPress={handleAttach} style={styles.attachBtn}>
-            <Feather name="paperclip" size={18} color={colors.textSecondary} />
-          </TouchableOpacity>
-          <View style={styles.inputWrap}>
-            <TextInput
-              style={styles.input}
-              value={input}
-              onChangeText={setInput}
-              placeholder="Type a message…"
-              placeholderTextColor={colors.textTertiary}
-              multiline
-              maxLength={1000}
-            />
+        <View style={[styles.composerWrap, { paddingBottom: (kbUp ? 0 : insets.bottom) + 10 }]}>
+          {uploading && (
+            <View style={styles.uploadStrip}>
+              <View style={styles.uploadTrack}>
+                <View style={[styles.uploadFill, { width: `${uploadProgress}%` }]} />
+              </View>
+              <Text style={styles.uploadLabel}>Uploading… {uploadProgress}%</Text>
+            </View>
+          )}
+
+          <View style={styles.composer}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setAttachOpen(true)}
+              disabled={sending}
+              style={[styles.attachBtn, sending && { opacity: 0.5 }]}
+            >
+              <Feather name="paperclip" size={18} color={colors.primary} />
+            </TouchableOpacity>
+
+            <View style={styles.inputWrap}>
+              <TextInput
+                style={styles.input}
+                value={input}
+                onChangeText={setInput}
+                placeholder="Type a message…"
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                maxLength={1000}
+              />
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handleSend}
+              disabled={!input.trim() || sending}
+              style={[styles.sendBtn, (!input.trim() || sending) && { opacity: 0.45 }]}
+            >
+              {sending && !uploading
+                ? <ActivityIndicator size="small" color="#FFFFFF" />
+                : <Ionicons name="send" size={17} color="#FFFFFF" />}
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={handleSend}
-            disabled={!input.trim() || sending}
-            style={[styles.sendBtn, (!input.trim() || sending) && { opacity: 0.5 }]}
-          >
-            <Ionicons name="send" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <AttachSheet
+        visible={attachOpen}
+        onClose={() => setAttachOpen(false)}
+        onCamera={() => runAttach(() => pickPhoto(true))}
+        onPhoto={() => runAttach(() => pickPhoto(false))}
+        onFile={() => runAttach(pickDocument)}
+        colors={colors}
+        styles={styles}
+      />
     </View>
   );
 };
 
-const MessageBubble: React.FC<{ message: ChatMessage; onRetry: () => void; colors: ColorPalette; styles: any }> = ({ message, onRetry, colors, styles }) => {
+// =================================================================
+// Attach sheet - replaces a bare Alert.alert with something that
+// matches the app.
+// =================================================================
+const AttachSheet: React.FC<{
+  visible: boolean; onClose: () => void;
+  onCamera: () => void; onPhoto: () => void; onFile: () => void;
+  colors: ColorPalette; styles: any;
+}> = ({ visible, onClose, onCamera, onPhoto, onFile, colors, styles }) => (
+  <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Pressable style={styles.sheetBackdrop} onPress={onClose}>
+      <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <View style={styles.sheetGrip} />
+        <Text style={styles.sheetTitle}>SEND AN ATTACHMENT</Text>
+        <View style={styles.sheetRow}>
+          <SheetOption styles={styles} colors={colors} icon="camera" label="Camera" onPress={onCamera} />
+          <SheetOption styles={styles} colors={colors} icon="image" label="Photo" onPress={onPhoto} />
+          <SheetOption styles={styles} colors={colors} icon="file-text" label="File" onPress={onFile} />
+        </View>
+        <Text style={styles.sheetHint}>Images and PDFs, up to {MAX_FILE_LABEL}.</Text>
+      </Pressable>
+    </Pressable>
+  </Modal>
+);
+
+const SheetOption: React.FC<{
+  icon: any; label: string; onPress: () => void; colors: ColorPalette; styles: any;
+}> = ({ icon, label, onPress, colors, styles }) => (
+  <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={styles.sheetOption}>
+    <View style={styles.sheetIconCircle}>
+      <Feather name={icon} size={19} color={colors.primary} />
+    </View>
+    <Text style={styles.sheetOptionLabel}>{label}</Text>
+  </TouchableOpacity>
+);
+
+// =================================================================
+// Bubble
+// =================================================================
+const MessageBubble: React.FC<{
+  message: ChatMessage; onRetry: () => void; colors: ColorPalette; styles: any;
+}> = ({ message, onRetry, colors, styles }) => {
   const isMine = message.from === 'me';
   const status = String(message.status ?? '').toUpperCase();
   const isFailed = status === 'FAILED';
+  const url = message.attachmentUrl;
+  const type = String(message.attachmentType ?? '');
+  const isImage = !!url && (type.startsWith('image/') || /\.(jpe?g|png|gif|webp)$/i.test(url));
 
   return (
     <View style={[styles.bubbleRow, isMine && styles.bubbleRowMine]}>
@@ -244,26 +373,61 @@ const MessageBubble: React.FC<{ message: ChatMessage; onRetry: () => void; color
         isMine ? styles.bubbleMine : styles.bubbleOther,
         isFailed && styles.bubbleFailed,
       ]}>
-        {message.attachmentUrl && (
-          <Image source={{ uri: message.attachmentUrl }} style={styles.attachmentImg} />
+        {isImage && (
+          <Image source={{ uri: url! }} style={styles.attachmentImg} />
         )}
+
+        {/* A PDF used to be fed to <Image>, which rendered a blank box. */}
+        {!!url && !isImage && (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => Linking.openURL(url).catch(() => {})}
+            style={styles.fileCard}
+          >
+            <View style={styles.fileIcon}>
+              <Feather name="file-text" size={16} color={isMine ? '#FFFFFF' : colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text
+                numberOfLines={1}
+                style={[styles.fileName, isMine ? styles.bubbleTextMine : styles.bubbleTextOther]}
+              >
+                {message.attachmentName || 'Attachment'}
+              </Text>
+              {message.attachmentSize != null && (
+                <Text style={[styles.fileSize, isMine && { color: 'rgba(255,255,255,0.75)' }]}>
+                  {formatBytes(message.attachmentSize)}
+                </Text>
+              )}
+            </View>
+            <Feather name="download" size={14} color={isMine ? 'rgba(255,255,255,0.8)' : colors.textTertiary} />
+          </TouchableOpacity>
+        )}
+
         {!!message.text && (
           <Text style={[styles.bubbleText, isMine ? styles.bubbleTextMine : styles.bubbleTextOther]}>
             {message.text}
           </Text>
         )}
+
         <View style={styles.bubbleMetaRow}>
           <Text style={[styles.bubbleTime, isMine ? styles.bubbleTimeMine : styles.bubbleTimeOther]}>
             {formatTime(message.time)}
           </Text>
           {isMine && (status === 'SENT' || status === 'DELIVERED' || status === 'READ') && (
-            <Ionicons name="checkmark-done" size={11} color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
+            <Ionicons
+              name={status === 'READ' ? 'checkmark-done' : 'checkmark'}
+              size={12}
+              color={status === 'READ' ? '#BAE6FD' : 'rgba(255,255,255,0.7)'}
+              style={{ marginLeft: 4 }}
+            />
           )}
           {isMine && status === 'SENDING' && (
             <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" style={{ marginLeft: 4 }} />
           )}
         </View>
       </View>
+
       {isFailed && (
         <TouchableOpacity hitSlop={8} onPress={onRetry} style={styles.retryBtn}>
           <Ionicons name="refresh" size={12} color={colors.danger} />
@@ -274,6 +438,27 @@ const MessageBubble: React.FC<{ message: ChatMessage; onRetry: () => void; color
   );
 };
 
+// =================================================================
+// Helpers
+// =================================================================
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+function formatRelative(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return `${diffH}h ago`;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  } catch { return ''; }
+}
 function formatTime(iso: string | null): string {
   if (!iso) return '';
   try {
@@ -302,85 +487,145 @@ function formatDateLabel(iso: string | null): string {
 function makeStyles(c: ColorPalette) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.backgroundAlt },
+
     header: {
-      // paddingTop comes from the safe-area inset inline (see component).
-      paddingBottom: 14, paddingHorizontal: 16,
-      flexDirection: 'row', alignItems: 'center', gap: 12,
+      flexDirection: 'row', alignItems: 'center',
+      paddingHorizontal: 16, paddingBottom: 16,
+      borderBottomLeftRadius: 22, borderBottomRightRadius: 22,
     },
+    headerAvatarWrap: { position: 'relative', marginLeft: 10 },
     headerAvatar: {
-      width: 38, height: 38, borderRadius: 19,
-      backgroundColor: 'rgba(255,255,255,0.25)',
+      width: 38, height: 38, borderRadius: 13,
+      backgroundColor: 'rgba(255,255,255,0.22)',
+      borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
       alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
     },
+    headerAvatarImg: { width: 38, height: 38, borderRadius: 13 },
     headerInitials: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
+    headerOnlineDot: {
+      position: 'absolute', bottom: -2, right: -2,
+      width: 12, height: 12, borderRadius: 6,
+      backgroundColor: c.success, borderWidth: 2, borderColor: '#FFFFFF',
+    },
     headerName: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', letterSpacing: -0.2 },
-    headerStatus: { color: 'rgba(255,255,255,0.85)', fontSize: 11.5, fontWeight: '500' },
+    headerStatus: { color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: '600', marginTop: 1 },
     callBtn: {
-      width: 40, height: 40, borderRadius: 20,
-      backgroundColor: 'rgba(255,255,255,0.22)',
+      width: 36, height: 36, borderRadius: 12,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
       alignItems: 'center', justifyContent: 'center',
     },
 
-    messagesContent: { padding: 14, flexGrow: 1 },
+    messagesContent: { padding: 16, paddingBottom: 20 },
     dateSeparator: { alignItems: 'center', marginVertical: 12 },
     dateText: {
-      backgroundColor: c.card,
-      paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999,
-      fontSize: 11, color: c.textSecondary, fontWeight: '700',
+      fontSize: 10.5, fontWeight: '700', color: c.textSecondary,
+      backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
+      paddingHorizontal: 12, paddingVertical: 4, borderRadius: 10, overflow: 'hidden',
+    },
+
+    bubbleRow: { marginBottom: 8, alignItems: 'flex-start' },
+    bubbleRowMine: { alignItems: 'flex-end' },
+    bubble: { maxWidth: '80%', borderRadius: 16, paddingHorizontal: 12, paddingTop: 9, paddingBottom: 6 },
+    bubbleMine: { backgroundColor: c.primary, borderBottomRightRadius: 5 },
+    bubbleOther: {
+      backgroundColor: c.card, borderBottomLeftRadius: 5,
       borderWidth: 1, borderColor: c.border,
     },
-
-    bubbleRow: { marginVertical: 3, flexDirection: 'column', alignItems: 'flex-start' },
-    bubbleRowMine: { alignItems: 'flex-end' },
-    bubble: { maxWidth: '78%', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16 },
-    bubbleMine: { backgroundColor: c.primary, borderBottomRightRadius: 4 },
-    bubbleOther: { backgroundColor: c.card, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: c.border },
-    bubbleFailed: { borderColor: c.danger, borderWidth: 1 },
-    bubbleText: { fontSize: 14, lineHeight: 19, fontWeight: '500' },
+    bubbleFailed: { borderWidth: 1, borderColor: c.danger },
+    bubbleText: { fontSize: 13.5, lineHeight: 19 },
     bubbleTextMine: { color: '#FFFFFF' },
     bubbleTextOther: { color: c.text },
-    bubbleMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4 },
-    bubbleTime: { fontSize: 10, fontWeight: '600' },
+    bubbleMetaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: 3 },
+    bubbleTime: { fontSize: 9.5, fontWeight: '600' },
     bubbleTimeMine: { color: 'rgba(255,255,255,0.75)' },
     bubbleTimeOther: { color: c.textTertiary },
-    attachmentImg: { width: 180, height: 180, borderRadius: 10, marginBottom: 6 },
-    retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4, paddingHorizontal: 4 },
-    retryText: { color: c.danger, fontSize: 11, fontWeight: '700' },
 
-    composer: {
-      flexDirection: 'row', alignItems: 'flex-end',
-      paddingHorizontal: 12, paddingVertical: 10, gap: 8,
-      backgroundColor: c.background,
-      borderTopWidth: 1, borderTopColor: c.border,
+    attachmentImg: { width: 200, height: 150, borderRadius: 10, marginBottom: 6 },
+    fileCard: {
+      flexDirection: 'row', alignItems: 'center', gap: 9,
+      backgroundColor: 'rgba(127,127,127,0.12)',
+      borderRadius: 10, padding: 8, marginBottom: 6, minWidth: 180,
     },
+    fileIcon: {
+      width: 30, height: 30, borderRadius: 9,
+      backgroundColor: 'rgba(127,127,127,0.16)',
+      alignItems: 'center', justifyContent: 'center',
+    },
+    fileName: { fontSize: 12, fontWeight: '700' },
+    fileSize: { fontSize: 10, color: c.textTertiary, marginTop: 1, fontWeight: '600' },
+
+    retryBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, paddingHorizontal: 4 },
+    retryText: { fontSize: 11, color: c.danger, fontWeight: '700' },
+
+    composerWrap: {
+      backgroundColor: c.card,
+      borderTopWidth: 1, borderTopColor: c.border,
+      paddingTop: 8,
+    },
+    uploadStrip: { paddingHorizontal: 16, paddingBottom: 8 },
+    uploadTrack: { height: 3, borderRadius: 2, backgroundColor: c.border, overflow: 'hidden' },
+    uploadFill: { height: 3, borderRadius: 2, backgroundColor: c.primary },
+    uploadLabel: { fontSize: 10.5, color: c.textSecondary, fontWeight: '600', marginTop: 5 },
+
+    composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 12 },
     attachBtn: {
-      width: 38, height: 38, borderRadius: 19,
-      backgroundColor: c.scheme === 'dark' ? c.card : '#F3F4F6',
+      width: 42, height: 42, borderRadius: 14,
+      backgroundColor: c.primarySofter,
+      borderWidth: 1, borderColor: c.border,
       alignItems: 'center', justifyContent: 'center',
     },
     inputWrap: {
-      flex: 1,
-      backgroundColor: c.scheme === 'dark' ? c.card : '#F3F4F6',
-      borderRadius: 20,
-      paddingHorizontal: 14, paddingVertical: 8, maxHeight: 110,
+      flex: 1, backgroundColor: c.backgroundAlt,
+      borderWidth: 1, borderColor: c.border,
+      borderRadius: 21, paddingHorizontal: 16, maxHeight: 110, justifyContent: 'center',
     },
-    input: { fontSize: 14, color: c.text, fontWeight: '500', padding: 0, minHeight: 22 },
+    input: { fontSize: 13.5, color: c.text, paddingVertical: 11, fontWeight: '500' },
     sendBtn: {
-      width: 38, height: 38, borderRadius: 19,
+      width: 42, height: 42, borderRadius: 14,
       backgroundColor: c.primary,
       alignItems: 'center', justifyContent: 'center',
-      shadowColor: c.primary, shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3, shadowRadius: 8, elevation: 3,
     },
 
-    center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
+    sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+    sheet: {
+      backgroundColor: c.card,
+      borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      paddingHorizontal: 20, paddingTop: 10, paddingBottom: 28,
+    },
+    sheetGrip: {
+      width: 40, height: 4, borderRadius: 10,
+      backgroundColor: c.border, alignSelf: 'center', marginBottom: 18,
+    },
+    sheetTitle: {
+      fontSize: 10, fontWeight: '800', color: c.textTertiary,
+      letterSpacing: 1.2, marginBottom: 14,
+    },
+    sheetRow: { flexDirection: 'row', gap: 10 },
+    sheetOption: {
+      flex: 1, alignItems: 'center', paddingVertical: 16,
+      backgroundColor: c.backgroundAlt,
+      borderWidth: 1, borderColor: c.border, borderRadius: 14,
+    },
+    sheetIconCircle: {
+      width: 42, height: 42, borderRadius: 21,
+      backgroundColor: c.primarySoft,
+      alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+    },
+    sheetOptionLabel: { fontSize: 11.5, fontWeight: '700', color: c.text },
+    sheetHint: { fontSize: 11, color: c.textTertiary, marginTop: 14, fontWeight: '500' },
+
+    center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
     loadingText: { fontSize: 12.5, color: c.textSecondary, marginTop: 12, fontWeight: '500' },
     emptyCircle: {
-      width: 56, height: 56, borderRadius: 28,
+      width: 56, height: 56, borderRadius: 18,
       backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
       alignItems: 'center', justifyContent: 'center', marginBottom: 12,
     },
     emptyTitle: { fontSize: 16, fontWeight: '800', color: c.text },
-    emptyText: { fontSize: 12.5, color: c.textSecondary, marginTop: 6, textAlign: 'center', paddingHorizontal: 40, lineHeight: 17 },
+    emptyText: {
+      fontSize: 12.5, color: c.textSecondary, marginTop: 6,
+      textAlign: 'center', paddingHorizontal: 40, lineHeight: 17,
+    },
   });
 }
