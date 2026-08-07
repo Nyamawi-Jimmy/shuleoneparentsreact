@@ -34,8 +34,25 @@ export interface StudentFeeSummary {
   paid: number | string | null;
   billed: number | string | null;
   carryForward?: number | string | null;
+  broughtForward?: number | string | null;   // web StudentHome: prior-terms balance carried in (part of "due")
+  currency?: string | null;                   // e.g. 'KES'
   year?: number | null;
   term?: number | null;
+}
+
+/**
+ * /api/student/readiness → exam readiness (scholar / SSS). Mirrors the web
+ * StudentHome `ready` shape; fail-soft — treated as null when `subjects` is empty.
+ */
+export interface StudentReadinessSubject {
+  subject: string;
+  score: number;              // 0..100
+  trend?: string | null;      // 'UP' | 'DOWN' | other
+}
+export interface StudentReadiness {
+  overall?: number | null;    // 0..100 overall %
+  premium?: boolean | null;   // false → show the Premium upsell
+  subjects: StudentReadinessSubject[];
 }
 
 /** /api/student/assignments → StudentAssignment[] (partner-school students only) */
